@@ -9,6 +9,12 @@ export interface PluginConfig {
 	 * @default true
 	 */
 	codexMode?: boolean;
+
+	/**
+	 * Enable prompt caching by maintaining session state across turns
+	 * @default false
+	 */
+	enablePromptCaching?: boolean;
 }
 
 /**
@@ -133,6 +139,8 @@ export interface RequestBody {
 		verbosity?: "low" | "medium" | "high";
 	};
 	include?: string[];
+	metadata?: Record<string, unknown>;
+	prompt_cache_key?: string;
 	max_output_tokens?: number;
 	max_completion_tokens?: number;
 	[key: string]: unknown;
@@ -144,6 +152,43 @@ export interface RequestBody {
 export interface SSEEventData {
 	type: string;
 	response?: unknown;
+	[key: string]: unknown;
+}
+
+/**
+ * Internal session information for prompt caching
+ */
+export interface SessionState {
+	id: string;
+	promptCacheKey: string;
+	store: boolean;
+	lastInput: InputItem[];
+	lastPrefixHash: string | null;
+	lastUpdated: number;
+	lastCachedTokens?: number;
+}
+
+/**
+ * Context returned by the session manager for a specific request
+ */
+export interface SessionContext {
+	sessionId: string;
+	enabled: boolean;
+	preserveIds: boolean;
+	isNew: boolean;
+	state: SessionState;
+}
+
+/**
+ * Minimal Codex response payload used for session updates
+ */
+export interface CodexResponsePayload {
+	usage?: {
+		cached_tokens?: number;
+		[k: string]: unknown;
+	};
+	output?: unknown[];
+	items?: unknown[];
 	[key: string]: unknown;
 }
 

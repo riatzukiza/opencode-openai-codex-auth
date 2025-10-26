@@ -113,8 +113,11 @@ export function getReasoningConfig(
  */
 export function filterInput(
 	input: InputItem[] | undefined,
+	options: { preserveIds?: boolean } = {},
 ): InputItem[] | undefined {
 	if (!Array.isArray(input)) return input;
+
+	const { preserveIds = false } = options;
 
 	return input
 		.filter((item) => {
@@ -126,7 +129,7 @@ export function filterInput(
 		})
 		.map((item) => {
 			// Strip IDs from all items (Codex API stateless mode)
-			if (item.id) {
+			if (item.id && !preserveIds) {
 				const { id, ...itemWithoutId } = item;
 				return itemWithoutId as InputItem;
 			}
@@ -283,9 +286,11 @@ export async function transformRequestBody(
 	codexInstructions: string,
 	userConfig: UserConfig = { global: {}, models: {} },
 	codexMode = true,
+	options: { preserveIds?: boolean } = {},
 ): Promise<RequestBody> {
 	const originalModel = body.model;
 	const normalizedModel = normalizeModel(body.model);
+	const preserveIds = options.preserveIds ?? false;
 
 	// Get model-specific configuration using ORIGINAL model name (config key)
 	// This allows per-model options like "gpt-5-codex-low" to work correctly
@@ -312,17 +317,21 @@ export async function transformRequestBody(
 		// Debug: Log original input message IDs before filtering
 		const originalIds = body.input.filter(item => item.id).map(item => item.id);
 		if (originalIds.length > 0) {
-			logDebug(`Filtering ${originalIds.length} message IDs from input:`, originalIds);
+			logDebug(`Processing ${originalIds.length} message IDs from input (preserve=${preserveIds})`, originalIds);
 		}
 
-		body.input = filterInput(body.input);
+		body.input = filterInput(body.input, { preserveIds });
 
 		// Debug: Verify all IDs were removed
-		const remainingIds = (body.input || []).filter(item => item.id).map(item => item.id);
-		if (remainingIds.length > 0) {
-			logWarn(`WARNING: ${remainingIds.length} IDs still present after filtering:`, remainingIds);
+		if (!preserveIds) {
+			const remainingIds = (body.input || []).filter(item => item.id).map(item => item.id);
+			if (remainingIds.length > 0) {
+				logWarn(`WARNING: ${remainingIds.length} IDs still present after filtering:`, remainingIds);
+			} else if (originalIds.length > 0) {
+				logDebug(`Successfully removed all ${originalIds.length} message IDs`);
+			}
 		} else if (originalIds.length > 0) {
-			logDebug(`Successfully removed all ${originalIds.length} message IDs`);
+			logDebug(`Preserving ${originalIds.length} message IDs for prompt caching`);
 		}
 
 		if (codexMode) {

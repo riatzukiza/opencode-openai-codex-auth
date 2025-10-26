@@ -39,7 +39,7 @@ describe('Plugin Configuration', () => {
 
 			const config = loadPluginConfig();
 
-			expect(config).toEqual({ codexMode: true });
+			expect(config).toEqual({ codexMode: true, enablePromptCaching: false });
 			expect(mockExistsSync).toHaveBeenCalledWith(
 				path.join(os.homedir(), '.opencode', 'openai-codex-auth-config.json')
 			);
@@ -47,11 +47,11 @@ describe('Plugin Configuration', () => {
 
 		it('should load config from file when it exists', () => {
 			mockExistsSync.mockReturnValue(true);
-			mockReadFileSync.mockReturnValue(JSON.stringify({ codexMode: false }));
+			mockReadFileSync.mockReturnValue(JSON.stringify({ codexMode: false, enablePromptCaching: true }));
 
 			const config = loadPluginConfig();
 
-			expect(config).toEqual({ codexMode: false });
+			expect(config).toEqual({ codexMode: false, enablePromptCaching: true });
 		});
 
 		it('should merge user config with defaults', () => {
@@ -60,7 +60,7 @@ describe('Plugin Configuration', () => {
 
 			const config = loadPluginConfig();
 
-			expect(config).toEqual({ codexMode: true });
+			expect(config).toEqual({ codexMode: true, enablePromptCaching: false });
 		});
 
 		it('should handle invalid JSON gracefully', () => {
@@ -70,7 +70,7 @@ describe('Plugin Configuration', () => {
 			const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 			const config = loadPluginConfig();
 
-			expect(config).toEqual({ codexMode: true });
+			expect(config).toEqual({ codexMode: true, enablePromptCaching: false });
 			expect(consoleSpy).toHaveBeenCalled();
 			consoleSpy.mockRestore();
 		});
@@ -84,7 +84,7 @@ describe('Plugin Configuration', () => {
 			const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 			const config = loadPluginConfig();
 
-			expect(config).toEqual({ codexMode: true });
+			expect(config).toEqual({ codexMode: true, enablePromptCaching: false });
 			expect(consoleSpy).toHaveBeenCalled();
 			consoleSpy.mockRestore();
 		});

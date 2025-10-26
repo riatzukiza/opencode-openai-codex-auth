@@ -344,6 +344,13 @@ If you want to customize settings yourself, you can configure options at provide
 
 > **Note**: `minimal` effort is auto-normalized to `low` for gpt-5-codex (not supported by the API).
 
+#### Plugin-Level Settings
+
+Set these in `~/.opencode/openai-codex-auth-config.json`:
+
+- `codexMode` (default `true`): enable the Codex ↔ OpenCode bridge prompt
+- `enablePromptCaching` (default `false`): keep a stable `prompt_cache_key` and preserved message IDs so Codex can reuse cached prompts
+
 #### Global Configuration Example
 
 Apply settings to all models:

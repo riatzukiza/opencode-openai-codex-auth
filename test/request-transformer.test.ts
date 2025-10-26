@@ -299,6 +299,19 @@ describe('Request Transformer Module', () => {
 			const result = filterInput(input);
 			expect(result).toEqual([]);
 		});
+
+		it('should preserve IDs when explicitly requested', async () => {
+			const input: InputItem[] = [
+				{ id: 'msg_1', type: 'message', role: 'user', content: 'hello' },
+				{ id: 'tool_1', type: 'function_call', role: 'assistant' },
+			];
+
+			const result = filterInput(input, { preserveIds: true });
+
+			expect(result).toHaveLength(2);
+			expect(result?.[0].id).toBe('msg_1');
+			expect(result?.[1].id).toBe('tool_1');
+		});
 	});
 
 	describe('addToolRemapMessage', () => {
@@ -644,6 +657,21 @@ describe('Request Transformer Module', () => {
 			expect(result.input![1]).not.toHaveProperty('id');
 			expect(result.input![0].content).toBe('old');
 			expect(result.input![1].content).toBe('new');
+		});
+
+		it('should preserve IDs when preserveIds option is set', async () => {
+			const body: RequestBody = {
+				model: 'gpt-5',
+				input: [
+					{ id: 'msg_1', type: 'message', role: 'user', content: 'hello' },
+					{ id: 'call_1', type: 'function_call', role: 'assistant' },
+				],
+			};
+			const result = await transformRequestBody(body, codexInstructions, undefined, true, { preserveIds: true });
+
+			expect(result.input).toHaveLength(2);
+			expect(result.input?.[0].id).toBe('msg_1');
+			expect(result.input?.[1].id).toBe('call_1');
 		});
 
 		it('should add tool remap message when tools present', async () => {

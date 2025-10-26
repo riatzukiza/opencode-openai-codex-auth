@@ -9,7 +9,8 @@ import { refreshAccessToken } from "../auth/auth.js";
 import { logRequest } from "../logger.js";
 import { transformRequestBody } from "./request-transformer.js";
 import { convertSseToJson, ensureContentType } from "./response-handler.js";
-import type { UserConfig, RequestBody } from "../types.js";
+import type { UserConfig, RequestBody, SessionContext } from "../types.js";
+import { SessionManager } from "../session/session-manager.js";
 import {
 	PLUGIN_NAME,
 	HTTP_STATUS,
@@ -111,12 +112,14 @@ export async function transformRequestForCodex(
 	codexInstructions: string,
 	userConfig: UserConfig,
 	codexMode = true,
-): Promise<{ body: RequestBody; updatedInit: RequestInit } | undefined> {
+	sessionManager?: SessionManager,
+): Promise<{ body: RequestBody; updatedInit: RequestInit; sessionContext?: SessionContext } | undefined> {
 	if (!init?.body) return undefined;
 
 	try {
 		const body = JSON.parse(init.body as string) as RequestBody;
 		const originalModel = body.model;
+		const sessionContext = sessionManager?.getContext(body);
 
 		// Log original request
 		logRequest(LOG_STAGES.BEFORE_TRANSFORM, {
@@ -136,7 +139,9 @@ export async function transformRequestForCodex(
 			codexInstructions,
 			userConfig,
 			codexMode,
+			{ preserveIds: sessionContext?.preserveIds },
 		);
+		const appliedContext = sessionManager?.applyRequest(transformedBody, sessionContext) ?? sessionContext;
 
 		// Log transformed request
 		logRequest(LOG_STAGES.AFTER_TRANSFORM, {
@@ -155,6 +160,7 @@ export async function transformRequestForCodex(
 		return {
 			body: transformedBody,
 			updatedInit: { ...init, body: JSON.stringify(transformedBody) },
+			sessionContext: appliedContext,
 		};
 	} catch (e) {
 		console.error(`[${PLUGIN_NAME}] ${ERROR_MESSAGES.REQUEST_PARSE_ERROR}:`, e);

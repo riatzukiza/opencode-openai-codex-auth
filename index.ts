@@ -27,7 +27,7 @@ import type { Auth } from "@opencode-ai/sdk";
 import { createAuthorizationFlow, exchangeAuthorizationCode, decodeJWT, REDIRECT_URI } from "./lib/auth/auth.js";
 import { getCodexInstructions } from "./lib/prompts/codex.js";
 import { startLocalOAuthServer } from "./lib/auth/server.js";
-import { logRequest } from "./lib/logger.js";
+import { logRequest, logDebug } from "./lib/logger.js";
 import { openBrowserUrl } from "./lib/auth/browser.js";
 import {
 	shouldRefreshToken,
@@ -40,6 +40,7 @@ import {
 	handleSuccessResponse,
 } from "./lib/request/fetch-helpers.js";
 import { loadPluginConfig, getCodexMode } from "./lib/config.js";
+import { SessionManager } from "./lib/session/session-manager.js";
 import type { UserConfig } from "./lib/types.js";
 import {
 	DUMMY_API_KEY,
@@ -109,10 +110,14 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 					models: providerConfig?.models || {},
 				};
 
-				// Load plugin configuration and determine CODEX_MODE
-				// Priority: CODEX_MODE env var > config file > default (true)
-				const pluginConfig = loadPluginConfig();
-				const codexMode = getCodexMode(pluginConfig);
+			// Load plugin configuration and determine CODEX_MODE
+			// Priority: CODEX_MODE env var > config file > default (true)
+			const pluginConfig = loadPluginConfig();
+			const codexMode = getCodexMode(pluginConfig);
+			const promptCachingEnabled = pluginConfig.enablePromptCaching ?? false;
+			const sessionManager = new SessionManager({
+				enabled: promptCachingEnabled,
+			});
 
 				// Fetch Codex system instructions (cached with ETag for efficiency)
 				const CODEX_INSTRUCTIONS = await getCodexInstructions();
@@ -151,9 +156,17 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 						const url = rewriteUrlForCodex(originalUrl);
 
 						// Step 3: Transform request body with Codex instructions
-						const transformation = await transformRequestForCodex(init, url, CODEX_INSTRUCTIONS, userConfig, codexMode);
-						const hasTools = transformation?.body.tools !== undefined;
-						const requestInit = transformation?.updatedInit ?? init;
+					const transformation = await transformRequestForCodex(
+						init,
+						url,
+						CODEX_INSTRUCTIONS,
+						userConfig,
+						codexMode,
+						sessionManager,
+					);
+					const hasTools = transformation?.body.tools !== undefined;
+					const requestInit = transformation?.updatedInit ?? init;
+					const sessionContext = transformation?.sessionContext;
 
 						// Step 4: Create headers with OAuth and ChatGPT account info
 						const accessToken = currentAuth.type === "oauth" ? currentAuth.access : "";
@@ -178,9 +191,25 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 							return await handleErrorResponse(response);
 						}
 
-						return await handleSuccessResponse(response, hasTools);
-					},
-				};
+					const handledResponse = await handleSuccessResponse(response, hasTools);
+
+					if (
+						sessionContext &&
+						handledResponse.headers.get("content-type")?.includes("application/json")
+					) {
+						try {
+							const payload = await handledResponse.clone().json();
+							sessionManager.recordResponse(sessionContext, payload);
+						} catch (error) {
+							logDebug("SessionManager: failed to parse response payload", {
+								error: (error as Error).message,
+							});
+						}
+					}
+
+					return handledResponse;
+				},
+			};
 			},
 			methods: [
 				{
