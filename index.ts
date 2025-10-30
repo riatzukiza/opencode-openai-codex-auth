@@ -39,9 +39,14 @@ import {
 	handleErrorResponse,
 	handleSuccessResponse,
 } from "./lib/request/fetch-helpers.js";
+import { type ConversationMemory } from "./lib/request/request-transformer.js";
 import { loadPluginConfig, getCodexMode } from "./lib/config.js";
+<<<<<<< HEAD
 import { SessionManager } from "./lib/session/session-manager.js";
 import type { CodexResponsePayload, UserConfig } from "./lib/types.js";
+=======
+import type { UserConfig, InputItem } from "./lib/types.js";
+>>>>>>> a227eb4 (Add codex prompt caching and improve codex parity with correct tool shapes)
 import {
 	DUMMY_API_KEY,
 	CODEX_BASE_URL,
@@ -143,6 +148,17 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 				// Fetch Codex system instructions (cached with ETag for efficiency)
 				const CODEX_INSTRUCTIONS = await getCodexInstructions();
 
+<<<<<<< HEAD
+=======
+				// Generate a stable conversation/session id for prompt caching during this loader's lifetime
+				const stableConversationId = (globalThis as any).crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
+				const conversationMemory: ConversationMemory = {
+					entries: new Map(),
+					payloads: new Map(),
+					usage: new Map(),
+				};
+
+>>>>>>> a227eb4 (Add codex prompt caching and improve codex parity with correct tool shapes)
 				// Return SDK configuration
 				return {
 					apiKey: DUMMY_API_KEY,
@@ -176,6 +192,7 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 						const originalUrl = extractRequestUrl(input);
 						const url = rewriteUrlForCodex(originalUrl);
 
+<<<<<<< HEAD
 						// Step 3: Transform request body with Codex instructions
 					const transformation = await transformRequestForCodex(
 						init,
@@ -188,6 +205,20 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 					const hasTools = transformation?.body.tools !== undefined;
 					const requestInit = transformation?.updatedInit ?? init;
 					const sessionContext = transformation?.sessionContext;
+=======
+						// Step 3: Transform request body with Codex instructions and stable prompt cache key
+						const transformation = await transformRequestForCodex(
+							init,
+							url,
+							CODEX_INSTRUCTIONS,
+							userConfig,
+							codexMode,
+							stableConversationId,
+							conversationMemory,
+						);
+						const hasTools = transformation?.body.tools !== undefined;
+						const requestInit = transformation?.updatedInit ?? init;
+>>>>>>> a227eb4 (Add codex prompt caching and improve codex parity with correct tool shapes)
 
 						// Step 4: Create headers with OAuth and ChatGPT account info
 						const accessToken = currentAuth.type === "oauth" ? currentAuth.access : "";
@@ -217,6 +248,7 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 							return await handleErrorResponse(response);
 						}
 
+<<<<<<< HEAD
 					const handledResponse = await handleSuccessResponse(response, hasTools);
 
 					if (
@@ -242,6 +274,11 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 					return handledResponse;
 				},
 			};
+=======
+						return await handleSuccessResponse(response, hasTools, conversationMemory);
+					},
+				};
+>>>>>>> a227eb4 (Add codex prompt caching and improve codex parity with correct tool shapes)
 			},
 			methods: [
 				{
