@@ -18,8 +18,8 @@
  * For production applications, use the OpenAI Platform API: https://platform.openai.com/
  *
  * @license MIT with Usage Disclaimer (see LICENSE file)
- * @author numman-ali
- * @repository https://github.com/numman-ali/opencode-openai-codex-auth
+ * @author riatzukiza
+ * @repository https://github.com/riatzukiza/opencode-openai-codex-auth
  */
 
 import type { Plugin, PluginInput } from "@opencode-ai/plugin";
@@ -63,7 +63,7 @@ import {
  * @example
  * ```json
  * {
- *   "plugin": ["opencode-openai-codex-auth"],
+ *   "plugin": ["@promethean-os/opencode-openai-codex-auth"],
  *   "model": "openai/gpt-5-codex"
  * }
  * ```

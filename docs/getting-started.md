@@ -35,7 +35,7 @@ Add this to `~/.config/opencode/opencode.json`:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-openai-codex-auth"],
+  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
   "provider": {
     "openai": {
       "options": {
@@ -156,7 +156,7 @@ Just want to get started quickly?
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-openai-codex-auth"],
+  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
   "model": "openai/gpt-5-codex"
 }
 ```
@@ -213,7 +213,7 @@ When a new version is released, you must manually update:
 
 ```bash
 # Step 1: Clear plugin cache
-(cd ~ && sed -i.bak '/"opencode-openai-codex-auth"/d' .cache/opencode/package.json && rm -rf .cache/opencode/node_modules/opencode-openai-codex-auth)
+(cd ~ && sed -i.bak '/"@promethean-os\/opencode-openai-codex-auth"/d' .cache/opencode/package.json && rm -rf .cache/opencode/node_modules/@promethean-os/opencode-openai-codex-auth)
 
 # Step 2: Restart OpenCode - it will reinstall the latest version
 opencode
@@ -224,7 +224,7 @@ opencode
 - Bug fixes available
 - Security updates
 
-**Check for updates**: [Releases Page](https://github.com/numman-ali/opencode-openai-codex-auth/releases)
+**Check for updates**: [Releases Page](https://github.com/riatzukiza/opencode-openai-codex-auth/releases)
 
 **Pro tip**: Subscribe to release notifications on GitHub to get notified of updates.
 
@@ -236,7 +236,7 @@ For plugin development or testing unreleased changes:
 
 ```json
 {
-  "plugin": ["file:///absolute/path/to/opencode-openai-codex-auth/dist"]
+  "plugin": ["file:///absolute/path/to/your-fork/opencode-openai-codex-auth/dist"]
 }
 ```
 
@@ -277,6 +277,32 @@ ENABLE_PLUGIN_REQUEST_LOGGING=1 opencode run "test" --model=openai/gpt-5-codex
 ls ~/.opencode/logs/codex-plugin/
 # Should show request logs
 ```
+
+---
+
+## 💰 Token Usage & Cost Optimization
+
+**Prompt caching is enabled by default** to minimize your costs.
+
+### What This Means
+- Your conversation context is preserved across turns
+- Token usage is significantly reduced for multi-turn conversations
+- Lower overall costs compared to stateless operation
+
+### Managing Caching
+Create `~/.opencode/openai-codex-auth-config.json`:
+
+```json
+{
+  "enablePromptCaching": true
+}
+```
+
+**Settings:**
+- `true` (default): Optimize for cost savings
+- `false`: Fresh context each turn (higher costs)
+
+**⚠️ Warning**: Disabling caching will dramatically increase token usage and costs.
 
 ---
 

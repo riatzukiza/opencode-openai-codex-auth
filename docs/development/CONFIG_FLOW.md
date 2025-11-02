@@ -184,7 +184,7 @@ For a given model, options are merged:
 ### Example 1: Global Options Only
 ```json
 {
-  "plugin": ["opencode-openai-codex-auth"],
+  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
   "provider": {
     "openai": {
       "options": {
@@ -202,7 +202,7 @@ For a given model, options are merged:
 ### Example 2: Per-Model Override
 ```json
 {
-  "plugin": ["opencode-openai-codex-auth"],
+  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
   "provider": {
     "openai": {
       "options": {
@@ -238,7 +238,7 @@ For a given model, options are merged:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-openai-codex-auth"],
+  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
   "model": "openai/gpt-5-codex-medium",
   "provider": {
     "openai": {

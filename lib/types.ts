@@ -12,7 +12,8 @@ export interface PluginConfig {
 
 	/**
 	 * Enable prompt caching by maintaining session state across turns
-	 * @default false
+	 * Reduces token usage and costs by preserving conversation context
+	 * @default true
 	 */
 	enablePromptCaching?: boolean;
 }

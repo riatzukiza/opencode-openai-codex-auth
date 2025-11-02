@@ -148,7 +148,7 @@ Items are not persisted when `store` is set to false.
 **Solution:**
 ```bash
 # Update plugin
-(cd ~ && sed -i.bak '/"opencode-openai-codex-auth"/d' .cache/opencode/package.json && rm -rf .cache/opencode/node_modules/opencode-openai-codex-auth)
+(cd ~ && sed -i.bak '/"@promethean-os\/opencode-openai-codex-auth"/d' .cache/opencode/package.json && rm -rf .cache/opencode/node_modules/@promethean-os/opencode-openai-codex-auth)
 
 # Restart OpenCode
 opencode
@@ -371,7 +371,7 @@ cat ~/.opencode/logs/codex-plugin/request-*-stream-full.json | grep -o '"total_t
    - Config file (redact sensitive info)
 
 3. **Check existing issues:**
-   - [GitHub Issues](https://github.com/numman-ali/opencode-openai-codex-auth/issues)
+   - [GitHub Issues](https://github.com/riatzukiza/opencode-openai-codex-auth/issues)
 
 ### Reporting Bugs
 

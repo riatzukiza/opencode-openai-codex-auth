@@ -7,7 +7,7 @@ Complete reference for configuring the OpenCode OpenAI Codex Auth Plugin.
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-openai-codex-auth"],
+  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
   "provider": {
     "openai": {
       "options": {
@@ -151,7 +151,7 @@ Apply same settings to all models:
 
 ```json
 {
-  "plugin": ["opencode-openai-codex-auth"],
+  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
   "provider": {
     "openai": {
       "options": {
@@ -172,7 +172,7 @@ Different settings for different models:
 
 ```json
 {
-  "plugin": ["opencode-openai-codex-auth"],
+  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
   "provider": {
     "openai": {
       "options": {
@@ -297,7 +297,7 @@ Global config has defaults, project overrides for specific work:
 **~/.config/opencode/opencode.json** (global):
 ```json
 {
-  "plugin": ["opencode-openai-codex-auth"],
+  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
   "provider": {
     "openai": {
       "options": {

@@ -2,11 +2,11 @@
 
 > Access GPT-5 Codex through your ChatGPT Plus/Pro subscription in OpenCode
 
-[![npm version](https://badge.fury.io/js/opencode-openai-codex-auth.svg)](https://www.npmjs.com/package/opencode-openai-codex-auth)
-[![Tests](https://github.com/numman-ali/opencode-openai-codex-auth/actions/workflows/ci.yml/badge.svg)](https://github.com/numman-ali/opencode-openai-codex-auth/actions)
+[![npm version](https://badge.fury.io/js/@promethean-os/opencode-openai-codex-auth.svg)](https://www.npmjs.com/package/@promethean-os/opencode-openai-codex-auth)
+[![Tests](https://github.com/riatzukiza/opencode-openai-codex-auth/actions/workflows/ci.yml/badge.svg)](https://github.com/riatzukiza/opencode-openai-codex-auth/actions)
 
 > **Found this useful?**
-> Follow me on [X @nummanthinks](https://x.com/nummanthinks) for future updates and more projects!
+> Check out the original project by [numman-ali](https://github.com/numman-ali) and follow [X @nummanthinks](https://x.com/nummanthinks) for future updates!
 
 ## ⚠️ Usage Notice
 
@@ -25,7 +25,7 @@ Users are responsible for compliance with [OpenAI's Terms of Use](https://openai
 - [Configuration Guide](configuration.md) - Advanced config options and patterns
 - [Troubleshooting](troubleshooting.md) - Debug techniques and common issues
 - [Privacy & Data Handling](privacy.md) - How your data is handled and protected
-- [Release Notes](https://github.com/numman-ali/opencode-openai-codex-auth/releases) - Version history and updates
+- [Release Notes](https://github.com/riatzukiza/opencode-openai-codex-auth/releases) - Version history and updates
 
 ### For Developers
 Explore the engineering depth behind this plugin:
@@ -57,7 +57,7 @@ opencode auth login
 
 To get the latest version:
 ```bash
-(cd ~ && sed -i.bak '/"opencode-openai-codex-auth"/d' .cache/opencode/package.json && rm -rf .cache/opencode/node_modules/opencode-openai-codex-auth)
+(cd ~ && sed -i.bak '/"@promethean-os\/opencode-openai-codex-auth"/d' .cache/opencode/package.json && rm -rf .cache/opencode/node_modules/@promethean-os/opencode-openai-codex-auth)
 opencode  # Reinstalls latest
 ```
 
@@ -66,7 +66,7 @@ opencode  # Reinstalls latest
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-openai-codex-auth"],
+  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
   "model": "openai/gpt-5-codex"
 }
 ```
@@ -84,8 +84,9 @@ opencode run "write hello world to test.txt" --model=openai/gpt-5-codex
 ✅ **OAuth Authentication** - Secure ChatGPT Plus/Pro login
 ✅ **Multiple Models** - gpt-5, gpt-5-codex, gpt-5-mini, gpt-5-nano
 ✅ **Per-Model Configuration** - Different reasoning effort, verbosity for each variant
-✅ **Multi-Turn Conversations** - Full conversation history with stateless backend
+✅ **Multi-Turn Conversations** - Full conversation history with prompt caching (enabled by default)
 ✅ **Backwards Compatible** - Works with old and new config formats
+✅ **Prompt Caching** - Enabled by default to reduce token usage and costs
 ✅ **Comprehensive Testing** - 159 unit tests + 14 integration tests
 
 ---
@@ -133,9 +134,9 @@ This plugin represents significant engineering effort to bridge OpenCode and the
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/numman-ali/opencode-openai-codex-auth/issues)
-- **Releases**: [Release Notes](https://github.com/numman-ali/opencode-openai-codex-auth/releases)
-- **Main Repo**: [GitHub](https://github.com/numman-ali/opencode-openai-codex-auth)
+- **Issues**: [GitHub Issues](https://github.com/riatzukiza/opencode-openai-codex-auth/issues)
+- **Releases**: [Release Notes](https://github.com/riatzukiza/opencode-openai-codex-auth/releases)
+- **Main Repo**: [GitHub](https://github.com/riatzukiza/opencode-openai-codex-auth)
 
 ---
 

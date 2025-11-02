@@ -8,10 +8,11 @@ const CONFIG_PATH = join(homedir(), ".opencode", "openai-codex-auth-config.json"
 /**
  * Default plugin configuration
  * CODEX_MODE is enabled by default for better Codex CLI parity
+ * Prompt caching is enabled by default to optimize token usage and reduce costs
  */
 const DEFAULT_CONFIG: PluginConfig = {
 	codexMode: true,
-	enablePromptCaching: false,
+	enablePromptCaching: true,
 };
 
 /**

@@ -1,15 +1,15 @@
 {
   "name": "@promethean-os/opencode-openai-codex-auth",
-  "version": "2.1.3",
+  "version": "2.2.0",
   "description": "OpenAI ChatGPT (Codex backend) OAuth auth plugin for opencode - use your ChatGPT Plus/Pro subscription instead of API credits",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "type": "module",
   "license": "MIT",
-  "author": "Numman Ali",
+  "author": "riatzukiza",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/numman-ali/opencode-openai-codex-auth.git"
+    "url": "git+https://github.com/riatzukiza/opencode-openai-codex-auth.git"
   },
   "keywords": [
     "opencode",
@@ -23,9 +23,9 @@
     "chatgpt-plus",
     "chatgpt-pro"
   ],
-  "homepage": "https://github.com/numman-ali/opencode-openai-codex-auth#readme",
+  "homepage": "https://github.com/riatzukiza/opencode-openai-codex-auth#readme",
   "bugs": {
-    "url": "https://github.com/numman-ali/opencode-openai-codex-auth/issues"
+    "url": "https://github.com/riatzukiza/opencode-openai-codex-auth/issues"
   },
   "scripts": {
     "build": "tsc && cp lib/oauth-success.html dist/lib/",

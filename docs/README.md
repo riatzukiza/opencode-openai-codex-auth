@@ -32,4 +32,4 @@ This plugin bridges two different systems with careful engineering:
 
 ---
 
-**Quick Links**: [GitHub](https://github.com/your-username/opencode-codex-plugin) • [npm](https://www.npmjs.com/package/opencode-openai-codex-auth) • [Issues](https://github.com/your-username/opencode-codex-plugin/issues)
+**Quick Links**: [GitHub](https://github.com/riatzukiza/opencode-openai-codex-auth) • [npm](https://www.npmjs.com/package/@promethean-os/opencode-openai-codex-auth) • [Issues](https://github.com/riatzukiza/opencode-openai-codex-auth/issues)

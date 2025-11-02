@@ -1,13 +1,13 @@
 # OpenAI ChatGPT OAuth Plugin for opencode
 
-[![npm version](https://img.shields.io/npm/v/opencode-openai-codex-auth.svg)](https://www.npmjs.com/package/opencode-openai-codex-auth)
-[![Tests](https://github.com/numman-ali/opencode-openai-codex-auth/actions/workflows/ci.yml/badge.svg)](https://github.com/numman-ali/opencode-openai-codex-auth/actions)
-[![npm downloads](https://img.shields.io/npm/dm/opencode-openai-codex-auth.svg)](https://www.npmjs.com/package/opencode-openai-codex-auth)
+[![npm version](https://img.shields.io/npm/v/@promethean-os/opencode-openai-codex-auth.svg)](https://www.npmjs.com/package/@promethean-os/opencode-openai-codex-auth)
+[![Tests](https://github.com/riatzukiza/opencode-openai-codex-auth/actions/workflows/ci.yml/badge.svg)](https://github.com/riatzukiza/opencode-openai-codex-auth/actions)
+[![npm downloads](https://img.shields.io/npm/dm/@promethean-os/opencode-openai-codex-auth.svg)](https://www.npmjs.com/package/@promethean-os/opencode-openai-codex-auth)
 
 This plugin enables opencode to use OpenAI's Codex backend via ChatGPT Plus/Pro OAuth authentication, allowing you to use your ChatGPT subscription instead of OpenAI Platform API credits.
 
 > **Found this useful?**
-Follow me on [X @nummanthinks](https://x.com/nummanthinks) for future updates and more projects!
+Check out the original project by [numman-ali](https://github.com/numman-ali) and follow [X @nummanthinks](https://x.com/nummanthinks) for future updates!
 
 ## ⚠️ Terms of Service & Usage Notice
 
@@ -30,192 +30,41 @@ Follow me on [X @nummanthinks](https://x.com/nummanthinks) for future updates an
 
 ---
 
-## Features
+## 💰 Token Usage & Prompt Caching
 
-- ✅ **ChatGPT Plus/Pro OAuth authentication** - Use your existing subscription
-- ✅ **9 pre-configured model variants** - Low/Medium/High reasoning for both gpt-5 and gpt-5-codex
-- ✅ **Zero external dependencies** - Lightweight with only @openauthjs/openauth
-- ✅ **Auto-refreshing tokens** - Handles token expiration automatically
-- ✅ **Smart auto-updating Codex instructions** - Tracks latest stable release with ETag caching
-- ✅ **Full tool support** - write, edit, bash, grep, glob, and more
-- ✅ **CODEX_MODE** - Codex-OpenCode bridge prompt with Task tool & MCP awareness (enabled by default)
-- ✅ **Automatic tool remapping** - Codex tools → opencode tools
-- ✅ **Configurable reasoning** - Control effort, summary verbosity, and text output
-- ✅ **Type-safe & tested** - Strict TypeScript with 159 unit tests + 14 integration tests
-- ✅ **Modular architecture** - Easy to maintain and extend
+**Prompt caching is enabled by default** to optimize your token usage and reduce costs.
 
-## Installation
+### How Caching Works
 
-### Quick Start
+- **Enabled by default**: `enablePromptCaching: true` 
+- **Maintains conversation context** across multiple turns
+- **Reduces token consumption** by reusing cached prompts
+- **Lowers costs** significantly for multi-turn conversations
 
-**No npm install needed!** opencode automatically installs plugins when you add them to your config.
+### Managing Caching
 
-#### Recommended: Full Configuration (Codex CLI Experience)
-
-For the complete experience with all reasoning variants matching the official Codex CLI:
-
-1. **Copy the full configuration** from [`config/full-opencode.json`](./config/full-opencode.json) to your opencode config file:
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "plugin": [
-    "opencode-openai-codex-auth"
-  ],
-  "provider": {
-    "openai": {
-      "options": {
-        "reasoningEffort": "medium",
-        "reasoningSummary": "auto",
-        "textVerbosity": "medium",
-        "include": [
-          "reasoning.encrypted_content"
-        ],
-        "store": false
-      },
-      "models": {
-        "gpt-5-codex-low": {
-          "name": "GPT 5 Codex Low (OAuth)",
-          "options": {
-            "reasoningEffort": "low",
-            "reasoningSummary": "auto",
-            "textVerbosity": "medium",
-            "include": [
-              "reasoning.encrypted_content"
-            ],
-            "store": false
-          }
-        },
-        "gpt-5-codex-medium": {
-          "name": "GPT 5 Codex Medium (OAuth)",
-          "options": {
-            "reasoningEffort": "medium",
-            "reasoningSummary": "auto",
-            "textVerbosity": "medium",
-            "include": [
-              "reasoning.encrypted_content"
-            ],
-            "store": false
-          }
-        },
-        "gpt-5-codex-high": {
-          "name": "GPT 5 Codex High (OAuth)",
-          "options": {
-            "reasoningEffort": "high",
-            "reasoningSummary": "detailed",
-            "textVerbosity": "medium",
-            "include": [
-              "reasoning.encrypted_content"
-            ],
-            "store": false
-          }
-        },
-        "gpt-5-minimal": {
-          "name": "GPT 5 Minimal (OAuth)",
-          "options": {
-            "reasoningEffort": "minimal",
-            "reasoningSummary": "auto",
-            "textVerbosity": "low",
-            "include": [
-              "reasoning.encrypted_content"
-            ],
-            "store": false
-          }
-        },
-        "gpt-5-low": {
-          "name": "GPT 5 Low (OAuth)",
-          "options": {
-            "reasoningEffort": "low",
-            "reasoningSummary": "auto",
-            "textVerbosity": "low",
-            "include": [
-              "reasoning.encrypted_content"
-            ],
-            "store": false
-          }
-        },
-        "gpt-5-medium": {
-          "name": "GPT 5 Medium (OAuth)",
-          "options": {
-            "reasoningEffort": "medium",
-            "reasoningSummary": "auto",
-            "textVerbosity": "medium",
-            "include": [
-              "reasoning.encrypted_content"
-            ],
-            "store": false
-          }
-        },
-        "gpt-5-high": {
-          "name": "GPT 5 High (OAuth)",
-          "options": {
-            "reasoningEffort": "high",
-            "reasoningSummary": "detailed",
-            "textVerbosity": "high",
-            "include": [
-              "reasoning.encrypted_content"
-            ],
-            "store": false
-          }
-        },
-        "gpt-5-mini": {
-          "name": "GPT 5 Mini (OAuth)",
-          "options": {
-            "reasoningEffort": "low",
-            "reasoningSummary": "auto",
-            "textVerbosity": "low",
-            "include": [
-              "reasoning.encrypted_content"
-            ],
-            "store": false
-          }
-        },
-        "gpt-5-nano": {
-          "name": "GPT 5 Nano (OAuth)",
-          "options": {
-            "reasoningEffort": "minimal",
-            "reasoningSummary": "auto",
-            "textVerbosity": "low",
-            "include": [
-              "reasoning.encrypted_content"
-            ],
-            "store": false
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-   **Global config**: `~/.config/opencode/opencode.json`
-   **Project config**: `<project>/.opencode.json`
-
-   This gives you 9 model variants with different reasoning levels:
-   - **gpt-5-codex** (low/medium/high) - Code-optimized reasoning
-   - **gpt-5** (minimal/low/medium/high) - General-purpose reasoning
-   - **gpt-5-mini** and **gpt-5-nano** - Lightweight variants
-
-   All appear in the opencode model selector as "GPT 5 Codex Low (OAuth)", "GPT 5 High (OAuth)", etc.
-
-#### Alternative: Minimal Configuration
-
-For a simpler setup (uses plugin defaults: medium reasoning, auto summaries):
+Create `~/.opencode/openai-codex-auth-config.json` to control caching:
 
 ```json
 {
-  "$schema": "https://opencode.ai/config.json",
-  "plugin": [
-    "opencode-openai-codex-auth"
-  ],
-  "model": "openai/gpt-5-codex"
+  "enablePromptCaching": true
 }
 ```
 
-**Note**: This gives you basic functionality but you won't see the different reasoning variants in the model selector.
+**Settings:**
+- `true` (default): Preserve conversation context, reduce costs
+- `false`: Fresh context each turn, higher token usage
 
-2. **That's it!** opencode will auto-install the plugin on first run.
+### When to Disable Caching
 
-> **New to opencode?** Learn more at [opencode.ai](https://opencode.ai)
+Only disable caching if you experience:
+- Context-related issues in conversations
+- Stale responses that should be fresh
+- Debugging or testing scenarios
+
+**Note**: Disabling caching will significantly increase token usage and costs.
+
+---
 
 ## Authentication
 
@@ -237,13 +86,13 @@ To install the latest version:
 
 ```bash
 # Clear plugin cache
-(cd ~ && sed -i.bak '/"opencode-openai-codex-auth"/d' .cache/opencode/package.json && rm -rf .cache/opencode/node_modules/opencode-openai-codex-auth)
+(cd ~ && sed -i.bak '/"@promethean-os\/opencode-openai-codex-auth"/d' .cache/opencode/package.json && rm -rf .cache/opencode/node_modules/@promethean-os/opencode-openai-codex-auth)
 
 # Restart OpenCode - it will reinstall latest version
 opencode
 ```
 
-Check [releases](https://github.com/numman-ali/opencode-openai-codex-auth/releases) for version history.
+Check [releases](https://github.com/riatzukiza/opencode-openai-codex-auth/releases) for version history.
 
 ## Usage
 
@@ -296,7 +145,7 @@ model: openai/gpt-5-codex-low
 model: gpt-5-codex-low
 ```
 
-See [Configuration Guide](https://numman-ali.github.io/opencode-openai-codex-auth/configuration) for advanced usage.
+See [Configuration Guide](https://riatzukiza.github.io/opencode-openai-codex-auth/configuration) for advanced usage.
 
 ### Plugin Defaults
 
@@ -349,7 +198,7 @@ If you want to customize settings yourself, you can configure options at provide
 Set these in `~/.opencode/openai-codex-auth-config.json`:
 
 - `codexMode` (default `true`): enable the Codex ↔ OpenCode bridge prompt
-- `enablePromptCaching` (default `false`): keep a stable `prompt_cache_key` and preserved message IDs so Codex can reuse cached prompts
+- `enablePromptCaching` (default `true`): keep a stable `prompt_cache_key` and preserved message IDs so Codex can reuse cached prompts, reducing token usage and costs
 
 #### Global Configuration Example
 
@@ -358,7 +207,7 @@ Apply settings to all models:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-openai-codex-auth"],
+  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
   "model": "openai/gpt-5-codex",
   "provider": {
     "openai": {
@@ -378,7 +227,7 @@ Create your own named variants in the model selector:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-openai-codex-auth"],
+  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
   "provider": {
     "openai": {
       "models": {
@@ -409,7 +258,7 @@ Create your own named variants in the model selector:
 
 For advanced options, custom presets, and troubleshooting:
 
-**📖 [Configuration Guide](https://numman-ali.github.io/opencode-openai-codex-auth/configuration)** - Complete reference with examples
+**📖 [Configuration Guide](https://riatzukiza.github.io/opencode-openai-codex-auth/configuration)** - Complete reference with examples
 
 ## Rate Limits & Responsible Use
 
@@ -444,7 +293,7 @@ This plugin respects the same rate limits enforced by OpenAI's official Codex CL
 - **Model not found**: Add `openai/` prefix (e.g., `--model=openai/gpt-5-codex-low`)
 - **"Item not found" errors**: Update to latest plugin version
 
-**Full troubleshooting guide**: [docs/troubleshooting.md](https://numman-ali.github.io/opencode-openai-codex-auth/troubleshooting)
+**Full troubleshooting guide**: [docs/troubleshooting.md](https://riatzukiza.github.io/opencode-openai-codex-auth/troubleshooting)
 
 ## Debug Mode
 
@@ -462,7 +311,7 @@ ENABLE_PLUGIN_REQUEST_LOGGING=1 opencode run "your prompt"
 
 Logs saved to: `~/.opencode/logs/codex-plugin/`
 
-See [Troubleshooting Guide](https://numman-ali.github.io/opencode-openai-codex-auth/troubleshooting) for details.
+See [Troubleshooting Guide](https://riatzukiza.github.io/opencode-openai-codex-auth/troubleshooting) for details.
 
 ## Frequently Asked Questions
 
@@ -516,9 +365,26 @@ If you need API access for applications, automation, or commercial use, you shou
 
 ### Is this affiliated with OpenAI?
 
-**No.** This is an independent open-source project. It uses OpenAI's publicly available OAuth authentication system but is not endorsed, sponsored, or affiliated with OpenAI.
+**No.** This is an independent open-source project. It uses OpenAI's publicly available OAuth authentication system but is not endorsed, sponsored by, or affiliated with OpenAI.
 
 ChatGPT, GPT-5, and Codex are trademarks of OpenAI.
+
+### How does prompt caching work?
+
+**Prompt caching is enabled by default** to save you money:
+
+- **Reduces token usage** by reusing conversation context across turns
+- **Lowers costs** significantly for multi-turn conversations  
+- **Maintains context** so the AI remembers previous parts of your conversation
+
+You can disable it by creating `~/.opencode/openai-codex-auth-config.json` with:
+```json
+{
+  "enablePromptCaching": false
+}
+```
+
+**Warning**: Disabling caching will dramatically increase your token usage and costs.
 
 ---
 
@@ -548,8 +414,8 @@ Based on research and working implementations from:
 - [Installation](#installation) - Get started in 2 minutes
 - [Configuration](#configuration) - Customize your setup
 - [Troubleshooting](#troubleshooting) - Common issues
-- [GitHub Pages Docs](https://numman-ali.github.io/opencode-openai-codex-auth/) - Extended guides
-- [Developer Docs](https://numman-ali.github.io/opencode-openai-codex-auth/development/ARCHITECTURE) - Technical deep dive
+- [GitHub Pages Docs](https://riatzukiza.github.io/opencode-openai-codex-auth/) - Extended guides
+- [Developer Docs](https://riatzukiza.github.io/opencode-openai-codex-auth/development/ARCHITECTURE) - Technical deep dive
 
 ## License
 
