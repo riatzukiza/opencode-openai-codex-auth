@@ -41,7 +41,7 @@ import {
 } from "./lib/request/fetch-helpers.js";
 import { loadPluginConfig, getCodexMode } from "./lib/config.js";
 import { SessionManager } from "./lib/session/session-manager.js";
-import type { UserConfig } from "./lib/types.js";
+import type { CodexResponsePayload, UserConfig } from "./lib/types.js";
 import {
 	DUMMY_API_KEY,
 	CODEX_BASE_URL,
@@ -69,6 +69,27 @@ import {
  * ```
  */
 export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
+	function isCodexResponsePayload(payload: unknown): payload is CodexResponsePayload {
+		if (!payload || typeof payload !== "object") {
+			return false;
+		}
+
+		const usage = (payload as { usage?: unknown }).usage;
+		if (usage !== undefined && (usage === null || typeof usage !== "object")) {
+			return false;
+		}
+
+		if (
+			usage &&
+			"cached_tokens" in (usage as Record<string, unknown>) &&
+			typeof (usage as Record<string, unknown>).cached_tokens !== "number"
+		) {
+			return false;
+		}
+
+		return true;
+	}
+
 	return {
 		auth: {
 			provider: PROVIDER_ID,
@@ -204,7 +225,13 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 					) {
 						try {
 							const payload = await handledResponse.clone().json();
-							sessionManager.recordResponse(sessionContext, payload);
+							if (isCodexResponsePayload(payload)) {
+								sessionManager.recordResponse(sessionContext, payload);
+							} else {
+								logDebug("SessionManager: unexpected response payload shape", {
+									payloadType: typeof payload,
+								});
+							}
 						} catch (error) {
 							logDebug("SessionManager: failed to parse response payload", {
 								error: (error as Error).message,

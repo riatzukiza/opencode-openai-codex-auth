@@ -1,12 +1,61 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
 	shouldRefreshToken,
 	extractRequestUrl,
 	rewriteUrlForCodex,
 	createCodexHeaders,
+	refreshAndUpdateToken,
+	transformRequestForCodex,
+	handleErrorResponse,
+	handleSuccessResponse,
 } from '../lib/request/fetch-helpers.js';
 import type { Auth, SessionContext } from '../lib/types.js';
 import { URL_PATHS, OPENAI_HEADERS, OPENAI_HEADER_VALUES } from '../lib/constants.js';
+
+const refreshAccessTokenMock = vi.hoisted(() => vi.fn());
+const logRequestMock = vi.hoisted(() => vi.fn());
+const logDebugMock = vi.hoisted(() => vi.fn());
+const transformRequestBodyMock = vi.hoisted(() => vi.fn());
+const convertSseToJsonMock = vi.hoisted(() => vi.fn());
+const ensureContentTypeMock = vi.hoisted(() => vi.fn((headers: Headers) => headers));
+
+vi.mock('../lib/auth/auth.js', async () => {
+	const actual = await vi.importActual<typeof import('../lib/auth/auth.js')>('../lib/auth/auth.js');
+	return {
+		...actual,
+		refreshAccessToken: refreshAccessTokenMock,
+	};
+});
+
+vi.mock('../lib/logger.js', () => ({
+	__esModule: true,
+	logRequest: logRequestMock,
+	logDebug: logDebugMock,
+}));
+
+vi.mock('../lib/request/request-transformer.js', () => ({
+	__esModule: true,
+	transformRequestBody: transformRequestBodyMock,
+}));
+
+vi.mock('../lib/request/response-handler.js', () => ({
+	__esModule: true,
+	convertSseToJson: convertSseToJsonMock,
+	ensureContentType: ensureContentTypeMock,
+}));
+
+const originalConsoleError = console.error;
+
+beforeEach(() => {
+	vi.clearAllMocks();
+	convertSseToJsonMock.mockReset();
+	ensureContentTypeMock.mockImplementation((headers: Headers) => headers);
+	console.error = vi.fn();
+});
+
+afterEach(() => {
+	console.error = originalConsoleError;
+});
 
 describe('Fetch Helpers Module', () => {
 	describe('shouldRefreshToken', () => {
@@ -145,6 +194,156 @@ describe('Fetch Helpers Module', () => {
 
 			expect(headers.get(OPENAI_HEADERS.SESSION_ID)).toBe(sessionId);
 			expect(headers.get(OPENAI_HEADERS.CONVERSATION_ID)).toBe(sessionId);
+		});
+	});
+
+	describe('refreshAndUpdateToken', () => {
+		it('returns failure response when refresh fails', async () => {
+			refreshAccessTokenMock.mockResolvedValue({ type: 'failed' });
+
+			const client = {
+				auth: {
+					set: vi.fn(),
+				},
+			} as unknown as { auth: { set: () => Promise<void> } };
+
+			const auth: Auth = {
+				type: 'oauth',
+				access: 'token',
+				refresh: 'refresh',
+				expires: Date.now() - 1000,
+			};
+
+			const result = await refreshAndUpdateToken(auth, client as never);
+			expect(result.success).toBe(false);
+			expect((await result.response.clone().json()).error).toBe('Token refresh failed');
+		expect(console.error).toHaveBeenCalledWith(
+			'[openai-codex-plugin] Failed to refresh token, authentication required',
+		);
+			expect(client.auth.set).not.toHaveBeenCalled();
+		});
+
+		it('updates stored credentials on success', async () => {
+			const newAuth = {
+				type: 'success' as const,
+				access: 'new-access',
+				refresh: 'new-refresh',
+				expires: Date.now() + 1000,
+			};
+			refreshAccessTokenMock.mockResolvedValue(newAuth);
+			const setMock = vi.fn();
+			const client = { auth: { set: setMock } };
+			const auth: Auth = {
+				type: 'oauth',
+				access: 'old-access',
+				refresh: 'old-refresh',
+				expires: Date.now(),
+			};
+
+			const result = await refreshAndUpdateToken(auth, client as never);
+			expect(result.success).toBe(true);
+			expect(auth.access).toBe('new-access');
+			expect(auth.refresh).toBe('new-refresh');
+			expect(auth.expires).toBe(newAuth.expires);
+			expect(setMock).toHaveBeenCalledWith({
+				path: { id: 'openai' },
+				body: {
+					type: 'oauth',
+					access: 'new-access',
+					refresh: 'new-refresh',
+					expires: newAuth.expires,
+				},
+			});
+		});
+	});
+
+	describe('transformRequestForCodex', () => {
+		it('returns undefined when no body provided', async () => {
+			const result = await transformRequestForCodex(undefined, 'url', 'instructions', { global: {}, models: {} });
+			expect(result).toBeUndefined();
+			expect(transformRequestBodyMock).not.toHaveBeenCalled();
+		});
+
+		it('handles invalid JSON payload gracefully', async () => {
+			const init: RequestInit = { body: 'not-json' };
+			const result = await transformRequestForCodex(init, 'url', 'instructions', { global: {}, models: {} });
+			expect(result).toBeUndefined();
+			expect(console.error).toHaveBeenCalledWith('[openai-codex-plugin] Error parsing request:', expect.anything());
+		});
+
+		it('transforms request body and returns updated init', async () => {
+			const body = { model: 'gpt-5', tools: [], input: ['hello'] };
+			const transformed = { ...body, model: 'gpt-5-codex', include: ['reasoning.encrypted_content'] };
+			transformRequestBodyMock.mockResolvedValue(transformed);
+			const sessionContext = { sessionId: 'session-1', preserveIds: true, enabled: true };
+			const appliedContext = { ...sessionContext, isNew: false };
+			const sessionManager = {
+				getContext: vi.fn().mockReturnValue(sessionContext),
+				applyRequest: vi.fn().mockReturnValue(appliedContext),
+			};
+
+			const result = await transformRequestForCodex(
+				{ body: JSON.stringify(body) },
+				'https://chatgpt.com/backend-api/codex/responses',
+				'instructions',
+				{ global: {}, models: {} },
+				true,
+				sessionManager as never,
+			);
+
+			expect(transformRequestBodyMock).toHaveBeenCalledWith(
+				body,
+				'instructions',
+				{ global: {}, models: {} },
+				true,
+				{ preserveIds: true },
+			);
+			expect(result?.body).toEqual(transformed);
+			expect(result?.updatedInit.body).toBe(JSON.stringify(transformed));
+			expect(result?.sessionContext).toEqual(appliedContext);
+			expect(sessionManager.applyRequest).toHaveBeenCalledWith(transformed, sessionContext);
+		});
+	});
+
+	describe('response handlers', () => {
+		it('handleErrorResponse logs and replays response content', async () => {
+			const response = new Response('failure', {
+				status: 418,
+				statusText: "I'm a teapot",
+				headers: { 'content-type': 'text/plain' },
+			});
+
+			const result = await handleErrorResponse(response);
+			expect(result.status).toBe(418);
+			expect(await result.text()).toBe('failure');
+			expect(console.error).toHaveBeenCalledWith('[openai-codex-plugin] 418 error:', 'failure');
+		});
+
+		it('handleSuccessResponse converts SSE when no tools', async () => {
+			const response = new Response('stream');
+			const converted = new Response('converted');
+			ensureContentTypeMock.mockImplementation(() => new Headers({ 'content-type': 'text/plain' }));
+			convertSseToJsonMock.mockResolvedValue(converted);
+
+			const result = await handleSuccessResponse(response, false);
+			expect(ensureContentTypeMock).toHaveBeenCalled();
+			expect(convertSseToJsonMock).toHaveBeenCalled();
+			expect(result).toBe(converted);
+		});
+
+		it('handleSuccessResponse returns streaming response when tools present', async () => {
+			const response = new Response('stream-body', {
+				status: 200,
+				statusText: 'OK',
+				headers: { 'content-type': 'text/event-stream' },
+			});
+			const headers = new Headers({ 'content-type': 'text/event-stream' });
+			ensureContentTypeMock.mockReturnValue(headers);
+
+			const result = await handleSuccessResponse(response, true);
+			expect(result.status).toBe(200);
+			expect(result.headers.get('content-type')).toBe('text/event-stream');
+			expect(convertSseToJsonMock).not.toHaveBeenCalled();
 		});
 	});
 });

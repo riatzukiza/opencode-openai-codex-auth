@@ -1,43 +1,110 @@
-import { describe, it, expect } from 'vitest';
-import { LOGGING_ENABLED, logRequest } from '../lib/logger.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+const fsMocks = vi.hoisted(() => ({
+	writeFileSync: vi.fn(),
+	mkdirSync: vi.fn(),
+	existsSync: vi.fn(),
+}));
+
+const homedirMock = vi.hoisted(() => vi.fn(() => '/mock-home'));
+
+vi.mock('node:fs', () => ({
+	__esModule: true,
+	writeFileSync: fsMocks.writeFileSync,
+	mkdirSync: fsMocks.mkdirSync,
+	existsSync: fsMocks.existsSync,
+}));
+
+vi.mock('node:os', () => ({
+	__esModule: true,
+	homedir: homedirMock,
+}));
 
 describe('Logger Module', () => {
-	describe('LOGGING_ENABLED constant', () => {
-		it('should be a boolean', () => {
-			expect(typeof LOGGING_ENABLED).toBe('boolean');
-		});
+	const originalEnv = { ...process.env };
+	const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+	const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-		it('should default to false when env variable is not set', () => {
-			// This test verifies the default behavior
-			// In a real test environment, ENABLE_PLUGIN_REQUEST_LOGGING would not be set
-			const isEnabled = process.env.ENABLE_PLUGIN_REQUEST_LOGGING === '1';
-			expect(typeof isEnabled).toBe('boolean');
-		});
+	beforeEach(() => {
+		vi.resetModules();
+		vi.clearAllMocks();
+		Object.assign(process.env, originalEnv);
+		delete process.env.ENABLE_PLUGIN_REQUEST_LOGGING;
+		delete process.env.DEBUG_CODEX_PLUGIN;
+		fsMocks.writeFileSync.mockReset();
+		fsMocks.mkdirSync.mockReset();
+		fsMocks.existsSync.mockReset();
+		homedirMock.mockReturnValue('/mock-home');
+		logSpy.mockClear();
+		warnSpy.mockClear();
+		errorSpy.mockClear();
 	});
 
-	describe('logRequest function', () => {
-		it('should accept stage and data parameters', () => {
-			// This should not throw
-			expect(() => {
-				logRequest('test-stage', { data: 'test' });
-			}).not.toThrow();
-		});
+	afterEach(() => {
+		Object.assign(process.env, originalEnv);
+	});
 
-		it('should handle empty data object', () => {
-			expect(() => {
-				logRequest('test-stage', {});
-			}).not.toThrow();
-		});
+	it('LOGGING_ENABLED reflects env state', async () => {
+		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = '1';
+		const { LOGGING_ENABLED } = await import('../lib/logger.js');
+		expect(LOGGING_ENABLED).toBe(true);
+	});
 
-		it('should handle complex data structures', () => {
-			expect(() => {
-				logRequest('test-stage', {
-					nested: { data: 'value' },
-					array: [1, 2, 3],
-					number: 123,
-					boolean: true,
-				});
-			}).not.toThrow();
+	it('logRequest skips writing when logging disabled', async () => {
+		fsMocks.existsSync.mockReturnValue(true);
+		const { logRequest } = await import('../lib/logger.js');
+		logRequest('stage-one', { foo: 'bar' });
+		expect(fsMocks.writeFileSync).not.toHaveBeenCalled();
+		expect(logSpy).not.toHaveBeenCalled();
+	});
+
+	it('logRequest creates directory and writes when enabled', async () => {
+		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = '1';
+		let existsCall = 0;
+		fsMocks.existsSync.mockImplementation(() => existsCall++ > 0);
+		const { logRequest } = await import('../lib/logger.js');
+
+		logRequest('before', { some: 'data' });
+
+		expect(fsMocks.mkdirSync).toHaveBeenCalledWith('/mock-home/.opencode/logs/codex-plugin', { recursive: true });
+		expect(fsMocks.writeFileSync).toHaveBeenCalledOnce();
+
+		const [, jsonString] = fsMocks.writeFileSync.mock.calls[0];
+		const parsed = JSON.parse(jsonString as string);
+		expect(parsed.stage).toBe('before');
+		expect(parsed.some).toBe('data');
+		expect(typeof parsed.requestId).toBe('number');
+	});
+
+	it('logRequest records errors from writeFileSync', async () => {
+		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = '1';
+		fsMocks.existsSync.mockReturnValue(true);
+		fsMocks.writeFileSync.mockImplementation(() => {
+			throw new Error('boom');
 		});
+		const { logRequest } = await import('../lib/logger.js');
+
+		logRequest('error-stage', { boom: true });
+
+		expect(errorSpy).toHaveBeenCalledWith('[openai-codex-plugin] Failed to write log:', 'boom');
+	});
+
+	it('logDebug logs only when enabled', async () => {
+		const { logDebug } = await import('../lib/logger.js');
+		logDebug('should not log');
+		expect(logSpy).not.toHaveBeenCalled();
+
+		process.env.DEBUG_CODEX_PLUGIN = '1';
+		vi.resetModules();
+		const { logDebug: reloaded } = await import('../lib/logger.js');
+		reloaded('debug message', { value: 42 });
+		expect(logSpy).toHaveBeenCalledWith('[openai-codex-plugin] debug message', { value: 42 });
+	});
+
+	it('logWarn always logs', async () => {
+		const { logWarn } = await import('../lib/logger.js');
+		logWarn('warning', { detail: 'info' });
+		expect(warnSpy).toHaveBeenCalledWith('[openai-codex-plugin] warning', { detail: 'info' });
 	});
 });
