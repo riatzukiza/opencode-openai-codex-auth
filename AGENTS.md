@@ -28,6 +28,9 @@ npm run test:ui
 
 # Coverage report
 npm run test:coverage
+
+# Mutation testing (Stryker)
+npm run test:mutation
 ```
 
 **Important**: The build script has a critical step that copies `lib/oauth-success.html` to `dist/lib/`. This HTML file is required for the OAuth callback flow.

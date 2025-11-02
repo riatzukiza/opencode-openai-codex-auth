@@ -5,7 +5,7 @@ import {
 	rewriteUrlForCodex,
 	createCodexHeaders,
 } from '../lib/request/fetch-helpers.js';
-import type { Auth } from '../lib/types.js';
+import type { Auth, SessionContext } from '../lib/types.js';
 import { URL_PATHS, OPENAI_HEADERS, OPENAI_HEADER_VALUES } from '../lib/constants.js';
 
 describe('Fetch Helpers Module', () => {
@@ -88,6 +88,9 @@ describe('Fetch Helpers Module', () => {
 			expect(headers.get(OPENAI_HEADERS.BETA)).toBe(OPENAI_HEADER_VALUES.BETA_RESPONSES);
 			expect(headers.get(OPENAI_HEADERS.ORIGINATOR)).toBe(OPENAI_HEADER_VALUES.ORIGINATOR_CODEX);
 			expect(headers.has(OPENAI_HEADERS.SESSION_ID)).toBe(true);
+			expect(headers.get(OPENAI_HEADERS.SESSION_ID)).toBe(
+				headers.get(OPENAI_HEADERS.CONVERSATION_ID),
+			);
 		});
 
 		it('should remove x-api-key header', () => {
@@ -119,6 +122,29 @@ describe('Fetch Helpers Module', () => {
 
 			// UUID v4 format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
 			expect(sessionId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+		});
+
+		it('should use session context ID for session and conversation headers', () => {
+			const sessionId = 'conversation-123';
+			const sessionContext: SessionContext = {
+				sessionId,
+				enabled: true,
+				preserveIds: true,
+				isNew: false,
+				state: {
+					id: sessionId,
+					promptCacheKey: 'cache-key',
+					store: false,
+					lastInput: [],
+					lastPrefixHash: null,
+					lastUpdated: Date.now(),
+				},
+			};
+
+			const headers = createCodexHeaders(undefined, accountId, accessToken, sessionContext);
+
+			expect(headers.get(OPENAI_HEADERS.SESSION_ID)).toBe(sessionId);
+			expect(headers.get(OPENAI_HEADERS.CONVERSATION_ID)).toBe(sessionId);
 		});
 	});
 });

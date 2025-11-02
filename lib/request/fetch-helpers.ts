@@ -173,12 +173,14 @@ export async function transformRequestForCodex(
  * @param init - Request init options
  * @param accountId - ChatGPT account ID
  * @param accessToken - OAuth access token
+ * @param sessionContext - Optional session context containing conversation/session ID
  * @returns Headers object with all required Codex headers
  */
 export function createCodexHeaders(
 	init: RequestInit | undefined,
 	accountId: string,
 	accessToken: string,
+	sessionContext?: SessionContext,
 ): Headers {
 	const headers = new Headers(init?.headers ?? {});
 	headers.delete("x-api-key"); // Remove any existing API key
@@ -186,7 +188,9 @@ export function createCodexHeaders(
 	headers.set(OPENAI_HEADERS.ACCOUNT_ID, accountId);
 	headers.set(OPENAI_HEADERS.BETA, OPENAI_HEADER_VALUES.BETA_RESPONSES);
 	headers.set(OPENAI_HEADERS.ORIGINATOR, OPENAI_HEADER_VALUES.ORIGINATOR_CODEX);
-	headers.set(OPENAI_HEADERS.SESSION_ID, crypto.randomUUID());
+	const sessionId = sessionContext?.sessionId ?? crypto.randomUUID();
+	headers.set(OPENAI_HEADERS.SESSION_ID, sessionId);
+	headers.set(OPENAI_HEADERS.CONVERSATION_ID, sessionId);
 	return headers;
 }
 

@@ -170,7 +170,12 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 
 						// Step 4: Create headers with OAuth and ChatGPT account info
 						const accessToken = currentAuth.type === "oauth" ? currentAuth.access : "";
-						const headers = createCodexHeaders(requestInit, accountId, accessToken);
+						const headers = createCodexHeaders(
+							requestInit,
+							accountId,
+							accessToken,
+							sessionContext,
+						);
 
 						// Step 5: Make request to Codex API
 						const response = await fetch(url, {
