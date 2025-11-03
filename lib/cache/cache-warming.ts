@@ -37,6 +37,8 @@ export async function warmCachesOnStartup(): Promise<CacheWarmResult> {
 
 	logDebug("Starting cache warming on startup");
 
+	let firstError: Error | undefined;
+
 	try {
 		// Warm Codex instructions cache (most critical)
 		try {
@@ -44,6 +46,7 @@ export async function warmCachesOnStartup(): Promise<CacheWarmResult> {
 			result.codexInstructionsWarmed = true;
 			logDebug("Codex instructions cache warmed successfully");
 		} catch (error) {
+			if (!firstError) firstError = error instanceof Error ? error : new Error(String(error));
 			logWarn(`Failed to warm Codex instructions cache: ${error instanceof Error ? error.message : String(error)}`);
 		}
 
@@ -53,11 +56,17 @@ export async function warmCachesOnStartup(): Promise<CacheWarmResult> {
 			result.opencodePromptWarmed = true;
 			logDebug("OpenCode prompt cache warmed successfully");
 		} catch (error) {
+			if (!firstError) firstError = error instanceof Error ? error : new Error(String(error));
 			logWarn(`Failed to warm OpenCode prompt cache: ${error instanceof Error ? error.message : String(error)}`);
 		}
 
 		// Consider successful if at least one cache warmed
 		result.success = result.codexInstructionsWarmed || result.opencodePromptWarmed;
+		
+		// Set error to first encountered error if complete failure
+		if (!result.success && firstError) {
+			result.error = firstError.message;
+		}
 
 	} catch (error) {
 		result.error = error instanceof Error ? error.message : String(error);
