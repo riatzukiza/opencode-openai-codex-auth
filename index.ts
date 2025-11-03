@@ -136,21 +136,8 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 			// Priority: CODEX_MODE env var > config file > default (true)
 			const pluginConfig = loadPluginConfig();
 			const codexMode = getCodexMode(pluginConfig);
-			const promptCachingEnabled = pluginConfig.enablePromptCaching ?? false;
-			const sessionManager = new SessionManager({
-				enabled: promptCachingEnabled,
-			});
-
-				// Fetch Codex system instructions (cached with ETag for efficiency)
-				const CODEX_INSTRUCTIONS = await getCodexInstructions();
-
-				// Generate a stable conversation/session id for prompt caching during this loader's lifetime
-				const stableConversationId = (globalThis as any).crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
-				const conversationMemory: ConversationMemory = {
-					entries: new Map(),
-					payloads: new Map(),
-					usage: new Map(),
-				};
+			// Fetch Codex system instructions (cached with ETag for efficiency)
+			const CODEX_INSTRUCTIONS = await getCodexInstructions();
 
 				// Return SDK configuration
 				return {
@@ -192,8 +179,6 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 							CODEX_INSTRUCTIONS,
 							userConfig,
 							codexMode,
-							stableConversationId,
-							conversationMemory,
 						);
 						const hasTools = transformation?.body.tools !== undefined;
 						const requestInit = transformation?.updatedInit ?? init;
@@ -204,7 +189,6 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 							requestInit,
 							accountId,
 							accessToken,
-							sessionContext,
 						);
 
 						// Step 5: Make request to Codex API
@@ -226,7 +210,7 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 							return await handleErrorResponse(response);
 						}
 
-						return await handleSuccessResponse(response, hasTools, conversationMemory);
+						return await handleSuccessResponse(response, hasTools);
 					},
 				};
 			},
