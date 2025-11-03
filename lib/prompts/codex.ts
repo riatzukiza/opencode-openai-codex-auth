@@ -188,9 +188,9 @@ export async function getCodexInstructions(): Promise<string> {
 		if (response.status === 304) {
 			if (existsSync(CACHE_FILE)) {
 				const fileContent = readFileSync(CACHE_FILE, "utf8");
-			// Store in session cache
-			codexInstructionsCache.set(cacheKey, { data: fileContent, etag: cachedETag || undefined, tag: latestTag });
-			return fileContent;
+				// Store in session cache
+				codexInstructionsCache.set(cacheKey, { data: fileContent, etag: cachedETag || undefined, tag: latestTag });
+				return fileContent;
 			}
 			// Cache file missing but GitHub says not modified - fall through to re-fetch
 		}
