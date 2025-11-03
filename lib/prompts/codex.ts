@@ -61,7 +61,7 @@ export async function getCodexInstructions(): Promise<string> {
 		if (cachedTimestamp && (Date.now() - cachedTimestamp) < CACHE_TTL_MS && existsSync(CACHE_FILE)) {
 			const fileContent = readFileSync(CACHE_FILE, "utf8");
 			// Store in session cache for faster subsequent access
-			codexInstructionsCache.set(cacheKey, { data: fileContent, etag: cachedETag, tag: latestTag });
+			codexInstructionsCache.set(cacheKey, { data: fileContent, etag: cachedETag || undefined, tag: latestTag });
 			return fileContent;
 		}
 
