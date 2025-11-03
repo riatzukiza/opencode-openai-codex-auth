@@ -112,14 +112,9 @@ export async function transformRequestForCodex(
 	codexInstructions: string,
 	userConfig: UserConfig,
 	codexMode = true,
-<<<<<<< HEAD
-	sessionManager?: SessionManager,
-): Promise<{ body: RequestBody; updatedInit: RequestInit; sessionContext?: SessionContext } | undefined> {
-=======
 	promptCacheKey?: string,
 	conversationMemory?: ConversationMemory,
 ): Promise<{ body: RequestBody; updatedInit: RequestInit } | undefined> {
->>>>>>> a227eb4 (Add codex prompt caching and improve codex parity with correct tool shapes)
 	if (!init?.body) return undefined;
 
 	try {
@@ -145,15 +140,9 @@ export async function transformRequestForCodex(
 			codexInstructions,
 			userConfig,
 			codexMode,
-<<<<<<< HEAD
-			{ preserveIds: sessionContext?.preserveIds },
-		);
-		const appliedContext = sessionManager?.applyRequest(transformedBody, sessionContext) ?? sessionContext;
-=======
 			promptCacheKey,
 			conversationMemory,
 		);
->>>>>>> a227eb4 (Add codex prompt caching and improve codex parity with correct tool shapes)
 
 		// Log transformed request
 		logRequest(LOG_STAGES.AFTER_TRANSFORM, {
