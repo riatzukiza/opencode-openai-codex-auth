@@ -148,7 +148,7 @@ export function generateInputHash(input: any[] | undefined): string {
 		// Only hash first 100 chars of content to avoid excessive computation
 		content: typeof item.content === "string" 
 			? item.content.substring(0, 100)
-			: JSON.stringify(item.content).substring(0, 100),
+			: item.content ? JSON.stringify(item.content).substring(0, 100) : "",
 	})));
 	
 	return generateContentHash(canonical);
