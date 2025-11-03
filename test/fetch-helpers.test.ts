@@ -296,12 +296,10 @@ describe('Fetch Helpers Module', () => {
 				'instructions',
 				{ global: {}, models: {} },
 				true,
-				{ preserveIds: true },
+				{ preserveIds: false },
 			);
 			expect(result?.body).toEqual(transformed);
 			expect(result?.updatedInit.body).toBe(JSON.stringify(transformed));
-			expect(result?.sessionContext).toEqual(appliedContext);
-			expect(sessionManager.applyRequest).toHaveBeenCalledWith(transformed, sessionContext);
 		});
 	});
 

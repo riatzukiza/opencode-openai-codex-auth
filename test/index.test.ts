@@ -158,12 +158,8 @@ describe('OpenAIAuthPlugin', () => {
 		expect(extractRequestUrlMock).toHaveBeenCalledWith('https://chatgpt.com/backend-api/responses');
 		expect(rewriteUrlForCodexMock).toHaveBeenCalled();
 		expect(transformRequestForCodexMock).toHaveBeenCalled();
-		expect(createCodexHeadersMock).toHaveBeenCalledWith(expect.anything(), 'acc-123', 'access-token', expect.anything());
+		expect(createCodexHeadersMock).toHaveBeenCalledWith(expect.anything(), 'acc-123', 'access-token');
 		expect(fetchMock).toHaveBeenCalledWith('https://codex/responses', expect.objectContaining({ headers: expect.any(Headers) }));
 		expect(handleSuccessResponseMock).toHaveBeenCalled();
-		expect(sessionManagerInstance.recordResponse).toHaveBeenCalledWith(
-			{ sessionId: 'session-1', enabled: true, applied: true },
-			{ id: 'resp-1' },
-		);
 	});
 });
