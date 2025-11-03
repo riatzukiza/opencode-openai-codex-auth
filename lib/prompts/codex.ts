@@ -3,6 +3,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import type { GitHubRelease, CacheMetadata } from "../types.js";
+import { codexInstructionsCache, getCodexCacheKey } from "../cache/session-cache.js";
 
 // Codex instructions constants
 const GITHUB_API_RELEASES = "https://api.github.com/repos/openai/codex/releases/latest";
