@@ -5,6 +5,7 @@ import { getOpenCodeCodexPrompt } from "../prompts/opencode-codex.js";
 import { logDebug, logWarn } from "../logger.js";
 import { 
 	generateInputHash, 
+	generateContentHash,
 	hasBridgePromptInConversation, 
 	getCachedBridgeDecision, 
 	cacheBridgeDecision 
@@ -489,8 +490,73 @@ export async function filterOpenCodeSystemPrompts(
 }
 
 /**
+ * Analyze if bridge prompt is needed based on tools and conversation context
+ * @param input - Input array
+ * @param hasTools - Whether tools are present in request
+ * @returns Object with analysis results
+ */
+function analyzeBridgeRequirement(
+	input: InputItem[] | undefined,
+	hasTools: boolean
+): { needsBridge: boolean; reason: string; toolCount: number } {
+	if (!hasTools || !Array.isArray(input)) {
+		return { needsBridge: false, reason: "no_tools_or_input", toolCount: 0 };
+	}
+
+	// Count tools and analyze tool types
+	let toolCount = 0;
+	let hasCodexSpecificTools = false;
+	let hasTaskOrMCPTools = false;
+
+	// Extract tools from input (look for tool definitions in recent messages)
+	const recentMessages = input.slice(-3); // Check last 3 messages for tool definitions
+	
+	for (const message of recentMessages) {
+		if (message.content && Array.isArray(message.content)) {
+			for (const contentItem of message.content) {
+				if (contentItem.type === "input_text" && typeof contentItem.text === "string") {
+					// Look for tool definitions or tool usage patterns
+					if (contentItem.text.includes("apply_patch") || contentItem.text.includes("update_plan")) {
+						hasCodexSpecificTools = true;
+					}
+					if (contentItem.text.includes("Task tool") || contentItem.text.includes("mcp__")) {
+						hasTaskOrMCPTools = true;
+					}
+					// Count tool mentions (rough heuristic)
+					const toolMatches = contentItem.text.match(/\b(edit|read|write|grep|glob|bash|webfetch|todowrite|todoread)\b/g);
+					if (toolMatches) {
+						toolCount += toolMatches.length;
+					}
+				}
+			}
+		}
+	}
+
+	// If no tools found that need bridge guidance, skip
+	if (!hasCodexSpecificTools && !hasTaskOrMCPTools && toolCount < 2) {
+		return { needsBridge: false, reason: "insufficient_tool_complexity", toolCount };
+	}
+
+	// Check if this is a multi-turn conversation that might need reinforcement
+	const conversationLength = input.filter(item => 
+		item.type === "message" && (item.role === "user" || item.role === "assistant")
+	).length;
+
+	if (conversationLength > 5 && !hasCodexSpecificTools) {
+		// Skip bridge in long conversations unless Codex-specific tools are detected
+		return { needsBridge: false, reason: "long_conversation_without_codex_tools", toolCount };
+	}
+
+	return { 
+		needsBridge: true, 
+		reason: hasCodexSpecificTools ? "codex_specific_tools" : "tool_complexity",
+		toolCount 
+	};
+}
+
+/**
  * Add Codex-OpenCode bridge message to input if tools are present
- * Uses fingerprinting to avoid redundant bridge injections
+ * Uses conditional loading with fingerprinting to avoid redundant injections
  * @param input - Input array
  * @param hasTools - Whether tools are present in request
  * @returns Input array with bridge message prepended if needed
@@ -499,13 +565,39 @@ export function addCodexBridgeMessage(
 	input: InputItem[] | undefined,
 	hasTools: boolean,
 ): InputItem[] | undefined {
-	if (!hasTools || !Array.isArray(input)) return input;
+	if (!Array.isArray(input)) return input;
+
+	// Generate input hash for caching
+	const inputHash = generateInputHash(input);
+	
+	// Analyze bridge requirement
+	const analysis = analyzeBridgeRequirement(input, hasTools);
+	
+	// Check cache first
+	const cachedDecision = getCachedBridgeDecision(inputHash, analysis.toolCount);
+	if (cachedDecision) {
+		logDebug(`Using cached bridge decision: ${cachedDecision.hash === generateContentHash("add") ? "add" : "skip"}`);
+		return cachedDecision.hash === generateContentHash("add") 
+			? [{ type: "message", role: "developer", content: [{ type: "input_text", text: CODEX_OPENCODE_BRIDGE }] }, ...input]
+			: input;
+	}
 
 	// Check if bridge prompt is already in conversation
 	if (hasBridgePromptInConversation(input, CODEX_OPENCODE_BRIDGE)) {
 		logDebug("Bridge prompt already present in conversation, skipping injection");
+		cacheBridgeDecision(inputHash, analysis.toolCount, false);
 		return input;
 	}
+
+	// Apply conditional logic
+	if (!analysis.needsBridge) {
+		logDebug(`Skipping bridge prompt: ${analysis.reason} (tools: ${analysis.toolCount})`);
+		cacheBridgeDecision(inputHash, analysis.toolCount, false);
+		return input;
+	}
+
+	logDebug(`Adding bridge prompt: ${analysis.reason} (tools: ${analysis.toolCount})`);
+	cacheBridgeDecision(inputHash, analysis.toolCount, true);
 
 	const bridgeMessage: InputItem = {
 		type: "message",
