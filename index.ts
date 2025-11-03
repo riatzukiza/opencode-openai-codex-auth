@@ -41,7 +41,8 @@ import {
 } from "./lib/request/fetch-helpers.js";
 import { type ConversationMemory } from "./lib/request/request-transformer.js";
 import { loadPluginConfig, getCodexMode } from "./lib/config.js";
-import type { UserConfig, InputItem } from "./lib/types.js";
+import { SessionManager } from "./lib/session/session-manager.js";
+import type { CodexResponsePayload, UserConfig, InputItem } from "./lib/types.js";
 import {
 	DUMMY_API_KEY,
 	CODEX_BASE_URL,
