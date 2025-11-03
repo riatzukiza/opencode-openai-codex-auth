@@ -587,7 +587,7 @@ describe('Request Transformer Module', () => {
 				},
 				models: {},
 			};
-			const result = await transformRequestBody(body, codexInstructions, userConfig);
+			const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
 
 			expect(result.reasoning?.effort).toBe('high');
 			expect(result.reasoning?.summary).toBe('detailed');
@@ -611,7 +611,7 @@ describe('Request Transformer Module', () => {
 				global: { textVerbosity: 'low' },
 				models: {},
 			};
-			const result = await transformRequestBody(body, codexInstructions, userConfig);
+			const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
 			expect(result.text?.verbosity).toBe('low');
 		});
 
@@ -633,7 +633,7 @@ describe('Request Transformer Module', () => {
 				global: { include: ['custom_field', 'reasoning.encrypted_content'] },
 				models: {},
 			};
-			const result = await transformRequestBody(body, codexInstructions, userConfig);
+			const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
 			expect(result.include).toEqual(['custom_field', 'reasoning.encrypted_content']);
 		});
 
@@ -710,7 +710,7 @@ describe('Request Transformer Module', () => {
 				global: { reasoningEffort: 'minimal' },
 				models: {},
 			};
-			const result = await transformRequestBody(body, codexInstructions, userConfig);
+			const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
 			expect(result.reasoning?.effort).toBe('low');
 		});
 
@@ -723,7 +723,7 @@ describe('Request Transformer Module', () => {
 				global: { reasoningEffort: 'minimal' },
 				models: {},
 			};
-			const result = await transformRequestBody(body, codexInstructions, userConfig);
+			const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
 			expect(result.reasoning?.effort).toBe('minimal');
 		});
 
@@ -847,7 +847,7 @@ describe('Request Transformer Module', () => {
 						models: {}
 					};
 
-					const result = await transformRequestBody(body, codexInstructions, userConfig);
+					const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
 
 					expect(result.model).toBe('gpt-5-codex');  // Not changed
 					expect(result.reasoning?.effort).toBe('high');  // From global
@@ -886,7 +886,7 @@ describe('Request Transformer Module', () => {
 						input: []
 					};
 
-					const result = await transformRequestBody(body, codexInstructions, userConfig);
+					const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
 
 					expect(result.model).toBe('gpt-5-codex');  // Normalized
 					expect(result.reasoning?.effort).toBe('low');  // From per-model
@@ -899,7 +899,7 @@ describe('Request Transformer Module', () => {
 						input: []
 					};
 
-					const result = await transformRequestBody(body, codexInstructions, userConfig);
+					const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
 
 					expect(result.model).toBe('gpt-5-codex');  // Normalized
 					expect(result.reasoning?.effort).toBe('high');  // From per-model
@@ -912,7 +912,7 @@ describe('Request Transformer Module', () => {
 						input: []
 					};
 
-					const result = await transformRequestBody(body, codexInstructions, userConfig);
+					const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
 
 					expect(result.model).toBe('gpt-5-codex');  // Not changed
 					expect(result.reasoning?.effort).toBe('medium');  // From global (no per-model)
@@ -935,7 +935,7 @@ describe('Request Transformer Module', () => {
 						input: []
 					};
 
-					const result = await transformRequestBody(body, codexInstructions, userConfig);
+					const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
 
 					expect(result.model).toBe('gpt-5-codex');  // Normalized
 					expect(result.reasoning?.effort).toBe('low');  // From per-model (old format)
@@ -959,7 +959,7 @@ describe('Request Transformer Module', () => {
 						input: []
 					};
 
-					const result = await transformRequestBody(body, codexInstructions, userConfig);
+					const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
 
 					expect(result.reasoning?.effort).toBe('low');  // Per-model
 				});
@@ -970,7 +970,7 @@ describe('Request Transformer Module', () => {
 						input: []
 					};
 
-					const result = await transformRequestBody(body, codexInstructions, userConfig);
+					const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
 
 					expect(result.reasoning?.effort).toBe('medium');  // Global
 				});
@@ -1022,7 +1022,7 @@ describe('Request Transformer Module', () => {
 						tools: [{ name: 'edit' }]
 					};
 
-					const result = await transformRequestBody(body, codexInstructions, userConfig);
+					const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
 
 					// Model normalized
 					expect(result.model).toBe('gpt-5-codex');
