@@ -86,6 +86,108 @@ export async function getCodexInstructions(): Promise<string> {
 		if (response.status === 304) {
 			if (existsSync(CACHE_FILE)) {
 				const fileContent = readFileSync(CACHE_FILE, "utf8");
+				// Store in session cache
+				codexInstructionsCache.set(cacheKey, { data: fileContent, etag: cachedETag, tag: latestTag });
+				return fileContent;
+			}
+			// Cache file missing but GitHub says not modified - fall through to re-fetch
+		}
+
+		// 200 OK - new content or first fetch
+		if (response.ok) {
+			const instructions = await response.text();
+			const newETag = response.headers.get("etag");
+
+			// Create cache directory if it doesn't exist
+			if (!existsSync(CACHE_DIR)) {
+				mkdirSync(CACHE_DIR, { recursive: true });
+			}
+
+			// Cache the instructions with ETag and tag (verbatim from GitHub)
+			writeFileSync(CACHE_FILE, instructions, "utf8");
+			writeFileSync(
+				CACHE_METADATA_FILE,
+				JSON.stringify({
+					etag: newETag,
+					tag: latestTag,
+					lastChecked: Date.now(),
+					url: CODEX_INSTRUCTIONS_URL,
+				} satisfies CacheMetadata),
+				"utf8",
+			);
+
+			// Store in session cache
+			codexInstructionsCache.set(cacheKey, { data: instructions, etag: newETag || undefined, tag: latestTag });
+
+			return instructions;
+		}
+
+		throw new Error(`HTTP ${response.status}`);
+	} catch (error) {
+		const err = error as Error;
+		console.error(
+			"[openai-codex-plugin] Failed to fetch instructions from GitHub:",
+			err.message,
+		);
+
+		// Try to use cached version even if stale
+		if (existsSync(CACHE_FILE)) {
+			console.error("[openai-codex-plugin] Using cached instructions");
+			const fileContent = readFileSync(CACHE_FILE, "utf8");
+			// Store in session cache even for fallback
+			codexInstructionsCache.set(cacheKey, { data: fileContent });
+			return fileContent;
+		}
+
+		// Fall back to bundled version
+		console.error("[openai-codex-plugin] Falling back to bundled instructions");
+		const bundledContent = readFileSync(join(__dirname, "codex-instructions.md"), "utf8");
+		// Store bundled content in session cache to avoid repeated file reads
+		codexInstructionsCache.set(cacheKey, { data: bundledContent });
+		return bundledContent;
+	}
+}
+
+		// Load cached metadata (includes ETag, tag, and lastChecked timestamp)
+		let cachedETag: string | null = null;
+		let cachedTag: string | null = null;
+		let cachedTimestamp: number | null = null;
+
+		if (existsSync(CACHE_METADATA_FILE)) {
+			const metadata = JSON.parse(readFileSync(CACHE_METADATA_FILE, "utf8")) as CacheMetadata;
+			cachedETag = metadata.etag;
+			cachedTag = metadata.tag;
+			cachedTimestamp = metadata.lastChecked;
+		}
+
+		// Rate limit protection: If cache is less than 15 minutes old, use it
+		const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+		if (cachedTimestamp && (Date.now() - cachedTimestamp) < CACHE_TTL_MS && existsSync(CACHE_FILE)) {
+			const fileContent = readFileSync(CACHE_FILE, "utf8");
+			// Store in session cache for faster subsequent access
+			codexInstructionsCache.set(cacheKey, { data: fileContent, etag: cachedETag || undefined, tag: latestTag });
+			return fileContent;
+		}
+
+		// If tag changed, we need to fetch new instructions
+		if (cachedTag !== latestTag) {
+			cachedETag = null; // Force re-fetch
+		}
+
+		const CODEX_INSTRUCTIONS_URL = `https://raw.githubusercontent.com/openai/codex/${latestTag}/codex-rs/core/gpt_5_codex_prompt.md`;
+
+		// Make conditional request with If-None-Match header
+		const headers: Record<string, string> = {};
+		if (cachedETag) {
+			headers["If-None-Match"] = cachedETag;
+		}
+
+		const response = await fetch(CODEX_INSTRUCTIONS_URL, { headers });
+
+		// 304 Not Modified - our cached version is still current
+		if (response.status === 304) {
+			if (existsSync(CACHE_FILE)) {
+				const fileContent = readFileSync(CACHE_FILE, "utf8");
 			// Store in session cache
 			codexInstructionsCache.set(cacheKey, { data: fileContent, etag: cachedETag || undefined, tag: latestTag });
 			return fileContent;

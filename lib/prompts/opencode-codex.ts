@@ -54,7 +54,7 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 	const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 	if (cachedMeta?.lastChecked && (Date.now() - cachedMeta.lastChecked) < CACHE_TTL_MS && cachedContent) {
 		// Store in session cache for faster subsequent access
-		openCodePromptCache.set("main", { data: cachedContent, etag: cachedMeta.etag });
+		openCodePromptCache.set("main", { data: cachedContent, etag: cachedMeta.etag || undefined });
 		return cachedContent;
 	}
 
@@ -70,7 +70,7 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 		// 304 Not Modified - cache is still valid
 		if (response.status === 304 && cachedContent) {
 			// Store in session cache
-			openCodePromptCache.set("main", { data: cachedContent, etag: cachedMeta.etag });
+			openCodePromptCache.set("main", { data: cachedContent, etag: cachedMeta?.etag || undefined });
 			return cachedContent;
 		}
 
@@ -96,7 +96,7 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 			);
 
 			// Store in session cache
-			openCodePromptCache.set("main", { data: content, etag });
+			openCodePromptCache.set("main", { data: content, etag: etag || undefined });
 
 			return content;
 		}
