@@ -159,7 +159,6 @@ export async function transformRequestForCodex(
 		return {
 			body: transformedBody,
 			updatedInit: { ...init, body: JSON.stringify(transformedBody) },
-			sessionContext: appliedContext,
 		};
 	} catch (e) {
 		console.error(`[${PLUGIN_NAME}] ${ERROR_MESSAGES.REQUEST_PARSE_ERROR}:`, e);
