@@ -1,8 +1,13 @@
-import { createHash } from "node:crypto";
 import { TOOL_REMAP_MESSAGE } from "../prompts/codex.js";
 import { CODEX_OPENCODE_BRIDGE } from "../prompts/codex-opencode-bridge.js";
 import { getOpenCodeCodexPrompt } from "../prompts/opencode-codex.js";
 import { logDebug, logWarn } from "../logger.js";
+import { 
+	generateInputHash, 
+	hasBridgePromptInConversation, 
+	getCachedBridgeDecision, 
+	cacheBridgeDecision 
+} from "../cache/prompt-fingerprinting.js";
 import type {
 	UserConfig,
 	ConfigOptions,
