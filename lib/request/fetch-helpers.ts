@@ -120,7 +120,6 @@ export async function transformRequestForCodex(
 	try {
 		const body = JSON.parse(init.body as string) as RequestBody;
 		const originalModel = body.model;
-		const sessionContext = sessionManager?.getContext(body);
 
 		// Log original request
 		logRequest(LOG_STAGES.BEFORE_TRANSFORM, {
@@ -140,8 +139,7 @@ export async function transformRequestForCodex(
 			codexInstructions,
 			userConfig,
 			codexMode,
-			promptCacheKey,
-			conversationMemory,
+			{ preserveIds: false },
 		);
 
 		// Log transformed request
