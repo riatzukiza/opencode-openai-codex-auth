@@ -1,4 +1,5 @@
 import { TOOL_REMAP_MESSAGE } from "../prompts/codex.js";
+import { createHash } from "node:crypto";
 import { CODEX_OPENCODE_BRIDGE } from "../prompts/codex-opencode-bridge.js";
 import { getOpenCodeCodexPrompt } from "../prompts/opencode-codex.js";
 import { logDebug, logWarn } from "../logger.js";
