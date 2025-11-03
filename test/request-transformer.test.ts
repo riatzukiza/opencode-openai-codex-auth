@@ -516,15 +516,15 @@ describe('Request Transformer Module', () => {
 
 	describe('addCodexBridgeMessage', () => {
 		it('should prepend bridge message when tools present', async () => {
-			const input: InputItem[] = [
-				{ type: 'message', role: 'user', content: 'hello' },
+			const input = [
+				{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'test' }] },
 			];
 			const result = addCodexBridgeMessage(input, true);
 
 			expect(result).toHaveLength(2);
 			expect(result![0].role).toBe('developer');
 			expect(result![0].type).toBe('message');
-			expect((result![0].content as any)[0].text).toContain('Codex Running in OpenCode');
+			expect((result![0].content as any)[0].text).toContain('Codex in OpenCode');
 		});
 
 		it('should not modify input when tools not present', async () => {
@@ -747,7 +747,7 @@ describe('Request Transformer Module', () => {
 
 				expect(result.input).toHaveLength(2);
 				expect(result.input![0].role).toBe('developer');
-				expect((result.input![0].content as any)[0].text).toContain('Codex Running in OpenCode');
+				expect((result.input![0].content as any)[0].text).toContain('Codex in OpenCode');
 			});
 
 			it('should filter OpenCode prompts when codexMode=true', async () => {
@@ -768,7 +768,7 @@ describe('Request Transformer Module', () => {
 				// Should have bridge message + user message (OpenCode prompt filtered out)
 				expect(result.input).toHaveLength(2);
 				expect(result.input![0].role).toBe('developer');
-				expect((result.input![0].content as any)[0].text).toContain('Codex Running in OpenCode');
+				expect((result.input![0].content as any)[0].text).toContain('Codex in OpenCode');
 				expect(result.input![1].role).toBe('user');
 			});
 
@@ -830,7 +830,7 @@ describe('Request Transformer Module', () => {
 
 				// Should use bridge message (codexMode=true by default)
 				expect(result.input![0].role).toBe('developer');
-				expect((result.input![0].content as any)[0].text).toContain('Codex Running in OpenCode');
+				expect((result.input![0].content as any)[0].text).toContain('Codex in OpenCode');
 			});
 		});
 
