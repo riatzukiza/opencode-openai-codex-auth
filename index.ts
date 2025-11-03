@@ -26,6 +26,7 @@ import type { Plugin, PluginInput } from "@opencode-ai/plugin";
 import type { Auth } from "@opencode-ai/sdk";
 import { createAuthorizationFlow, exchangeAuthorizationCode, decodeJWT, REDIRECT_URI } from "./lib/auth/auth.js";
 import { getCodexInstructions } from "./lib/prompts/codex.js";
+import { warmCachesOnStartup, areCachesWarm } from "./lib/cache/cache-warming.js";
 import { startLocalOAuthServer } from "./lib/auth/server.js";
 import { logRequest, logDebug } from "./lib/logger.js";
 import { openBrowserUrl } from "./lib/auth/browser.js";
@@ -136,6 +137,19 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 			// Priority: CODEX_MODE env var > config file > default (true)
 			const pluginConfig = loadPluginConfig();
 			const codexMode = getCodexMode(pluginConfig);
+			
+			// Warm caches on startup for better first-request performance
+			// This is non-blocking - failures don't prevent plugin operation
+			const cachesAlreadyWarm = await areCachesWarm();
+			if (!cachesAlreadyWarm) {
+				try {
+					await warmCachesOnStartup();
+				} catch (error) {
+					// Cache warming failures are non-critical
+					console.warn(`[${PLUGIN_NAME}] Cache warming failed, plugin will continue normally: ${error instanceof Error ? error.message : String(error)}`);
+				}
+			}
+			
 			// Fetch Codex system instructions (cached with ETag for efficiency)
 			const CODEX_INSTRUCTIONS = await getCodexInstructions();
 
