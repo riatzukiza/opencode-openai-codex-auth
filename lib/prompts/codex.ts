@@ -35,6 +35,15 @@ async function getLatestReleaseTag(): Promise<string> {
  */
 export async function getCodexInstructions(): Promise<string> {
 	try {
+		// Check session cache first (fastest path)
+		const latestTag = await getLatestReleaseTag();
+		const cacheKey = getCodexCacheKey(undefined, latestTag);
+		const sessionEntry = codexInstructionsCache.get(cacheKey);
+		
+		if (sessionEntry) {
+			return sessionEntry.data;
+		}
+
 		// Load cached metadata (includes ETag, tag, and lastChecked timestamp)
 		let cachedETag: string | null = null;
 		let cachedTag: string | null = null;
@@ -50,17 +59,18 @@ export async function getCodexInstructions(): Promise<string> {
 		// Rate limit protection: If cache is less than 15 minutes old, use it
 		const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 		if (cachedTimestamp && (Date.now() - cachedTimestamp) < CACHE_TTL_MS && existsSync(CACHE_FILE)) {
-			return readFileSync(CACHE_FILE, "utf8");
+			const fileContent = readFileSync(CACHE_FILE, "utf8");
+			// Store in session cache for faster subsequent access
+			codexInstructionsCache.set(cacheKey, { data: fileContent, etag: cachedETag, tag: latestTag });
+			return fileContent;
 		}
-
-		// Get the latest release tag (only if cache is stale or missing)
-		const latestTag = await getLatestReleaseTag();
-		const CODEX_INSTRUCTIONS_URL = `https://raw.githubusercontent.com/openai/codex/${latestTag}/codex-rs/core/gpt_5_codex_prompt.md`;
 
 		// If tag changed, we need to fetch new instructions
 		if (cachedTag !== latestTag) {
 			cachedETag = null; // Force re-fetch
 		}
+
+		const CODEX_INSTRUCTIONS_URL = `https://raw.githubusercontent.com/openai/codex/${latestTag}/codex-rs/core/gpt_5_codex_prompt.md`;
 
 		// Make conditional request with If-None-Match header
 		const headers: Record<string, string> = {};
@@ -73,7 +83,10 @@ export async function getCodexInstructions(): Promise<string> {
 		// 304 Not Modified - our cached version is still current
 		if (response.status === 304) {
 			if (existsSync(CACHE_FILE)) {
-				return readFileSync(CACHE_FILE, "utf8");
+				const fileContent = readFileSync(CACHE_FILE, "utf8");
+				// Store in session cache
+				codexInstructionsCache.set(cacheKey, { data: fileContent, etag: cachedETag, tag: latestTag });
+				return fileContent;
 			}
 			// Cache file missing but GitHub says not modified - fall through to re-fetch
 		}
@@ -101,6 +114,9 @@ export async function getCodexInstructions(): Promise<string> {
 				"utf8",
 			);
 
+			// Store in session cache
+			codexInstructionsCache.set(cacheKey, { data: instructions, etag: newETag, tag: latestTag });
+
 			return instructions;
 		}
 
@@ -115,12 +131,18 @@ export async function getCodexInstructions(): Promise<string> {
 		// Try to use cached version even if stale
 		if (existsSync(CACHE_FILE)) {
 			console.error("[openai-codex-plugin] Using cached instructions");
-			return readFileSync(CACHE_FILE, "utf8");
+			const fileContent = readFileSync(CACHE_FILE, "utf8");
+			// Store in session cache even for fallback
+			codexInstructionsCache.set(cacheKey, { data: fileContent });
+			return fileContent;
 		}
 
 		// Fall back to bundled version
 		console.error("[openai-codex-plugin] Falling back to bundled instructions");
-		return readFileSync(join(__dirname, "codex-instructions.md"), "utf8");
+		const bundledContent = readFileSync(join(__dirname, "codex-instructions.md"), "utf8");
+		// Store bundled content in session cache to avoid repeated file reads
+		codexInstructionsCache.set(cacheKey, { data: bundledContent });
+		return bundledContent;
 	}
 }
 
