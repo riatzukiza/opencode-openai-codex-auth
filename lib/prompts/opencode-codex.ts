@@ -32,6 +32,12 @@ interface CacheMeta {
 export async function getOpenCodeCodexPrompt(): Promise<string> {
 	await mkdir(CACHE_DIR, { recursive: true });
 
+	// Check session cache first (fastest path)
+	const sessionEntry = openCodePromptCache.get("main");
+	if (sessionEntry) {
+		return sessionEntry.data;
+	}
+
 	// Try to load cached content and metadata
 	let cachedContent: string | null = null;
 	let cachedMeta: CacheMeta | null = null;
@@ -47,6 +53,8 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 	// Rate limit protection: If cache is less than 15 minutes old, use it
 	const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 	if (cachedMeta?.lastChecked && (Date.now() - cachedMeta.lastChecked) < CACHE_TTL_MS && cachedContent) {
+		// Store in session cache for faster subsequent access
+		openCodePromptCache.set("main", { data: cachedContent, etag: cachedMeta.etag });
 		return cachedContent;
 	}
 
@@ -61,6 +69,8 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 
 		// 304 Not Modified - cache is still valid
 		if (response.status === 304 && cachedContent) {
+			// Store in session cache
+			openCodePromptCache.set("main", { data: cachedContent, etag: cachedMeta.etag });
 			return cachedContent;
 		}
 
@@ -85,11 +95,16 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 				"utf-8"
 			);
 
+			// Store in session cache
+			openCodePromptCache.set("main", { data: content, etag });
+
 			return content;
 		}
 
 		// Fallback to cache if available
 		if (cachedContent) {
+			// Store in session cache even for fallback
+			openCodePromptCache.set("main", { data: cachedContent, etag: cachedMeta?.etag });
 			return cachedContent;
 		}
 
@@ -97,6 +112,8 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 	} catch (error) {
 		// Network error - fallback to cache
 		if (cachedContent) {
+			// Store in session cache even for fallback
+			openCodePromptCache.set("main", { data: cachedContent, etag: cachedMeta?.etag });
 			return cachedContent;
 		}
 
