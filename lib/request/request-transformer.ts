@@ -489,6 +489,7 @@ export async function filterOpenCodeSystemPrompts(
 
 /**
  * Add Codex-OpenCode bridge message to input if tools are present
+ * Uses fingerprinting to avoid redundant bridge injections
  * @param input - Input array
  * @param hasTools - Whether tools are present in request
  * @returns Input array with bridge message prepended if needed
@@ -498,6 +499,12 @@ export function addCodexBridgeMessage(
 	hasTools: boolean,
 ): InputItem[] | undefined {
 	if (!hasTools || !Array.isArray(input)) return input;
+
+	// Check if bridge prompt is already in conversation
+	if (hasBridgePromptInConversation(input, CODEX_OPENCODE_BRIDGE)) {
+		logDebug("Bridge prompt already present in conversation, skipping injection");
+		return input;
+	}
 
 	const bridgeMessage: InputItem = {
 		type: "message",
