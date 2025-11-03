@@ -1,7 +1,7 @@
 /**
  * OpenCode Codex Prompt Fetcher
  *
- * Fetches and caches the codex.txt system prompt from OpenCode's GitHub repository.
+ * Fetches and caches codex.txt system prompt from OpenCode's GitHub repository.
  * Uses ETag-based caching to efficiently track updates.
  */
 
@@ -103,8 +103,6 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 
 		// Fallback to cache if available
 		if (cachedContent) {
-			// Store in session cache even for fallback
-			openCodePromptCache.set("main", { data: cachedContent, etag: cachedMeta?.etag });
 			return cachedContent;
 		}
 
@@ -113,7 +111,7 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 		// Network error - fallback to cache
 		if (cachedContent) {
 			// Store in session cache even for fallback
-			openCodePromptCache.set("main", { data: cachedContent, etag: cachedMeta?.etag });
+			openCodePromptCache.set("main", { data: cachedContent, etag: cachedMeta?.etag || undefined });
 			return cachedContent;
 		}
 
@@ -124,7 +122,7 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 }
 
 /**
- * Get first N characters of the cached OpenCode prompt for verification
+ * Get first N characters of cached OpenCode prompt for verification
  * @param chars Number of characters to get (default: 50)
  * @returns First N characters or null if not cached
  */
