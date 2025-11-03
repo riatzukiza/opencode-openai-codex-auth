@@ -8,6 +8,7 @@
 import { getCodexInstructions } from "../prompts/codex.js";
 import { getOpenCodeCodexPrompt } from "../prompts/opencode-codex.js";
 import { logDebug, logWarn } from "../logger.js";
+import { codexInstructionsCache, openCodePromptCache, cleanupExpiredCaches } from "./session-cache.js";
 
 /**
  * Cache warming result with metadata
@@ -36,6 +37,14 @@ export async function warmCachesOnStartup(): Promise<CacheWarmResult> {
 	};
 
 	logDebug("Starting cache warming on startup");
+	
+	// Clean up expired entries first to prevent memory buildup
+	try {
+		cleanupExpiredCaches();
+		logDebug("Cleaned up expired cache entries before warming");
+	} catch (error) {
+		logWarn(`Failed to cleanup expired caches: ${error instanceof Error ? error.message : String(error)}`);
+	}
 
 	let firstError: Error | undefined;
 
@@ -88,16 +97,20 @@ export async function warmCachesOnStartup(): Promise<CacheWarmResult> {
  * Check if caches are already warm (have valid entries)
  * Used to avoid redundant warming operations
  * 
+ * This function checks session cache directly without triggering network requests,
+ * avoiding race conditions where cache warming might be called unnecessarily.
+ * 
  * @returns Promise<boolean> - True if caches appear to be warm
  */
 export async function areCachesWarm(): Promise<boolean> {
 	try {
-		// Try to get cached values without forcing refresh
-		const codexInstructions = await getCodexInstructions();
-		const opencodePrompt = await getOpenCodeCodexPrompt();
+		// Check session cache directly without triggering network requests
+		// This prevents race conditions where full functions might fetch from network
+		const codexEntry = codexInstructionsCache.get('latest');
+		const opencodeEntry = openCodePromptCache.get('main');
 		
-		// If both return values without errors, caches are likely warm
-		return !!(codexInstructions && opencodePrompt);
+		// If both caches have valid entries, they are warm
+		return !!(codexEntry && opencodeEntry);
 	} catch (error) {
 		// Any error suggests caches are not warm
 		return false;

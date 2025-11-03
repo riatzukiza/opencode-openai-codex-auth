@@ -3,6 +3,8 @@
  * 
  * Provides fast access to frequently used prompts during a plugin session,
  * reducing file I/O and improving response times.
+ * 
+ * Includes metrics collection for cache performance monitoring.
  */
 
 interface SessionCacheEntry<T> {
@@ -17,6 +19,7 @@ interface SessionCache<T> {
 	set(key: string, entry: Omit<SessionCacheEntry<T>, 'timestamp'>): void;
 	clear(): void;
 	clean(): void; // Remove expired entries
+	getSize(): number; // Get current cache size
 }
 
 /**
@@ -60,7 +63,11 @@ export function createSessionCache<T>(ttlMs = 15 * 60 * 1000): SessionCache<T> {
 		}
 	};
 
-	return { get, set, clear, clean };
+	const getSize = (): number => {
+		return cache.size;
+	};
+
+	return { get, set, clear, clean, getSize };
 }
 
 // Global session caches
