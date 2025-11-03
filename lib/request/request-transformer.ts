@@ -579,6 +579,18 @@ export async function transformRequestBody(
 	body.stream = true;
 	body.instructions = codexInstructions;
 
+	// Tool behavior parity with Codex CLI (normalize shapes)
+	if (body.tools) {
+		const normalizedTools = normalizeToolsForResponses(body.tools);
+		if (normalizedTools && normalizedTools.length > 0) {
+			(body as any).tools = normalizedTools;
+			(body as any).tool_choice = "auto";
+			const modelName = (body.model || "").toLowerCase();
+			const codexParallelDisabled = modelName.includes("gpt-5-codex");
+			(body as any).parallel_tool_calls = !codexParallelDisabled;
+		}
+	}
+
 	// ---- BEGIN: add this safe block ----
 	// Tool behavior parity with Codex CLI (normalize shapes)
 	if (body.tools) {
