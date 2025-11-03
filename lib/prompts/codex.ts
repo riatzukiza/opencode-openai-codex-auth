@@ -34,10 +34,12 @@ async function getLatestReleaseTag(): Promise<string> {
  * @returns Codex instructions
  */
 export async function getCodexInstructions(): Promise<string> {
+	// Get latest tag once for use throughout the function
+	const latestTag = await getLatestReleaseTag();
+	const cacheKey = getCodexCacheKey(undefined, latestTag);
+
 	try {
 		// Check session cache first (fastest path)
-		const latestTag = await getLatestReleaseTag();
-		const cacheKey = getCodexCacheKey(undefined, latestTag);
 		const sessionEntry = codexInstructionsCache.get(cacheKey);
 		
 		if (sessionEntry) {
@@ -128,12 +130,15 @@ export async function getCodexInstructions(): Promise<string> {
 			err.message,
 		);
 
+		// Generate cache key for fallback scenarios
+		const fallbackCacheKey = getCodexCacheKey(undefined, latestTag);
+
 		// Try to use cached version even if stale
 		if (existsSync(CACHE_FILE)) {
 			console.error("[openai-codex-plugin] Using cached instructions");
 			const fileContent = readFileSync(CACHE_FILE, "utf8");
 			// Store in session cache even for fallback
-			codexInstructionsCache.set(cacheKey, { data: fileContent });
+			codexInstructionsCache.set(fallbackCacheKey, { data: fileContent });
 			return fileContent;
 		}
 
@@ -141,7 +146,7 @@ export async function getCodexInstructions(): Promise<string> {
 		console.error("[openai-codex-plugin] Falling back to bundled instructions");
 		const bundledContent = readFileSync(join(__dirname, "codex-instructions.md"), "utf8");
 		// Store bundled content in session cache to avoid repeated file reads
-		codexInstructionsCache.set(cacheKey, { data: bundledContent });
+		codexInstructionsCache.set(fallbackCacheKey, { data: bundledContent });
 		return bundledContent;
 	}
 }
