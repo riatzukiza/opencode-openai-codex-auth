@@ -380,7 +380,6 @@ export function getReasoningConfig(
  */
 export function filterInput(
 	input: InputItem[] | undefined,
-<<<<<<< HEAD
 	options: { preserveIds?: boolean } = {},
 ): InputItem[] | undefined {
 	if (!Array.isArray(input)) return input;
@@ -400,139 +399,9 @@ export function filterInput(
 			if (item.id && !preserveIds) {
 				const { id, ...itemWithoutId } = item;
 				return itemWithoutId as InputItem;
-=======
-	conversationMemory?: ConversationMemory,
-): InputItem[] | undefined {
-	if (!Array.isArray(input)) return input;
-
-	const seenFunctionCalls = new Set<string>();
-	const result: InputItem[] = [];
-	const now = Date.now();
-	const touchedIds = new Set<string>();
-	const hasReferences = input.some((item) => item.type === "item_reference");
-
-	const getCallId = (record: Record<string, unknown>): string | undefined => {
-		const callId = record.call_id;
-		if (typeof callId === "string" && callId.length > 0) {
-			return callId;
-		}
-		const id = record.id;
-		if (typeof id === "string" && id.length > 0) {
-			return id;
-		}
-		return undefined;
-	};
-
-	for (const original of input) {
-		if (original.type === "item_reference") {
-			const referenceId = typeof original.id === "string" ? original.id : undefined;
-			if (referenceId && conversationMemory) {
-				const cacheEntry = conversationMemory.entries.get(referenceId);
-				if (cacheEntry) {
-					const payload = conversationMemory.payloads.get(cacheEntry.hash);
-					if (payload) {
-						const restored = cloneInputItem(payload);
-						const restoredCallId = cacheEntry.callId ?? getCallId(restored as Record<string, unknown>);
-						if (restored.type === "function_call" && restoredCallId) {
-							seenFunctionCalls.add(restoredCallId);
-						}
-						cacheEntry.lastUsed = now;
-						if (restoredCallId && !cacheEntry.callId) {
-							cacheEntry.callId = restoredCallId;
-						}
-						result.push(restored);
-						touchedIds.add(referenceId);
-						continue;
-					}
-				}
 			}
-			logWarn(
-				`Dropped item_reference with no cached source "${referenceId ?? ""}"`,
-			);
-			continue;
-		}
-
-		const itemId = typeof original.id === "string" && original.id.length > 0 ? original.id : undefined;
-		const originalCallId = getCallId(original as Record<string, unknown>);
-		const item = cloneInputItem(original);
-
-		if ("id" in item) {
-			delete (item as Record<string, unknown>).id;
-		}
-		if (originalCallId) {
-			const mutableItem = item as Record<string, unknown>;
-			if (typeof mutableItem.call_id !== "string") {
-				mutableItem.call_id = originalCallId;
->>>>>>> a227eb4 (Add codex prompt caching and improve codex parity with correct tool shapes)
-			}
-		}
-
-		if (item.type === "function_call") {
-			if (originalCallId) {
-				seenFunctionCalls.add(originalCallId);
-			}
-			result.push(item);
-			if (itemId && conversationMemory) {
-				storeConversationEntry(conversationMemory, itemId, item, originalCallId, now);
-				touchedIds.add(itemId);
-			}
-			continue;
-		}
-
-		if (item.type === "function_call_output") {
-			if (originalCallId && !seenFunctionCalls.has(originalCallId) && conversationMemory) {
-				// Attempt to rehydrate the missing function_call from memory by call_id
-				let restoredCall: InputItem | undefined;
-				let restoredEntryId: string | undefined;
-				for (const [eid, entry] of conversationMemory.entries.entries()) {
-					if (entry.callId === originalCallId) {
-						const payload = conversationMemory.payloads.get(entry.hash);
-						if (payload && payload.type === "function_call") {
-							restoredCall = cloneInputItem(payload);
-							restoredEntryId = eid;
-							entry.lastUsed = now;
-							break;
-						}
-					}
-				}
-				if (restoredCall) {
-					// Ensure call_id is present on the restored item
-					const mutableRestored = restoredCall as Record<string, unknown>;
-					if (typeof mutableRestored.call_id !== "string") {
-						mutableRestored.call_id = originalCallId;
-					}
-					seenFunctionCalls.add(originalCallId);
-					result.push(restoredCall);
-					if (restoredEntryId) touchedIds.add(restoredEntryId);
-				}
-			}
-
-			if (originalCallId && seenFunctionCalls.has(originalCallId)) {
-				result.push(item);
-				if (itemId && conversationMemory) {
-					storeConversationEntry(conversationMemory, itemId, item, originalCallId, now);
-					touchedIds.add(itemId);
-				}
-			} else {
-				logWarn(
-					`Dropped function_call_output with unmatched call_id "${originalCallId ?? ""}" for stateless request`,
-				);
-			}
-			continue;
-		}
-
-		result.push(item);
-		if (itemId && conversationMemory) {
-			storeConversationEntry(conversationMemory, itemId, item, originalCallId, now);
-			touchedIds.add(itemId);
-		}
-	}
-
-	if (conversationMemory) {
-		pruneConversationMemory(conversationMemory, now, touchedIds);
-	}
-
-	return result;
+			return item;
+		});
 }
 
 /**
@@ -684,12 +553,7 @@ export async function transformRequestBody(
 	codexInstructions: string,
 	userConfig: UserConfig = { global: {}, models: {} },
 	codexMode = true,
-<<<<<<< HEAD
 	options: { preserveIds?: boolean } = {},
-=======
-	promptCacheKey?: string,
-	conversationMemory?: ConversationMemory,
->>>>>>> a227eb4 (Add codex prompt caching and improve codex parity with correct tool shapes)
 ): Promise<RequestBody> {
 	const originalModel = body.model;
 	const normalizedModel = normalizeModel(body.model);
@@ -715,14 +579,8 @@ export async function transformRequestBody(
 	body.stream = true;
 	body.instructions = codexInstructions;
 
-<<<<<<< HEAD
-=======
-	// Stable prompt cache key to enable prefix token caching across turns
-	if (promptCacheKey) {
-		(body as any).prompt_cache_key = promptCacheKey;
-	}
-
-	// Tool behavior parity with Codex CLI
+	// ---- BEGIN: add this safe block ----
+	// Tool behavior parity with Codex CLI (normalize shapes)
 	if (body.tools) {
 		const normalizedTools = normalizeToolsForResponses(body.tools);
 		if (normalizedTools && normalizedTools.length > 0) {
@@ -733,8 +591,8 @@ export async function transformRequestBody(
 			(body as any).parallel_tool_calls = !codexParallelDisabled;
 		}
 	}
+	// ---- END: add this safe block ----
 
->>>>>>> a227eb4 (Add codex prompt caching and improve codex parity with correct tool shapes)
 	// Filter and transform input
 	if (body.input && Array.isArray(body.input)) {
 		// Debug: Log original input message IDs before filtering
@@ -743,11 +601,7 @@ export async function transformRequestBody(
 			logDebug(`Processing ${originalIds.length} message IDs from input (preserve=${preserveIds})`, originalIds);
 		}
 
-<<<<<<< HEAD
 		body.input = filterInput(body.input, { preserveIds });
-=======
-		body.input = filterInput(body.input, conversationMemory);
->>>>>>> a227eb4 (Add codex prompt caching and improve codex parity with correct tool shapes)
 
 		// Debug: Verify all IDs were removed
 		if (!preserveIds) {
