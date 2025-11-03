@@ -1044,4 +1044,3 @@ describe('Request Transformer Module', () => {
 			});
 		});
 	});
-});
