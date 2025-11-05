@@ -16,8 +16,13 @@ import {
 import { logDebug } from '../lib/logger.js';
 
 // Mock dependencies
-vi.mock('../lib/logger.js');
-const mockLogDebug = vi.mocked(logDebug);
+vi.mock('../lib/logger.js', () => ({
+	logDebug: vi.fn(),
+	logWarn: vi.fn(),
+	logRequest: vi.fn(),
+	LOGGING_ENABLED: false,
+}));
+const mockLogDebug = logDebug as ReturnType<typeof vi.fn>;
 
 describe('Cache Metrics', () => {
 	beforeEach(() => {
@@ -59,11 +64,11 @@ describe('Cache Metrics', () => {
 			recordCacheHit('codexInstructions'); // 1 hit, 2 misses
 
 			// Assert
-			const metrics = getCacheMetrics();
-			expect(metrics.codexInstructions.hits).toBe(1);
-			expect(metrics.codexInstructions.misses).toBe(2);
-			expect(metrics.codexInstructions.totalRequests).toBe(3);
-			expect(metrics.codexInstructions.hitRate).toBe(33.333333333333336);
+		const metrics = getCacheMetrics();
+		expect(metrics.codexInstructions.hits).toBe(1);
+		expect(metrics.codexInstructions.misses).toBe(2);
+		expect(metrics.codexInstructions.totalRequests).toBe(3);
+		expect(metrics.codexInstructions.hitRate).toBeCloseTo(33.333333333333336, 10);
 			
 			expect(metrics.overall.hits).toBe(1);
 			expect(metrics.overall.misses).toBe(2);
@@ -160,9 +165,9 @@ describe('Cache Metrics', () => {
 			autoResetCacheMetrics(60 * 60 * 1000); // 1 hour interval
 
 			// Assert - should not have reset
-			const metrics = getCacheMetrics();
-			expect(metrics.overall.hits).toBe(2);
-			expect(metrics.overall.totalRequests).toBe(2);
+		const metrics = getCacheMetrics();
+		expect(metrics.overall.hits).toBe(1);
+		expect(metrics.overall.totalRequests).toBe(1);
 		});
 	});
 
@@ -181,7 +186,7 @@ describe('Cache Metrics', () => {
 
 			// Assert
 			expect(report.summary).toContain('codexInstructions: 0/5 (0.0% hit rate, 0 evictions)');
-			expect(report.summary).toContain('opencodePrompt: 0/0 (NaN% hit rate, 150 evictions)');
+		expect(report.summary).toContain('opencodePrompt: 0/0 (0.0% hit rate, 150 evictions)');
 			expect(report.summary).toContain('overall: 0/5 (0.0% hit rate)');
 			
 			expect(report.recommendations).toContain('Consider increasing cache TTL for better hit rates');

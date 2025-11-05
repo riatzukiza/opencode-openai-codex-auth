@@ -12,19 +12,18 @@ import {
 	SCOPE,
 } from '../lib/auth/auth.js';
 
-const fetchMock = vi.hoisted(() => vi.fn());
+const fetchMock = vi.fn();
 
 describe('Auth Module', () => {
 	const originalConsoleError = console.error;
 
 	beforeEach(() => {
 		fetchMock.mockReset();
-		vi.stubGlobal('fetch', fetchMock);
+		global.fetch = fetchMock;
 		console.error = vi.fn();
 	});
 
 	afterEach(() => {
-		vi.unstubAllGlobals();
 		console.error = originalConsoleError;
 	});
 

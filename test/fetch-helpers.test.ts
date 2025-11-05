@@ -12,37 +12,40 @@ import {
 import type { Auth, SessionContext } from '../lib/types.js';
 import { URL_PATHS, OPENAI_HEADERS, OPENAI_HEADER_VALUES } from '../lib/constants.js';
 
-const refreshAccessTokenMock = vi.hoisted(() => vi.fn());
-const logRequestMock = vi.hoisted(() => vi.fn());
-const logDebugMock = vi.hoisted(() => vi.fn());
-const transformRequestBodyMock = vi.hoisted(() => vi.fn());
-const convertSseToJsonMock = vi.hoisted(() => vi.fn());
-const ensureContentTypeMock = vi.hoisted(() => vi.fn((headers: Headers) => headers));
-
-vi.mock('../lib/auth/auth.js', async () => {
-	const actual = await vi.importActual<typeof import('../lib/auth/auth.js')>('../lib/auth/auth.js');
-	return {
-		...actual,
-		refreshAccessToken: refreshAccessTokenMock,
-	};
-});
+vi.mock('../lib/auth/auth.js', () => ({
+	__esModule: true,
+	refreshAccessToken: vi.fn(),
+}));
 
 vi.mock('../lib/logger.js', () => ({
 	__esModule: true,
-	logRequest: logRequestMock,
-	logDebug: logDebugMock,
+	logRequest: vi.fn(),
+	logDebug: vi.fn(),
 }));
 
 vi.mock('../lib/request/request-transformer.js', () => ({
 	__esModule: true,
-	transformRequestBody: transformRequestBodyMock,
+	transformRequestBody: vi.fn(),
 }));
 
 vi.mock('../lib/request/response-handler.js', () => ({
 	__esModule: true,
-	convertSseToJson: convertSseToJsonMock,
-	ensureContentType: ensureContentTypeMock,
+	convertSseToJson: vi.fn(),
+	ensureContentType: vi.fn((headers: Headers) => headers),
 }));
+
+// Get mocked functions after import
+const { refreshAccessToken } = await import('../lib/auth/auth.js');
+const { logRequest, logDebug } = await import('../lib/logger.js');
+const { transformRequestBody } = await import('../lib/request/request-transformer.js');
+const { convertSseToJson, ensureContentType } = await import('../lib/request/response-handler.js');
+
+const refreshAccessTokenMock = vi.mocked(refreshAccessToken);
+const logRequestMock = vi.mocked(logRequest);
+const logDebugMock = vi.mocked(logDebug);
+const transformRequestBodyMock = vi.mocked(transformRequestBody);
+const convertSseToJsonMock = vi.mocked(convertSseToJson);
+const ensureContentTypeMock = vi.mocked(ensureContentType);
 
 const originalConsoleError = console.error;
 
@@ -216,10 +219,12 @@ describe('Fetch Helpers Module', () => {
 
 			const result = await refreshAndUpdateToken(auth, client as never);
 			expect(result.success).toBe(false);
-			expect((await result.response.clone().json()).error).toBe('Token refresh failed');
-		expect(console.error).toHaveBeenCalledWith(
-			'[openai-codex-plugin] Failed to refresh token, authentication required',
-		);
+			if (!result.success) {
+				expect((await result.response.clone().json()).error).toBe('Token refresh failed');
+			}
+			expect(console.error).toHaveBeenCalledWith(
+				'[openai-codex-plugin] Failed to refresh token, authentication required',
+			);
 			expect(client.auth.set).not.toHaveBeenCalled();
 		});
 
@@ -272,7 +277,7 @@ describe('Fetch Helpers Module', () => {
 		});
 
 		it('transforms request body and returns updated init', async () => {
-			const body = { model: 'gpt-5', tools: [], input: ['hello'] };
+			const body = { model: 'gpt-5', tools: [], input: [{ type: 'message', role: 'user', content: 'hello' }] };
 			const transformed = { ...body, model: 'gpt-5-codex', include: ['reasoning.encrypted_content'] };
 			transformRequestBodyMock.mockResolvedValue(transformed);
 			const sessionContext = { sessionId: 'session-1', preserveIds: true, enabled: true };

@@ -52,19 +52,16 @@ class MockServer {
 	}
 }
 
-const mockState = vi.hoisted(() => ({ server: null as MockServer | null }));
+const mockState = { server: null as MockServer | null };
 
-vi.mock('node:fs', async () => {
-	const actual = await vi.importActual<typeof import('node:fs')>('node:fs');
-	const mocked = {
-		...actual,
-		readFileSync: vi.fn(() => '<!DOCTYPE html><title>Success</title>'),
-	};
-	return {
-		...mocked,
-		default: mocked,
-	};
-});
+const mockServerFs = {
+	readFileSync: vi.fn(() => '<!DOCTYPE html><title>Success</title>'),
+};
+
+vi.mock('node:fs', () => ({
+	default: mockServerFs,
+	...mockServerFs,
+}));
 
 vi.mock('node:http', async () => {
 	const actual = await vi.importActual<typeof import('node:http')>('node:http');
@@ -84,7 +81,6 @@ vi.mock('node:http', async () => {
 
 describe('OAuth Server', () => {
   beforeEach(() => {
-    vi.resetModules();
     mockState.server = null;
   });
 

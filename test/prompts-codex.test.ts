@@ -1,16 +1,22 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { join } from 'node:path';
+import { codexInstructionsCache } from '../lib/cache/session-cache.js';
 
-const files = vi.hoisted(() => new Map<string, string>());
-const existsSync = vi.hoisted(() => vi.fn((file: string) => files.has(file)));
-const readFileSync = vi.hoisted(() => vi.fn((file: string) => files.get(file) ?? ''));
-const writeFileSync = vi.hoisted(() => vi.fn((file: string, content: string) => files.set(file, content)));
-const mkdirSync = vi.hoisted(() => vi.fn());
-const homedirMock = vi.hoisted(() => vi.fn(() => '/mock-home'));
-const fetchMock = vi.hoisted(() => vi.fn());
+const files = new Map<string, string>();
+const existsSync = vi.fn((file: string) => files.has(file));
+const readFileSync = vi.fn((file: string) => files.get(file) ?? '');
+const writeFileSync = vi.fn((file: string, content: string) => files.set(file, content));
+const mkdirSync = vi.fn();
+const homedirMock = vi.fn(() => '/mock-home');
+const fetchMock = vi.fn();
 
 vi.mock('node:fs', () => ({
-	__esModule: true,
+	default: {
+		existsSync,
+		readFileSync,
+		writeFileSync,
+		mkdirSync,
+	},
 	existsSync,
 	readFileSync,
 	writeFileSync,
@@ -27,19 +33,21 @@ describe('Codex Instructions Fetcher', () => {
 	const cacheFile = join(cacheDir, 'codex-instructions.md');
 	const cacheMeta = join(cacheDir, 'codex-instructions-meta.json');
 
-	beforeEach(() => {
-		vi.resetModules();
+beforeEach(() => {
 		files.clear();
 		existsSync.mockClear();
 		readFileSync.mockClear();
 		writeFileSync.mockClear();
 		mkdirSync.mockClear();
-		fetchMock.mockReset();
-		vi.stubGlobal('fetch', fetchMock);
+		homedirMock.mockReturnValue('/mock-home');
+		fetchMock.mockClear();
+		global.fetch = fetchMock;
+		codexInstructionsCache.clear();
 	});
 
 	afterEach(() => {
-		vi.unstubAllGlobals();
+		// Cleanup global fetch if needed
+		delete (global as any).fetch;
 	});
 
 	it('returns cached instructions when cache is fresh', async () => {

@@ -1,19 +1,19 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-const fetchMock = vi.hoisted(() => vi.fn());
-const decodeJWTMock = vi.hoisted(() => vi.fn(() => ({
+const fetchMock = vi.fn();
+const decodeJWTMock = vi.fn(() => ({
 	['https://api.openai.com/auth']: { chatgpt_account_id: 'acc-123' },
-})));
-const shouldRefreshTokenMock = vi.hoisted(() => vi.fn(() => false));
-const refreshAndUpdateTokenMock = vi.hoisted(() => vi.fn());
-const extractRequestUrlMock = vi.hoisted(() => vi.fn((input: string | URL | Request) =>
+}));
+const shouldRefreshTokenMock = vi.fn(() => false);
+const refreshAndUpdateTokenMock = vi.fn();
+const extractRequestUrlMock = vi.fn((input: string | URL | Request) =>
 	typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url,
-));
-const rewriteUrlForCodexMock = vi.hoisted(() => vi.fn(() => 'https://codex/responses'));
-const transformRequestForCodexMock = vi.hoisted(() => vi.fn());
-const createCodexHeadersMock = vi.hoisted(() => vi.fn(() => new Headers({ Authorization: 'Bearer token' })));
-const handleErrorResponseMock = vi.hoisted(() => vi.fn());
-const handleSuccessResponseMock = vi.hoisted(() => vi.fn());
+);
+const rewriteUrlForCodexMock = vi.fn(() => 'https://codex/responses');
+const transformRequestForCodexMock = vi.fn();
+const createCodexHeadersMock = vi.fn(() => new Headers({ Authorization: 'Bearer token' }));
+const handleErrorResponseMock = vi.fn();
+const handleSuccessResponseMock = vi.fn();
 const logRequestMock = vi.hoisted(() => vi.fn());
 const logDebugMock = vi.hoisted(() => vi.fn());
 const loadPluginConfigMock = vi.hoisted(() => vi.fn(() => ({ enablePromptCaching: true })));

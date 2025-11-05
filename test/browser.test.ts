@@ -2,12 +2,17 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getBrowserOpener, openBrowserUrl } from '../lib/auth/browser.js';
 import { PLATFORM_OPENERS } from '../lib/constants.js';
 
-const spawnMock = vi.hoisted(() => vi.fn());
-
 vi.mock('node:child_process', () => ({
-	__esModule: true,
-	spawn: spawnMock,
+	spawn: vi.fn(),
 }));
+
+// Get the mocked function
+let spawnMock: ReturnType<typeof vi.mocked<(command: string, args?: string[], options?: any) => any>>;
+
+beforeEach(async () => {
+	const { spawn } = await import('node:child_process');
+	spawnMock = vi.mocked(spawn);
+});
 
 describe('Browser Module', () => {
 	describe('getBrowserOpener', () => {

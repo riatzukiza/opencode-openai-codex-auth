@@ -193,3 +193,20 @@ This plugin **intentionally differs from opencode defaults** because it accesses
 - TypeScript
 
 **Zero external runtime dependencies** - only uses Node.js built-ins for file I/O, HTTP, crypto.
+
+## 🔗 Cross-Repository Integration
+
+### Comprehensive Cross-References
+- **[CROSS_REFERENCES.md](./CROSS_REFERENCES.md)** - Complete cross-references to all related repositories
+- **[Workspace AGENTS.md](../AGENTS.md)** - Main workspace documentation
+- **[Repository Index](../REPOSITORY_INDEX.md)** - Complete repository overview
+
+### Related Repositories
+- **[promethean](../promethean/)**: Agent orchestration and automated testing
+- **[agent-shell](../agent-shell/)**: Authentication patterns for Agent Shell
+- **[moofone/codex-ts-sdk](../moofone/codex-ts-sdk/)**: TypeScript SDK compatibility
+- **[openai/codex](../openai/codex/)**: Rust CLI OAuth reference implementation
+- **[stt](../stt/)**: OpenCode branch testing and development
+- **[opencode-hub](../opencode-hub/)**: Plugin distribution and management
+- **[clojure-mcp](../clojure-mcp/)**: Authentication patterns for Clojure tools
+- **[riatzukiza/openhax](../riatzukiza/openhax/)**: Full-stack authentication patterns

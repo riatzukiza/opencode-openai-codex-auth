@@ -7,21 +7,33 @@ import { warmCachesOnStartup, areCachesWarm, getCacheWarmingStats } from '../lib
 import { getCodexInstructions } from '../lib/prompts/codex.js';
 import { getOpenCodeCodexPrompt } from '../lib/prompts/opencode-codex.js';
 import { logDebug, logWarn } from '../lib/logger.js';
+import { codexInstructionsCache, openCodePromptCache } from '../lib/cache/session-cache.js';
 
 // Mock dependencies
-vi.mock('../lib/prompts/codex.js');
-vi.mock('../lib/prompts/opencode-codex.js');
-vi.mock('../lib/logger.js');
+vi.mock('../lib/prompts/codex.js', () => ({
+	getCodexInstructions: vi.fn(),
+}));
+vi.mock('../lib/prompts/opencode-codex.js', () => ({
+	getOpenCodeCodexPrompt: vi.fn(),
+}));
+vi.mock('../lib/logger.js', () => ({
+	logDebug: vi.fn(),
+	logWarn: vi.fn(),
+	logRequest: vi.fn(),
+	LOGGING_ENABLED: false,
+}));
 
-const mockGetCodexInstructions = vi.mocked(getCodexInstructions);
-const mockGetOpenCodeCodexPrompt = vi.mocked(getOpenCodeCodexPrompt);
-const mockLogDebug = vi.mocked(logDebug);
-const mockLogWarn = vi.mocked(logWarn);
+const mockGetCodexInstructions = getCodexInstructions as ReturnType<typeof vi.fn>;
+const mockGetOpenCodeCodexPrompt = getOpenCodeCodexPrompt as ReturnType<typeof vi.fn>;
+const mockLogDebug = logDebug as ReturnType<typeof vi.fn>;
+const mockLogWarn = logWarn as ReturnType<typeof vi.fn>;
 
 describe('Cache Warming', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		vi.useFakeTimers();
+		codexInstructionsCache.clear();
+		openCodePromptCache.clear();
 	});
 
 	afterEach(() => {
@@ -35,7 +47,7 @@ describe('Cache Warming', () => {
 			mockGetOpenCodeCodexPrompt.mockResolvedValue('opencode-prompt');
 
 			// Act
-			const result = await warmCachesOnStartup();
+		const result = await warmCachesOnStartup();
 
 			// Assert
 			expect(result.success).toBe(true);
@@ -108,20 +120,20 @@ describe('Cache Warming', () => {
 			// Arrange
 			mockGetCodexInstructions.mockResolvedValue('codex-instructions');
 			mockGetOpenCodeCodexPrompt.mockResolvedValue('opencode-prompt');
+			codexInstructionsCache.set('latest', { data: 'codex-instructions' });
+			openCodePromptCache.set('main', { data: 'opencode-prompt' });
 
 			// Act
 			const result = await areCachesWarm();
 
 			// Assert
 			expect(result).toBe(true);
-			expect(mockGetCodexInstructions).toHaveBeenCalledTimes(1);
-			expect(mockGetOpenCodeCodexPrompt).toHaveBeenCalledTimes(1);
+			expect(mockGetCodexInstructions).not.toHaveBeenCalled();
+			expect(mockGetOpenCodeCodexPrompt).not.toHaveBeenCalled();
 		});
 
 		it('should return false when Codex instructions cache is cold', async () => {
-			// Arrange
-			mockGetCodexInstructions.mockRejectedValue(new Error('Cache miss'));
-			mockGetOpenCodeCodexPrompt.mockResolvedValue('opencode-prompt');
+			openCodePromptCache.set('main', { data: 'opencode-prompt' });
 
 			// Act
 			const result = await areCachesWarm();
@@ -131,9 +143,7 @@ describe('Cache Warming', () => {
 		});
 
 		it('should return false when OpenCode prompt cache is cold', async () => {
-			// Arrange
-			mockGetCodexInstructions.mockResolvedValue('codex-instructions');
-			mockGetOpenCodeCodexPrompt.mockRejectedValue(new Error('Cache miss'));
+			codexInstructionsCache.set('latest', { data: 'codex-instructions' });
 
 			// Act
 			const result = await areCachesWarm();
@@ -143,7 +153,6 @@ describe('Cache Warming', () => {
 		});
 
 		it('should return false when both caches are cold', async () => {
-			// Arrange
 			mockGetCodexInstructions.mockRejectedValue(new Error('Cache miss'));
 			mockGetOpenCodeCodexPrompt.mockRejectedValue(new Error('Cache miss'));
 
@@ -196,35 +205,39 @@ describe('Cache Warming', () => {
 		});
 	});
 
-	describe('integration scenarios', () => {
-		it('should handle cache warming workflow end-to-end', async () => {
-			// Arrange - simulate cold caches
-			mockGetCodexInstructions
-				.mockRejectedValueOnce(new Error('Cache miss')) // areCachesWarm check
-				.mockResolvedValueOnce('codex-instructions') // warmCachesOnStartup
-				.mockResolvedValueOnce('codex-instructions'); // areCachesWarm after warming
-			
-			mockGetOpenCodeCodexPrompt
-				.mockRejectedValueOnce(new Error('Cache miss')) // areCachesWarm check
-				.mockResolvedValueOnce('opencode-prompt') // warmCachesOnStartup
-				.mockResolvedValueOnce('opencode-prompt'); // areCachesWarm after warming
+		describe('integration scenarios', () => {
+			it('should handle cache warming workflow end-to-end', async () => {
+				// Arrange - simulate cold caches
+				mockGetCodexInstructions
+					.mockImplementationOnce(async () => {
+						codexInstructionsCache.set('latest', { data: 'codex-instructions' });
+						return 'codex-instructions';
+					})
+					.mockImplementationOnce(async () => 'codex-instructions');
 
-			// Act & Assert - Check initial state
-			const initiallyWarm = await areCachesWarm();
-			expect(initiallyWarm).toBe(false);
+				mockGetOpenCodeCodexPrompt
+					.mockImplementationOnce(async () => {
+						openCodePromptCache.set('main', { data: 'opencode-prompt' });
+						return 'opencode-prompt';
+					})
+					.mockImplementationOnce(async () => 'opencode-prompt');
 
-			// Warm caches
-			const warmResult = await warmCachesOnStartup();
-			expect(warmResult.success).toBe(true);
+				// Act & Assert - Check initial state
+				const initiallyWarm = await areCachesWarm();
+				expect(initiallyWarm).toBe(false);
 
-			// Check final state
-			const finallyWarm = await areCachesWarm();
-			expect(finallyWarm).toBe(true);
+				// Warm caches
+				const warmResult = await warmCachesOnStartup();
+				expect(warmResult.success).toBe(true);
 
-			// Get stats
-			const stats = await getCacheWarmingStats();
-			expect(stats.codexInstructionsCached).toBe(true);
-			expect(stats.opencodePromptCached).toBe(true);
+				// Check final state
+				const finallyWarm = await areCachesWarm();
+				expect(finallyWarm).toBe(true);
+
+				// Get stats
+				const stats = await getCacheWarmingStats();
+				expect(stats.codexInstructionsCached).toBe(true);
+				expect(stats.opencodePromptCached).toBe(true);
+			});
 		});
-	});
 });

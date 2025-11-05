@@ -1,23 +1,32 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { loadPluginConfig, getCodexMode } from '../lib/config.js';
 import type { PluginConfig } from '../lib/types.js';
-import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-// Mock the fs module
-vi.mock('node:fs', async () => {
-	const actual = await vi.importActual<typeof import('node:fs')>('node:fs');
-	return {
-		...actual,
-		existsSync: vi.fn(),
-		readFileSync: vi.fn(),
-	};
+vi.mock('node:fs', () => ({
+	existsSync: vi.fn(),
+	readFileSync: vi.fn(),
+	writeFileSync: vi.fn(),
+	mkdirSync: vi.fn(),
+}));
+
+// Get mocked functions
+let mockExistsSync: any;
+let mockReadFileSync: any;
+let mockWriteFileSync: any;
+let mockMkdirSync: any;
+
+beforeEach(async () => {
+	const fs = await import('node:fs');
+	mockExistsSync = vi.mocked(fs.existsSync);
+	mockReadFileSync = vi.mocked(fs.readFileSync);
+	mockWriteFileSync = vi.mocked(fs.writeFileSync);
+	mockMkdirSync = vi.mocked(fs.mkdirSync);
 });
 
 describe('Plugin Configuration', () => {
-	const mockExistsSync = vi.mocked(fs.existsSync);
-	const mockReadFileSync = vi.mocked(fs.readFileSync);
+	
 	let originalEnv: string | undefined;
 
 	beforeEach(() => {
