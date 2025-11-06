@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { openCodePromptCache, getOpenCodeCacheKey } from "../cache/session-cache.js";
+import { recordCacheHit, recordCacheMiss } from "../cache/cache-metrics.js";
 
 const OPENCODE_CODEX_URL =
 	"https://raw.githubusercontent.com/sst/opencode/main/packages/opencode/src/session/prompt/codex.txt";
@@ -35,8 +36,10 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 	// Check session cache first (fastest path)
 	const sessionEntry = openCodePromptCache.get("main");
 	if (sessionEntry) {
+		recordCacheHit('opencodePrompt');
 		return sessionEntry.data;
 	}
+	recordCacheMiss('opencodePrompt');
 
 	// Try to load cached content and metadata
 	let cachedContent: string | null = null;

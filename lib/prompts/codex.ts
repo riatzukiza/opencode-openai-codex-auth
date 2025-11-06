@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import type { GitHubRelease, CacheMetadata } from "../types.js";
 import { codexInstructionsCache, getCodexCacheKey } from "../cache/session-cache.js";
+import { recordCacheHit, recordCacheMiss } from "../cache/cache-metrics.js";
 
 // Codex instructions constants
 const GITHUB_API_RELEASES = "https://api.github.com/repos/openai/codex/releases/latest";
@@ -48,8 +49,10 @@ async function getLatestReleaseTag(): Promise<string> {
 export async function getCodexInstructions(): Promise<string> {
 	const sessionEntry = codexInstructionsCache.get("latest");
 	if (sessionEntry) {
+		recordCacheHit('codexInstructions');
 		return sessionEntry.data;
 	}
+	recordCacheMiss('codexInstructions');
 
 	let cachedETag: string | null = null;
 	let cachedTag: string | null = null;

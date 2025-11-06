@@ -13,16 +13,8 @@ import {
 	autoResetCacheMetrics,
 	getCachePerformanceReport,
 } from '../lib/cache/cache-metrics.js';
-import { logDebug } from '../lib/logger.js';
+import { cleanupExpiredCaches, codexInstructionsCache, openCodePromptCache } from '../lib/cache/session-cache.js';
 
-// Mock dependencies
-vi.mock('../lib/logger.js', () => ({
-	logDebug: vi.fn(),
-	logWarn: vi.fn(),
-	logRequest: vi.fn(),
-	LOGGING_ENABLED: false,
-}));
-const mockLogDebug = logDebug as ReturnType<typeof vi.fn>;
 
 describe('Cache Metrics', () => {
 	beforeEach(() => {
@@ -129,7 +121,6 @@ describe('Cache Metrics', () => {
 			expect(metrics.overall.totalRequests).toBe(0);
 			expect(metrics.overall.hitRate).toBe(0);
 			
-			expect(mockLogDebug).toHaveBeenCalledWith('Cache metrics reset');
 		});
 	});
 

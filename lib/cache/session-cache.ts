@@ -7,6 +7,8 @@
  * Includes metrics collection for cache performance monitoring.
  */
 
+import { recordCacheEviction } from "./cache-metrics.js";
+
 interface SessionCacheEntry<T> {
 	data: T;
 	timestamp: number;
@@ -98,6 +100,15 @@ export function getOpenCodeCacheKey(etag?: string): string {
  * Call this periodically to prevent memory leaks
  */
 export function cleanupExpiredCaches(): void {
+	const beforeCodex = codexInstructionsCache.getSize();
 	codexInstructionsCache.clean();
+	const afterCodex = codexInstructionsCache.getSize();
+	const evictedCodex = Math.max(0, beforeCodex - afterCodex);
+	for (let i = 0; i < evictedCodex; i++) recordCacheEviction('codexInstructions');
+
+	const beforeOpenCode = openCodePromptCache.getSize();
 	openCodePromptCache.clean();
+	const afterOpenCode = openCodePromptCache.getSize();
+	const evictedOpenCode = Math.max(0, beforeOpenCode - afterOpenCode);
+	for (let i = 0; i < evictedOpenCode; i++) recordCacheEviction('opencodePrompt');
 }

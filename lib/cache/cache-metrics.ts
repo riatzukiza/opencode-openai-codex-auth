@@ -5,7 +5,6 @@
  * and overall cache efficiency for monitoring and optimization.
  */
 
-import { logDebug } from "../logger.js";
 
 /**
  * Cache metrics interface
@@ -133,7 +132,7 @@ class CacheMetricsCollector {
 				lastReset: now,
 			};
 		}
-		logDebug("Cache metrics reset");
+		// Cache metrics reset
 	}
 
 	/**
