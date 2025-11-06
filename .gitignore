@@ -2,6 +2,8 @@ node_modules/
 bun.lockb
 pnpm-lock.yaml
 dist/
+coverage/
+reports/
 .DS_Store
 .history/
 opencode.json

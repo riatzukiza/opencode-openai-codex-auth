@@ -176,10 +176,10 @@ export async function transformRequestForCodex(
  * @returns Headers object with all required Codex headers
  */
 export function createCodexHeaders(
-    init: RequestInit | undefined,
-    accountId: string,
-    accessToken: string,
-    opts?: { model?: string; promptCacheKey?: string },
+	init: RequestInit | undefined,
+	accountId: string,
+	accessToken: string,
+	opts?: { model?: string; promptCacheKey?: string },
 ): Headers {
 	const headers = new Headers(init?.headers ?? {});
 	headers.delete("x-api-key"); // Remove any existing API key
@@ -188,16 +188,16 @@ export function createCodexHeaders(
 	headers.set(OPENAI_HEADERS.BETA, OPENAI_HEADER_VALUES.BETA_RESPONSES);
 	headers.set(OPENAI_HEADERS.ORIGINATOR, OPENAI_HEADER_VALUES.ORIGINATOR_CODEX);
 
-    const cacheKey = opts?.promptCacheKey;
-    if (cacheKey) {
-        headers.set(OPENAI_HEADERS.CONVERSATION_ID, cacheKey);
-        headers.set(OPENAI_HEADERS.SESSION_ID, cacheKey);
-    } else {
-        headers.delete(OPENAI_HEADERS.CONVERSATION_ID);
-        headers.delete(OPENAI_HEADERS.SESSION_ID);
-    }
-    headers.set("accept", "text/event-stream");
-    return headers;
+	const cacheKey = opts?.promptCacheKey;
+	if (cacheKey) {
+		headers.set(OPENAI_HEADERS.CONVERSATION_ID, cacheKey);
+		headers.set(OPENAI_HEADERS.SESSION_ID, cacheKey);
+	} else {
+		headers.delete(OPENAI_HEADERS.CONVERSATION_ID);
+		headers.delete(OPENAI_HEADERS.SESSION_ID);
+	}
+	headers.set("accept", "text/event-stream");
+	return headers;
 }
 
 /**
@@ -205,9 +205,7 @@ export function createCodexHeaders(
  * @param response - Error response from API
  * @returns Response with error details
  */
-export async function handleErrorResponse(
-    response: Response,
-): Promise<Response> {
+export async function handleErrorResponse(response: Response): Promise<Response> {
 	const raw = await response.text();
 
 	let enriched = raw;
@@ -258,7 +256,7 @@ export async function handleErrorResponse(
 		enriched = raw;
 	}
 
-    console.error(`[${PLUGIN_NAME}] ${response.status} error:`, enriched);
+	console.error(`[${PLUGIN_NAME}] ${response.status} error:`, enriched);
 	logRequest(LOG_STAGES.ERROR_RESPONSE, {
 		status: response.status,
 		error: enriched,
@@ -281,10 +279,10 @@ export async function handleErrorResponse(
  * @returns Processed response (SSE→JSON for non-tool, stream for tool requests)
  */
 export async function handleSuccessResponse(
-    response: Response,
-    hasTools: boolean,
+	response: Response,
+	hasTools: boolean,
 ): Promise<Response> {
-    const responseHeaders = ensureContentType(response.headers);
+	const responseHeaders = ensureContentType(response.headers);
 
 	// For non-tool requests (compact/summarize), convert streaming SSE to JSON
 	// generateText() expects a non-streaming JSON response, not SSE
@@ -301,12 +299,12 @@ export async function handleSuccessResponse(
 }
 
 function toNumber(v: string | null): number | undefined {
-    if (v == null) return undefined;
-    const n = Number(v);
-    return Number.isFinite(n) ? n : undefined;
+	if (v == null) return undefined;
+	const n = Number(v);
+	return Number.isFinite(n) ? n : undefined;
 }
 function toInt(v: string | null): number | undefined {
-    if (v == null) return undefined;
-    const n = parseInt(v, 10);
-    return Number.isFinite(n) ? n : undefined;
+	if (v == null) return undefined;
+	const n = parseInt(v, 10);
+	return Number.isFinite(n) ? n : undefined;
 }

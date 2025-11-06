@@ -1,13 +1,14 @@
 /**
  * OpenCode Codex Prompt Fetcher
  *
- * Fetches and caches the codex.txt system prompt from OpenCode's GitHub repository.
+ * Fetches and caches codex.txt system prompt from OpenCode's GitHub repository.
  * Uses ETag-based caching to efficiently track updates.
  */
 
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { openCodePromptCache, getOpenCodeCacheKey } from "../cache/session-cache.js";
 
 const OPENCODE_CODEX_URL =
 	"https://raw.githubusercontent.com/sst/opencode/main/packages/opencode/src/session/prompt/codex.txt";
@@ -31,6 +32,12 @@ interface CacheMeta {
 export async function getOpenCodeCodexPrompt(): Promise<string> {
 	await mkdir(CACHE_DIR, { recursive: true });
 
+	// Check session cache first (fastest path)
+	const sessionEntry = openCodePromptCache.get("main");
+	if (sessionEntry) {
+		return sessionEntry.data;
+	}
+
 	// Try to load cached content and metadata
 	let cachedContent: string | null = null;
 	let cachedMeta: CacheMeta | null = null;
@@ -46,6 +53,8 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 	// Rate limit protection: If cache is less than 15 minutes old, use it
 	const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 	if (cachedMeta?.lastChecked && (Date.now() - cachedMeta.lastChecked) < CACHE_TTL_MS && cachedContent) {
+		// Store in session cache for faster subsequent access
+		openCodePromptCache.set("main", { data: cachedContent, etag: cachedMeta.etag || undefined });
 		return cachedContent;
 	}
 
@@ -60,6 +69,8 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 
 		// 304 Not Modified - cache is still valid
 		if (response.status === 304 && cachedContent) {
+			// Store in session cache
+			openCodePromptCache.set("main", { data: cachedContent, etag: cachedMeta?.etag || undefined });
 			return cachedContent;
 		}
 
@@ -84,6 +95,9 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 				"utf-8"
 			);
 
+			// Store in session cache
+			openCodePromptCache.set("main", { data: content, etag: etag || undefined });
+
 			return content;
 		}
 
@@ -96,6 +110,8 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 	} catch (error) {
 		// Network error - fallback to cache
 		if (cachedContent) {
+			// Store in session cache even for fallback
+			openCodePromptCache.set("main", { data: cachedContent, etag: cachedMeta?.etag || undefined });
 			return cachedContent;
 		}
 
@@ -106,7 +122,7 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 }
 
 /**
- * Get first N characters of the cached OpenCode prompt for verification
+ * Get first N characters of cached OpenCode prompt for verification
  * @param chars Number of characters to get (default: 50)
  * @returns First N characters or null if not cached
  */

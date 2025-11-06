@@ -1,16 +1,32 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
 	createState,
 	parseAuthorizationInput,
 	decodeJWT,
 	createAuthorizationFlow,
+	exchangeAuthorizationCode,
+	refreshAccessToken,
 	CLIENT_ID,
 	AUTHORIZE_URL,
 	REDIRECT_URI,
 	SCOPE,
 } from '../lib/auth/auth.js';
 
+const fetchMock = vi.fn();
+
 describe('Auth Module', () => {
+	const originalConsoleError = console.error;
+
+	beforeEach(() => {
+		fetchMock.mockReset();
+		global.fetch = fetchMock;
+		console.error = vi.fn();
+	});
+
+	afterEach(() => {
+		console.error = originalConsoleError;
+	});
+
 	describe('createState', () => {
 		it('should generate a random 32-character hex string', () => {
 			const state = createState();
@@ -138,6 +154,107 @@ describe('Auth Module', () => {
 			expect(flow1.state).not.toBe(flow2.state);
 			expect(flow1.pkce.verifier).not.toBe(flow2.pkce.verifier);
 			expect(flow1.url).not.toBe(flow2.url);
+		});
+	});
+
+	describe('exchangeAuthorizationCode', () => {
+		it('returns success result on 200 response', async () => {
+			fetchMock.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						access_token: 'access',
+						refresh_token: 'refresh',
+						expires_in: 60,
+					}),
+					{ status: 200, headers: { 'content-type': 'application/json' } },
+				),
+			);
+
+			const result = await exchangeAuthorizationCode('code', 'verifier');
+			expect(result.type).toBe('success');
+			expect(result.access).toBe('access');
+			expect(result.refresh).toBe('refresh');
+			expect(result.expires).toBeGreaterThan(Date.now());
+			const [url, init] = fetchMock.mock.calls[0];
+			expect(url).toBe('https://auth.openai.com/oauth/token');
+			expect((init as RequestInit).method).toBe('POST');
+			const body = new URLSearchParams((init as RequestInit).body as string);
+			expect(body.get('code')).toBe('code');
+			expect(body.get('code_verifier')).toBe('verifier');
+		});
+
+		it('returns failed result on non-200 response', async () => {
+			fetchMock.mockResolvedValueOnce(new Response('bad request', { status: 400 }));
+
+			const result = await exchangeAuthorizationCode('code', 'verifier');
+			expect(result).toEqual({ type: 'failed' });
+			expect(console.error).toHaveBeenCalledWith(
+				'[openai-codex-plugin] code->token failed:',
+				400,
+				'bad request',
+			);
+		});
+
+		it('returns failed result when response missing fields', async () => {
+			fetchMock.mockResolvedValueOnce(
+				new Response(JSON.stringify({ access_token: 'only-access' }), { status: 200 }),
+			);
+
+			const result = await exchangeAuthorizationCode('code', 'verifier');
+			expect(result).toEqual({ type: 'failed' });
+			expect(console.error).toHaveBeenCalledWith(
+				'[openai-codex-plugin] token response missing fields:',
+				{ access_token: 'only-access' },
+			);
+		});
+	});
+
+	describe('refreshAccessToken', () => {
+		it('returns success when refresh succeeds', async () => {
+			fetchMock.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						access_token: 'new-access',
+						refresh_token: 'new-refresh',
+						expires_in: 120,
+					}),
+					{ status: 200, headers: { 'content-type': 'application/json' } },
+				),
+			);
+
+			const result = await refreshAccessToken('refresh-token');
+			expect(result).toMatchObject({
+				type: 'success',
+				access: 'new-access',
+				refresh: 'new-refresh',
+			});
+			expect(result.expires).toBeGreaterThan(Date.now());
+			const [url, init] = fetchMock.mock.calls[0];
+			expect(url).toBe('https://auth.openai.com/oauth/token');
+			const body = new URLSearchParams((init as RequestInit).body as string);
+			expect(body.get('grant_type')).toBe('refresh_token');
+			expect(body.get('refresh_token')).toBe('refresh-token');
+		});
+
+		it('logs and returns failed when refresh request fails', async () => {
+			fetchMock.mockResolvedValueOnce(new Response('denied', { status: 401 }));
+			const result = await refreshAccessToken('refresh-token');
+			expect(result).toEqual({ type: 'failed' });
+			expect(console.error).toHaveBeenCalledWith(
+				'[openai-codex-plugin] Token refresh failed:',
+				401,
+				'denied',
+			);
+		});
+
+		it('handles network error by returning failed result', async () => {
+			fetchMock.mockRejectedValueOnce(new Error('network down'));
+			const result = await refreshAccessToken('refresh-token');
+			expect(result).toEqual({ type: 'failed' });
+			expect(console.error).toHaveBeenCalledWith(
+				'[openai-codex-plugin] Token refresh error:',
+				expect.objectContaining({ message: 'network down' }),
+			);
 		});
 	});
 });

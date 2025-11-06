@@ -18,8 +18,8 @@
  * For production applications, use the OpenAI Platform API: https://platform.openai.com/
  *
  * @license MIT with Usage Disclaimer (see LICENSE file)
- * @author numman-ali
- * @repository https://github.com/numman-ali/opencode-openai-codex-auth
+ * @author riatzukiza
+ * @repository https://github.com/riatzukiza/opencode-openai-codex-auth
  */
 
 import type { Plugin, PluginInput } from "@opencode-ai/plugin";
@@ -45,6 +45,7 @@ import {
 } from "./lib/constants.js";
 import { logRequest, logDebug } from "./lib/logger.js";
 import { getCodexInstructions } from "./lib/prompts/codex.js";
+import { warmCachesOnStartup, areCachesWarm } from "./lib/cache/cache-warming.js";
 import {
 	createCodexHeaders,
 	extractRequestUrl,
@@ -68,45 +69,44 @@ import type { UserConfig, CodexResponsePayload } from "./lib/types.js";
  * @example
  * ```json
  * {
- *   "plugin": ["opencode-openai-codex-auth"],
+ *   "plugin": ["@promethean-os/opencode-openai-codex-auth"],
  *   "model": "openai/gpt-5-codex"
  * }
  * ```
  */
 export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
+	function isCodexResponsePayload(payload: unknown): payload is CodexResponsePayload {
+		if (!payload || typeof payload !== "object") return false;
+		const usage = (payload as { usage?: unknown }).usage;
+		if (usage !== undefined && (usage === null || typeof usage !== "object")) return false;
+		if (
+			usage &&
+			"cached_tokens" in (usage as Record<string, unknown>) &&
+			typeof (usage as Record<string, unknown>).cached_tokens !== "number"
+		) {
+			return false;
+		}
+		return true;
+	}
+
 	return {
 		auth: {
 			provider: PROVIDER_ID,
 			/**
 			 * Loader function that configures OAuth authentication and request handling
-			 *
-			 * This function:
-			 * 1. Validates OAuth authentication
-			 * 2. Extracts ChatGPT account ID from access token
-			 * 3. Loads user configuration from opencode.json
-			 * 4. Fetches Codex system instructions from GitHub (cached)
-			 * 5. Returns SDK configuration with custom fetch implementation
-			 *
-			 * @param getAuth - Function to retrieve current auth state
-			 * @param provider - Provider configuration from opencode.json
-			 * @returns SDK configuration object or empty object for non-OAuth auth
 			 */
 			async loader(getAuth: () => Promise<Auth>, provider: unknown) {
 				const auth = await getAuth();
-
-				// Only handle OAuth auth type, skip API key auth
-				if (auth.type !== "oauth") {
-					return {};
-				}
+				if (auth.type !== "oauth") return {};
 
 				// Extract ChatGPT account ID from JWT access token
 				const decoded = decodeJWT(auth.access);
 				const accountId = decoded?.[JWT_CLAIM_PATH]?.chatgpt_account_id;
-
 				if (!accountId) {
 					console.error(`[${PLUGIN_NAME}] ${ERROR_MESSAGES.NO_ACCOUNT_ID}`);
 					return {};
 				}
+
 				// Extract user configuration (global + per-model options)
 				const providerConfig = provider as
 					| { options?: Record<string, unknown>; models?: UserConfig["models"] }
@@ -117,50 +117,37 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 				};
 
 				// Load plugin configuration and determine CODEX_MODE
-				// Priority: CODEX_MODE env var > config file > default (true)
 				const pluginConfig = loadPluginConfig();
 				const codexMode = getCodexMode(pluginConfig);
 				const promptCachingEnabled = pluginConfig.enablePromptCaching ?? false;
-				const sessionManager = new SessionManager({
-					enabled: promptCachingEnabled,
-				});
+				const sessionManager = new SessionManager({ enabled: promptCachingEnabled });
+
+				// Warm caches on startup for better first-request performance (non-blocking)
+				const cachesAlreadyWarm = await areCachesWarm();
+				if (!cachesAlreadyWarm) {
+					try {
+						await warmCachesOnStartup();
+					} catch (error) {
+						console.warn(
+							`[${PLUGIN_NAME}] Cache warming failed, continuing: ${
+								error instanceof Error ? error.message : String(error)
+							}`,
+						);
+					}
+				}
 
 				// Fetch Codex system instructions (cached with ETag for efficiency)
 				const CODEX_INSTRUCTIONS = await getCodexInstructions();
 
-				// Return SDK configuration
 				return {
 					apiKey: DUMMY_API_KEY,
 					baseURL: CODEX_BASE_URL,
-					/**
-					 * Custom fetch implementation for Codex API
-					 *
-					 * Handles:
-					 * - Token refresh when expired
-					 * - URL rewriting for Codex backend
-					 * - Request body transformation
-					 * - OAuth header injection
-					 * - SSE to JSON conversion for non-tool requests
-					 * - Error handling and logging
-					 *
-					 * @param input - Request URL or Request object
-					 * @param init - Request options
-					 * @returns Response from Codex API
-					 */
-					async fetch(
-						input: Request | string | URL,
-						init?: RequestInit,
-					): Promise<Response> {
+					async fetch(input: Request | string | URL, init?: RequestInit): Promise<Response> {
 						// Step 1: Check and refresh token if needed
 						const currentAuth = await getAuth();
 						if (shouldRefreshToken(currentAuth)) {
-							const refreshResult = await refreshAndUpdateToken(
-								currentAuth,
-								client,
-							);
-							if (!refreshResult.success) {
-								return refreshResult.response;
-							}
+							const refreshResult = await refreshAndUpdateToken(currentAuth, client);
+							if (!refreshResult.success) return refreshResult.response;
 						}
 
 						// Step 2: Extract and rewrite URL for Codex backend
@@ -181,23 +168,14 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 						const sessionContext = transformation?.sessionContext;
 
 						// Step 4: Create headers with OAuth and ChatGPT account info
-						const accessToken =
-							currentAuth.type === "oauth" ? currentAuth.access : "";
-						const headers = createCodexHeaders(
-							requestInit,
-							accountId,
-							accessToken,
-							{
-								model: transformation?.body.model,
-								promptCacheKey: (transformation?.body as any)?.prompt_cache_key,
-							},
-						);
+						const accessToken = currentAuth.type === "oauth" ? currentAuth.access : "";
+						const headers = createCodexHeaders(requestInit, accountId, accessToken, {
+							model: transformation?.body.model,
+							promptCacheKey: (transformation?.body as any)?.prompt_cache_key,
+						});
 
 						// Step 5: Make request to Codex API
-						const response = await fetch(url, {
-							...requestInit,
-							headers,
-						});
+						const response = await fetch(url, { ...requestInit, headers });
 
 						// Step 6: Log response
 						logRequest(LOG_STAGES.RESPONSE, {
@@ -216,15 +194,13 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 
 						if (
 							sessionContext &&
-							handledResponse.headers
-								.get("content-type")
-								?.includes("application/json")
+							handledResponse.headers.get("content-type")?.includes("application/json")
 						) {
 							try {
-								const payload = (await handledResponse
-									.clone()
-									.json()) as CodexResponsePayload;
-								sessionManager.recordResponse(sessionContext, payload);
+								const payload = (await handledResponse.clone().json()) as unknown;
+								if (isCodexResponsePayload(payload)) {
+									sessionManager.recordResponse(sessionContext, payload);
+								}
 							} catch (error) {
 								logDebug("SessionManager: failed to parse response payload", {
 									error: (error as Error).message,
@@ -240,25 +216,10 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 				{
 					label: AUTH_LABELS.OAUTH,
 					type: "oauth" as const,
-					/**
-					 * OAuth authorization flow
-					 *
-					 * Steps:
-					 * 1. Generate PKCE challenge and state for security
-					 * 2. Start local OAuth callback server on port 1455
-					 * 3. Open browser to OpenAI authorization page
-					 * 4. Wait for user to complete login
-					 * 5. Exchange authorization code for tokens
-					 *
-					 * @returns Authorization flow configuration
-					 */
 					authorize: async () => {
 						const { pkce, state, url } = await createAuthorizationFlow();
 						const serverInfo = await startLocalOAuthServer({ state });
-
-						// Attempt to open browser automatically
 						openBrowserUrl(url);
-
 						return {
 							url,
 							method: "auto" as const,
@@ -266,28 +227,18 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 							callback: async () => {
 								const result = await serverInfo.waitForCode(state);
 								serverInfo.close();
-
-								if (!result) {
-									return { type: "failed" as const };
-								}
-
+								if (!result) return { type: "failed" as const };
 								const tokens = await exchangeAuthorizationCode(
 									result.code,
 									pkce.verifier,
 									REDIRECT_URI,
 								);
-
-								return tokens?.type === "success"
-									? tokens
-									: { type: "failed" as const };
+								return tokens?.type === "success" ? tokens : ({ type: "failed" } as const);
 							},
 						};
 					},
 				},
-				{
-					label: AUTH_LABELS.API_KEY,
-					type: "api" as const,
-				},
+				{ label: AUTH_LABELS.API_KEY, type: "api" as const },
 			],
 		},
 	};
