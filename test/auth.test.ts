@@ -110,6 +110,13 @@ describe('Auth Module', () => {
 			expect(result).toBeNull();
 		});
 
+		it('should return null for 2-part token even if payload is valid JSON', () => {
+			const payload = Buffer.from(JSON.stringify({ ok: true })).toString('base64');
+			const token = `header.${payload}`; // only 2 parts
+			const result = decodeJWT(token);
+			expect(result).toBeNull();
+		});
+
 		it('should return null for non-JSON payload', () => {
 			const token = 'header.not-json.signature';
 			const result = decodeJWT(token);
@@ -172,13 +179,18 @@ describe('Auth Module', () => {
 
 			const result = await exchangeAuthorizationCode('code', 'verifier');
 			expect(result.type).toBe('success');
-			expect(result.access).toBe('access');
-			expect(result.refresh).toBe('refresh');
-			expect(result.expires).toBeGreaterThan(Date.now());
+			expect((result as any).access).toBe('access');
+			expect((result as any).refresh).toBe('refresh');
+			expect((result as any).expires).toBeGreaterThan(Date.now());
 			const [url, init] = fetchMock.mock.calls[0];
 			expect(url).toBe('https://auth.openai.com/oauth/token');
 			expect((init as RequestInit).method).toBe('POST');
+			const headers = (init as RequestInit).headers as Record<string, string>;
+			expect(headers['Content-Type']).toBe('application/x-www-form-urlencoded');
 			const body = new URLSearchParams((init as RequestInit).body as string);
+			expect(body.get('grant_type')).toBe('authorization_code');
+			expect(body.get('client_id')).toBe(CLIENT_ID);
+			expect(body.get('redirect_uri')).toBe(REDIRECT_URI);
 			expect(body.get('code')).toBe('code');
 			expect(body.get('code_verifier')).toBe('verifier');
 		});
@@ -192,6 +204,21 @@ describe('Auth Module', () => {
 				'[openai-codex-plugin] code->token failed:',
 				400,
 				'bad request',
+			);
+		});
+
+		it('logs empty body when text() throws on non-200', async () => {
+			const badRes: any = {
+				ok: false,
+				status: 500,
+				text: () => Promise.reject(new Error('boom')),
+			};
+			fetchMock.mockResolvedValueOnce(badRes);
+			await exchangeAuthorizationCode('code', 'verifier');
+			expect(console.error).toHaveBeenCalledWith(
+				'[openai-codex-plugin] code->token failed:',
+				500,
+				'',
 			);
 		});
 
@@ -231,9 +258,13 @@ describe('Auth Module', () => {
 			expect(result.expires).toBeGreaterThan(Date.now());
 			const [url, init] = fetchMock.mock.calls[0];
 			expect(url).toBe('https://auth.openai.com/oauth/token');
+			expect((init as RequestInit).method).toBe('POST');
+			const headers = (init as RequestInit).headers as Record<string, string>;
+			expect(headers['Content-Type']).toBe('application/x-www-form-urlencoded');
 			const body = new URLSearchParams((init as RequestInit).body as string);
 			expect(body.get('grant_type')).toBe('refresh_token');
 			expect(body.get('refresh_token')).toBe('refresh-token');
+			expect(body.get('client_id')).toBe(CLIENT_ID);
 		});
 
 		it('logs and returns failed when refresh request fails', async () => {
@@ -256,5 +287,39 @@ describe('Auth Module', () => {
 				expect.objectContaining({ message: 'network down' }),
 			);
 		});
+
+		it('logs empty body when text() throws on non-200', async () => {
+			const badRes: any = {
+				ok: false,
+				status: 403,
+				text: () => Promise.reject(new Error('boom')),
+			};
+			fetchMock.mockResolvedValueOnce(badRes);
+			await refreshAccessToken('refresh-token');
+			expect(console.error).toHaveBeenCalledWith(
+				'[openai-codex-plugin] Token refresh failed:',
+				403,
+				'',
+			);
+		});
+
+		it('returns failed when response missing fields (200 but invalid)', async () => {
+			fetchMock.mockResolvedValueOnce(
+				new Response(JSON.stringify({ access_token: 'only' }), { status: 200 }),
+			);
+			const result = await refreshAccessToken('refresh-token');
+			expect(result).toEqual({ type: 'failed' });
+			expect(console.error).toHaveBeenCalledWith(
+				'[openai-codex-plugin] Token refresh response missing fields:',
+				{ access_token: 'only' },
+			);
+		});
+	});
+
+	it('Auth constants have expected defaults', () => {
+		expect(AUTHORIZE_URL).toBe('https://auth.openai.com/oauth/authorize');
+		expect(CLIENT_ID).toBe('app_EMoamEEZ73f0CkXaXp7hrann');
+		expect(REDIRECT_URI).toBe('http://localhost:1455/auth/callback');
+		expect(SCOPE).toBe('openid profile email offline_access');
 	});
 });

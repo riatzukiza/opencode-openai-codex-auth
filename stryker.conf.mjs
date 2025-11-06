@@ -7,13 +7,13 @@ const config = {
 		'!lib/**/__mocks__/**/*.ts',
 		'!dist/**',
 	],
-	mutator: {
-		name: 'typescript',
-	},
+	// Stryker v7+: no mutator name needed; TS supported out of the box
+	mutator: {},
 	plugins: ['@stryker-mutator/vitest-runner'],
 	testRunner: 'vitest',
 	reporters: ['progress', 'clear-text', 'html'],
 	coverageAnalysis: 'perTest',
+	ignoreStatic: true,
 	timeoutMS: 60000,
 	thresholds: {
 		break: 60,

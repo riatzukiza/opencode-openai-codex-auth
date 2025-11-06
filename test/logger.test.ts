@@ -99,38 +99,33 @@ it('logRequest skips writing when logging disabled', async () => {
 	});
 
 	it('logDebug logs only when enabled', async () => {
-		// Since DEBUG_ENABLED is evaluated at module import time and ES modules are cached,
-		// we need to test the behavior that would occur in different scenarios
-		// by checking the actual value of the constant
-		
-		const { DEBUG_ENABLED, logDebug } = await import('../lib/logger.js');
-		
-		// If DEBUG_ENABLED is false (default), logDebug should not call console.log
-		if (!DEBUG_ENABLED) {
-			logDebug('should not log');
-			expect(logSpy).not.toHaveBeenCalled();
-		}
-		
-		// Test with debug enabled - simulate what would happen with fresh module load
-		// by temporarily setting the environment and checking expected behavior
-		const originalDebug = process.env.DEBUG_CODEX_PLUGIN;
-		const originalLogging = process.env.ENABLE_PLUGIN_REQUEST_LOGGING;
-		
+		// Ensure a clean import without debug/logging enabled
+		delete process.env.DEBUG_CODEX_PLUGIN;
+		delete process.env.ENABLE_PLUGIN_REQUEST_LOGGING;
+		await vi.resetModules();
+		let mod = await import('../lib/logger.js');
+		mod.logDebug('should not log');
+		expect(logSpy).not.toHaveBeenCalled();
+
+		// Enable debug and reload module to re-evaluate DEBUG_ENABLED
 		process.env.DEBUG_CODEX_PLUGIN = '1';
-		
-		// In a fresh module load, this would enable debug logging
-		// For this test, we verify the function exists and would work correctly
-		const { logDebug: logDebugEnabled } = await import('../lib/logger.js');
-		expect(typeof logDebugEnabled).toBe('function');
-		
-		// Restore original environment
-		process.env.DEBUG_CODEX_PLUGIN = originalDebug;
-		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = originalLogging;
+		await vi.resetModules();
+		mod = await import('../lib/logger.js');
+		mod.logDebug('hello', { a: 1 });
+		expect(logSpy).toHaveBeenCalledWith('[openai-codex-plugin] hello', { a: 1 });
 	});
 
 	it('logWarn always logs', async () => {
-		const { logWarn } = await import('../lib/logger.js');
-		logWarn('warning', { detail: 'info' });
-		expect(warnSpy).toHaveBeenCalledWith('[openai-codex-plugin] warning', { detail: 'info' });
-	});
+			const { logWarn } = await import('../lib/logger.js');
+			logWarn('warning', { detail: 'info' });
+			expect(warnSpy).toHaveBeenCalledWith('[openai-codex-plugin] warning', { detail: 'info' });
+		});
+
+		it('logWarn logs message without data', async () => {
+			const { logWarn } = await import('../lib/logger.js');
+			warnSpy.mockClear();
+			logWarn('just-message');
+			expect(warnSpy).toHaveBeenCalledWith('[openai-codex-plugin] just-message');
+		});
+
 });
