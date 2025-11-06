@@ -24,34 +24,39 @@
 
 import type { Plugin, PluginInput } from "@opencode-ai/plugin";
 import type { Auth } from "@opencode-ai/sdk";
-import { createAuthorizationFlow, exchangeAuthorizationCode, decodeJWT, REDIRECT_URI } from "./lib/auth/auth.js";
-import { getCodexInstructions } from "./lib/prompts/codex.js";
-import { startLocalOAuthServer } from "./lib/auth/server.js";
-import { logRequest, logDebug } from "./lib/logger.js";
-import { openBrowserUrl } from "./lib/auth/browser.js";
 import {
-	shouldRefreshToken,
-	refreshAndUpdateToken,
-	extractRequestUrl,
-	rewriteUrlForCodex,
-	transformRequestForCodex,
+	createAuthorizationFlow,
+	decodeJWT,
+	exchangeAuthorizationCode,
+	REDIRECT_URI,
+} from "./lib/auth/auth.js";
+import { openBrowserUrl } from "./lib/auth/browser.js";
+import { startLocalOAuthServer } from "./lib/auth/server.js";
+import { getCodexMode, loadPluginConfig } from "./lib/config.js";
+import {
+	AUTH_LABELS,
+	CODEX_BASE_URL,
+	DUMMY_API_KEY,
+	ERROR_MESSAGES,
+	JWT_CLAIM_PATH,
+	LOG_STAGES,
+	PLUGIN_NAME,
+	PROVIDER_ID,
+} from "./lib/constants.js";
+import { logRequest, logDebug } from "./lib/logger.js";
+import { getCodexInstructions } from "./lib/prompts/codex.js";
+import {
 	createCodexHeaders,
+	extractRequestUrl,
 	handleErrorResponse,
 	handleSuccessResponse,
+	refreshAndUpdateToken,
+	rewriteUrlForCodex,
+	shouldRefreshToken,
+	transformRequestForCodex,
 } from "./lib/request/fetch-helpers.js";
-import { loadPluginConfig, getCodexMode } from "./lib/config.js";
 import { SessionManager } from "./lib/session/session-manager.js";
-import type { UserConfig } from "./lib/types.js";
-import {
-	DUMMY_API_KEY,
-	CODEX_BASE_URL,
-	PROVIDER_ID,
-	JWT_CLAIM_PATH,
-	PLUGIN_NAME,
-	ERROR_MESSAGES,
-	LOG_STAGES,
-	AUTH_LABELS,
-} from "./lib/constants.js";
+import type { UserConfig, CodexResponsePayload } from "./lib/types.js";
 
 /**
  * OpenAI Codex OAuth authentication plugin for opencode
@@ -102,22 +107,23 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 					console.error(`[${PLUGIN_NAME}] ${ERROR_MESSAGES.NO_ACCOUNT_ID}`);
 					return {};
 				}
-
 				// Extract user configuration (global + per-model options)
-				const providerConfig = provider as { options?: Record<string, unknown>; models?: UserConfig["models"] } | undefined;
+				const providerConfig = provider as
+					| { options?: Record<string, unknown>; models?: UserConfig["models"] }
+					| undefined;
 				const userConfig: UserConfig = {
 					global: providerConfig?.options || {},
 					models: providerConfig?.models || {},
 				};
 
-			// Load plugin configuration and determine CODEX_MODE
-			// Priority: CODEX_MODE env var > config file > default (true)
-			const pluginConfig = loadPluginConfig();
-			const codexMode = getCodexMode(pluginConfig);
-			const promptCachingEnabled = pluginConfig.enablePromptCaching ?? false;
-			const sessionManager = new SessionManager({
-				enabled: promptCachingEnabled,
-			});
+				// Load plugin configuration and determine CODEX_MODE
+				// Priority: CODEX_MODE env var > config file > default (true)
+				const pluginConfig = loadPluginConfig();
+				const codexMode = getCodexMode(pluginConfig);
+				const promptCachingEnabled = pluginConfig.enablePromptCaching ?? false;
+				const sessionManager = new SessionManager({
+					enabled: promptCachingEnabled,
+				});
 
 				// Fetch Codex system instructions (cached with ETag for efficiency)
 				const CODEX_INSTRUCTIONS = await getCodexInstructions();
@@ -141,11 +147,17 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 					 * @param init - Request options
 					 * @returns Response from Codex API
 					 */
-					async fetch(input: Request | string | URL, init?: RequestInit): Promise<Response> {
+					async fetch(
+						input: Request | string | URL,
+						init?: RequestInit,
+					): Promise<Response> {
 						// Step 1: Check and refresh token if needed
 						const currentAuth = await getAuth();
 						if (shouldRefreshToken(currentAuth)) {
-							const refreshResult = await refreshAndUpdateToken(currentAuth, client);
+							const refreshResult = await refreshAndUpdateToken(
+								currentAuth,
+								client,
+							);
 							if (!refreshResult.success) {
 								return refreshResult.response;
 							}
@@ -156,21 +168,30 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 						const url = rewriteUrlForCodex(originalUrl);
 
 						// Step 3: Transform request body with Codex instructions
-					const transformation = await transformRequestForCodex(
-						init,
-						url,
-						CODEX_INSTRUCTIONS,
-						userConfig,
-						codexMode,
-						sessionManager,
-					);
-					const hasTools = transformation?.body.tools !== undefined;
-					const requestInit = transformation?.updatedInit ?? init;
-					const sessionContext = transformation?.sessionContext;
+						const transformation = await transformRequestForCodex(
+							init,
+							url,
+							CODEX_INSTRUCTIONS,
+							userConfig,
+							codexMode,
+							sessionManager,
+						);
+						const hasTools = transformation?.body.tools !== undefined;
+						const requestInit = transformation?.updatedInit ?? init;
+						const sessionContext = transformation?.sessionContext;
 
 						// Step 4: Create headers with OAuth and ChatGPT account info
-						const accessToken = currentAuth.type === "oauth" ? currentAuth.access : "";
-						const headers = createCodexHeaders(requestInit, accountId, accessToken);
+						const accessToken =
+							currentAuth.type === "oauth" ? currentAuth.access : "";
+						const headers = createCodexHeaders(
+							requestInit,
+							accountId,
+							accessToken,
+							{
+								model: transformation?.body.model,
+								promptCacheKey: (transformation?.body as any)?.prompt_cache_key,
+							},
+						);
 
 						// Step 5: Make request to Codex API
 						const response = await fetch(url, {
@@ -191,25 +212,29 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 							return await handleErrorResponse(response);
 						}
 
-					const handledResponse = await handleSuccessResponse(response, hasTools);
+						const handledResponse = await handleSuccessResponse(response, hasTools);
 
-					if (
-						sessionContext &&
-						handledResponse.headers.get("content-type")?.includes("application/json")
-					) {
-						try {
-							const payload = await handledResponse.clone().json();
-							sessionManager.recordResponse(sessionContext, payload);
-						} catch (error) {
-							logDebug("SessionManager: failed to parse response payload", {
-								error: (error as Error).message,
-							});
+						if (
+							sessionContext &&
+							handledResponse.headers
+								.get("content-type")
+								?.includes("application/json")
+						) {
+							try {
+								const payload = (await handledResponse
+									.clone()
+									.json()) as CodexResponsePayload;
+								sessionManager.recordResponse(sessionContext, payload);
+							} catch (error) {
+								logDebug("SessionManager: failed to parse response payload", {
+									error: (error as Error).message,
+								});
+							}
 						}
-					}
 
-					return handledResponse;
-				},
-			};
+						return handledResponse;
+					},
+				};
 			},
 			methods: [
 				{

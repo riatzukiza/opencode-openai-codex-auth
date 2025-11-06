@@ -140,6 +140,7 @@ export interface RequestBody {
 	};
 	include?: string[];
 	metadata?: Record<string, unknown>;
+	/** Stable key to enable prompt-token caching on Codex backend */
 	prompt_cache_key?: string;
 	max_output_tokens?: number;
 	max_completion_tokens?: number;
