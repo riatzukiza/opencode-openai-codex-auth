@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SessionManager } from '../lib/session/session-manager.js';
+import { SessionManager, SESSION_IDLE_TTL_MS, SESSION_MAX_ENTRIES } from '../lib/session/session-manager.js';
 import type { RequestBody, SessionContext } from '../lib/types.js';
 
 function createBody(conversationId: string, inputCount = 1): RequestBody {
@@ -98,6 +98,18 @@ describe('SessionManager', () => {
 		expect(context.state.lastCachedTokens).toBe(42);
 	});
 
+	it('reports metrics snapshot with recent sessions', () => {
+		const manager = new SessionManager({ enabled: true });
+		const body = createBody('conv-metrics');
+		let context = manager.getContext(body) as SessionContext;
+		context = manager.applyRequest(body, context) as SessionContext;
+
+		const metrics = manager.getMetrics();
+		expect(metrics.enabled).toBe(true);
+		expect(metrics.totalSessions).toBe(1);
+		expect(metrics.recentSessions[0].id).toBe('conv-metrics');
+	});
+
 	it('falls back to prompt_cache_key when metadata missing', () => {
 		const manager = new SessionManager({ enabled: true });
 		const body: RequestBody = {
@@ -134,5 +146,34 @@ describe('SessionManager', () => {
 		let secondContext = manager.getContext(secondBody) as SessionContext;
 		expect(secondContext.isNew).toBe(false);
 		expect(secondContext.state.promptCacheKey).toBe(firstContext.state.promptCacheKey);
+	});
+
+	it('evicts sessions that exceed idle TTL', () => {
+		const manager = new SessionManager({ enabled: true });
+		const body = createBody('conv-expire');
+		let context = manager.getContext(body) as SessionContext;
+		context = manager.applyRequest(body, context) as SessionContext;
+
+		context.state.lastUpdated = Date.now() - SESSION_IDLE_TTL_MS - 1000;
+		manager.pruneIdleSessions(Date.now());
+
+		const metrics = manager.getMetrics();
+		expect(metrics.totalSessions).toBe(0);
+	});
+
+	it('caps total sessions to the configured maximum', () => {
+		const manager = new SessionManager({ enabled: true });
+
+		const totalSessions = SESSION_MAX_ENTRIES + 5;
+		for (let index = 0; index < totalSessions; index += 1) {
+			const body = createBody(`conv-cap-${index}`);
+			let context = manager.getContext(body) as SessionContext;
+			context = manager.applyRequest(body, context) as SessionContext;
+			context.state.lastUpdated -= index; // ensure ordering
+		}
+
+		const metrics = manager.getMetrics(SESSION_MAX_ENTRIES + 10);
+		expect(metrics.totalSessions).toBe(SESSION_MAX_ENTRIES);
+		expect(metrics.recentSessions.length).toBeLessThanOrEqual(SESSION_MAX_ENTRIES);
 	});
 });

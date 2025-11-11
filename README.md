@@ -120,6 +120,16 @@ opencode run "create a hello world file" --model=openai/gpt-5-codex
 opencode run "solve this complex problem" --model=openai/gpt-5
 ```
 
+### Built-in Diagnostics Command
+
+Type `/codex-metrics` in any opencode session to get an instant summary of:
+
+- Cache hit/miss rates for Codex instructions, OpenCode prompt verification, and bridge decisions
+- Prompt-caching status, including how many sessions are tracked and their most recent cache usage
+- Whether the Codex + OpenCode prompt caches are already warm (no network fetches are triggered)
+
+The command is handled entirely inside the plugin, so it never consumes Codex tokens or makes a network request.
+
 ### Available Model Variants (Full Config)
 
 When using [`config/full-opencode.json`](./config/full-opencode.json), you get these pre-configured variants:

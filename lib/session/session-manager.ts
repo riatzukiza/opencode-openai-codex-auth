@@ -8,6 +8,9 @@ import type {
 	SessionState,
 } from "../types.js";
 
+export const SESSION_IDLE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+export const SESSION_MAX_ENTRIES = 100;
+
 export interface SessionManagerOptions {
 	enabled: boolean;
 	/**
@@ -93,6 +96,17 @@ function extractConversationId(body: RequestBody): string | undefined {
 	return undefined;
 }
 
+export interface SessionMetricsSnapshot {
+	enabled: boolean;
+	totalSessions: number;
+	recentSessions: Array<{
+		id: string;
+		promptCacheKey: string;
+		lastCachedTokens: number | null;
+		lastUpdated: number;
+	}>;
+}
+
 export class SessionManager {
 	private readonly options: SessionManagerOptions;
 
@@ -106,6 +120,8 @@ export class SessionManager {
 		if (!this.options.enabled) {
 			return undefined;
 		}
+
+		this.pruneSessions();
 
 		const conversationId = extractConversationId(body);
 		if (!conversationId) {
@@ -134,6 +150,7 @@ export class SessionManager {
 				};
 
 				this.sessions.set(hostCacheKey, state);
+				this.pruneSessions();
 				return {
 					sessionId: hostCacheKey,
 					enabled: true,
@@ -166,6 +183,7 @@ export class SessionManager {
 		};
 
 		this.sessions.set(conversationId, state);
+		this.pruneSessions();
 
 		return {
 			sessionId: conversationId,
@@ -259,9 +277,64 @@ export class SessionManager {
 		state.lastUpdated = Date.now();
 	}
 
+	public getMetrics(limit = 5): SessionMetricsSnapshot {
+		const maxEntries = Math.max(0, limit);
+		const recentSessions = Array.from(this.sessions.values())
+			.sort((a, b) => b.lastUpdated - a.lastUpdated)
+			.slice(0, maxEntries)
+			.map((state) => ({
+				id: state.id,
+				promptCacheKey: state.promptCacheKey,
+				lastCachedTokens: state.lastCachedTokens ?? null,
+				lastUpdated: state.lastUpdated,
+			}));
+
+		return {
+			enabled: this.options.enabled,
+			totalSessions: this.sessions.size,
+			recentSessions,
+		};
+	}
+
+	public pruneIdleSessions(now = Date.now()): void {
+		this.pruneSessions(now);
+	}
+
 	public resetSession(sessionId: string): void {
 		this.resetSessionInternal(sessionId);
-}
+	}
+
+	private pruneSessions(now = Date.now()): void {
+		if (!this.options.enabled) {
+			return;
+		}
+
+		for (const [sessionId, state] of this.sessions.entries()) {
+			if (now - state.lastUpdated > SESSION_IDLE_TTL_MS) {
+				this.sessions.delete(sessionId);
+				logDebug("SessionManager: evicted idle session", { sessionId });
+			}
+		}
+
+		if (this.sessions.size <= SESSION_MAX_ENTRIES) {
+			return;
+		}
+
+		const victims = Array.from(this.sessions.values()).sort(
+			(a, b) => a.lastUpdated - b.lastUpdated,
+		);
+
+		for (const victim of victims) {
+			if (this.sessions.size <= SESSION_MAX_ENTRIES) {
+				break;
+			}
+			if (!this.sessions.has(victim.id)) {
+				continue;
+			}
+			this.sessions.delete(victim.id);
+			logWarn("SessionManager: evicted session to enforce capacity", { sessionId: victim.id });
+		}
+	}
 
 	private resetSessionInternal(sessionId: string, forceRandomKey = false): SessionState | undefined {
 		const existing = this.sessions.get(sessionId);

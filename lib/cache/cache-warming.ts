@@ -27,6 +27,8 @@ export interface CacheWarmResult {
  * 
  * @returns Promise<CacheWarmResult> - Warming results with timing
  */
+let lastCacheWarmResult: CacheWarmResult | undefined;
+
 export async function warmCachesOnStartup(): Promise<CacheWarmResult> {
 	const startTime = Date.now();
 	const result: CacheWarmResult = {
@@ -90,6 +92,7 @@ export async function warmCachesOnStartup(): Promise<CacheWarmResult> {
 		}
 	}
 
+	lastCacheWarmResult = { ...result };
 	return result;
 }
 
@@ -122,30 +125,27 @@ export async function areCachesWarm(): Promise<boolean> {
  * 
  * @returns Promise<object> - Cache status information
  */
+export interface CacheWarmSnapshot {
+	codexInstructions: boolean;
+	opencodePrompt: boolean;
+}
+
+export function getCacheWarmSnapshot(): CacheWarmSnapshot {
+	return {
+		codexInstructions: Boolean(codexInstructionsCache.get("latest")),
+		opencodePrompt: Boolean(openCodePromptCache.get("main")),
+	};
+}
+
 export async function getCacheWarmingStats(): Promise<{
 	codexInstructionsCached: boolean;
 	opencodePromptCached: boolean;
 	lastWarmingResult?: CacheWarmResult;
 }> {
-	const stats = {
-		codexInstructionsCached: false,
-		opencodePromptCached: false,
+	const snapshot = getCacheWarmSnapshot();
+	return {
+		codexInstructionsCached: snapshot.codexInstructions,
+		opencodePromptCached: snapshot.opencodePrompt,
+		lastWarmingResult: lastCacheWarmResult,
 	};
-
-	try {
-		// Check if cached values exist (without forcing refresh)
-		const codexInstructions = await getCodexInstructions();
-		stats.codexInstructionsCached = !!codexInstructions;
-	} catch (error) {
-		stats.codexInstructionsCached = false;
-	}
-
-	try {
-		const opencodePrompt = await getOpenCodeCodexPrompt();
-		stats.opencodePromptCached = !!opencodePrompt;
-	} catch (error) {
-		stats.opencodePromptCached = false;
-	}
-
-	return stats;
 }

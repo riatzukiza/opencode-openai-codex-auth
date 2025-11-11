@@ -43,7 +43,7 @@ import {
 	PLUGIN_NAME,
 	PROVIDER_ID,
 } from "./lib/constants.js";
-import { logRequest, logDebug } from "./lib/logger.js";
+import { logRequest, logDebug, logWarn } from "./lib/logger.js";
 import { getCodexInstructions } from "./lib/prompts/codex.js";
 import { warmCachesOnStartup, areCachesWarm } from "./lib/cache/cache-warming.js";
 import {
@@ -58,6 +58,7 @@ import {
 } from "./lib/request/fetch-helpers.js";
 import { SessionManager } from "./lib/session/session-manager.js";
 import type { UserConfig, CodexResponsePayload } from "./lib/types.js";
+import { maybeHandleCodexCommand } from "./lib/commands/codex-metrics.js";
 
 /**
  * OpenAI Codex OAuth authentication plugin for opencode
@@ -119,7 +120,12 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 				// Load plugin configuration and determine CODEX_MODE
 				const pluginConfig = loadPluginConfig();
 				const codexMode = getCodexMode(pluginConfig);
-				const promptCachingEnabled = pluginConfig.enablePromptCaching ?? false;
+				const promptCachingEnabled = pluginConfig.enablePromptCaching ?? true;
+				if (!promptCachingEnabled) {
+					logWarn(
+						"Prompt caching disabled via config; Codex may use more tokens and cache hit diagnostics will be limited.",
+					);
+				}
 				const sessionManager = new SessionManager({ enabled: promptCachingEnabled });
 
 				// Warm caches on startup for better first-request performance (non-blocking)
@@ -163,11 +169,20 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 							codexMode,
 							sessionManager,
 						);
+
+						if (transformation) {
+							const commandResponse = maybeHandleCodexCommand(transformation.body, { sessionManager });
+							if (commandResponse) {
+								return commandResponse;
+							}
+						}
+
 						const hasTools = transformation?.body.tools !== undefined;
 						const requestInit = transformation?.updatedInit ?? init;
 						const sessionContext = transformation?.sessionContext;
 
 						// Step 4: Create headers with OAuth and ChatGPT account info
+
 						const accessToken = currentAuth.type === "oauth" ? currentAuth.access : "";
 						const headers = createCodexHeaders(requestInit, accountId, accessToken, {
 							model: transformation?.body.model,

@@ -242,7 +242,7 @@ describe('Request Transformer Module', () => {
 			expect(result![2].content).toBe('test');
 		});
 
-		it('should strip ID field but preserve all other properties', async () => {
+		it('removes metadata when normalizing stateless input', async () => {
 			const input: InputItem[] = [
 				{
 					id: 'msg_123',
@@ -259,6 +259,23 @@ describe('Request Transformer Module', () => {
 			expect(result![0].type).toBe('message');
 			expect(result![0].role).toBe('user');
 			expect(result![0].content).toBe('test');
+			expect(result![0]).not.toHaveProperty('metadata');
+		});
+
+		it('preserves metadata when IDs are preserved for host caching', async () => {
+			const input: InputItem[] = [
+				{
+					id: 'msg_123',
+					type: 'message',
+					role: 'user',
+					content: 'test',
+					metadata: { some: 'data' }
+				},
+			];
+			const result = filterInput(input, { preserveIds: true });
+
+			expect(result).toHaveLength(1);
+			expect(result![0]).toHaveProperty('id', 'msg_123');
 			expect(result![0]).toHaveProperty('metadata');
 		});
 
@@ -565,13 +582,24 @@ describe('Request Transformer Module', () => {
 				expect(result.prompt_cache_key).toBe('ses_camel_key_456');
 			});
 
-			it('leaves prompt_cache_key unset when host does not supply one', async () => {
+			it('derives prompt_cache_key from metadata when host omits one', async () => {
+				const body: RequestBody = {
+					model: 'gpt-5',
+					input: [],
+					metadata: { conversation_id: 'meta-conv-123' },
+				};
+				const result: any = await transformRequestBody(body, codexInstructions);
+				expect(result.prompt_cache_key).toBe('meta-conv-123');
+			});
+
+			it('generates fallback prompt_cache_key when no identifiers exist', async () => {
 				const body: RequestBody = {
 					model: 'gpt-5',
 					input: [],
 				};
 				const result: any = await transformRequestBody(body, codexInstructions);
-				expect(result.prompt_cache_key).toBeUndefined();
+				expect(typeof result.prompt_cache_key).toBe('string');
+				expect(result.prompt_cache_key).toMatch(/^cache_/);
 			});
 
 		it('should set required Codex fields', async () => {

@@ -166,42 +166,41 @@ describe('Cache Warming', () => {
 
 	describe('getCacheWarmingStats', () => {
 		it('should return correct stats when caches are warm', async () => {
-			// Arrange
-			mockGetCodexInstructions.mockResolvedValue('codex-instructions');
-			mockGetOpenCodeCodexPrompt.mockResolvedValue('opencode-prompt');
+			codexInstructionsCache.set('latest', { data: 'codex-instructions' });
+			openCodePromptCache.set('main', { data: 'opencode-prompt' });
 
-			// Act
 			const stats = await getCacheWarmingStats();
 
-			// Assert
 			expect(stats.codexInstructionsCached).toBe(true);
 			expect(stats.opencodePromptCached).toBe(true);
 		});
 
 		it('should return correct stats when caches are cold', async () => {
-			// Arrange
-			mockGetCodexInstructions.mockRejectedValue(new Error('Cache miss'));
-			mockGetOpenCodeCodexPrompt.mockRejectedValue(new Error('Cache miss'));
-
-			// Act
 			const stats = await getCacheWarmingStats();
 
-			// Assert
 			expect(stats.codexInstructionsCached).toBe(false);
 			expect(stats.opencodePromptCached).toBe(false);
 		});
 
 		it('should handle mixed cache states', async () => {
-			// Arrange
-			mockGetCodexInstructions.mockResolvedValue('codex-instructions');
-			mockGetOpenCodeCodexPrompt.mockRejectedValue(new Error('Cache miss'));
+			codexInstructionsCache.set('latest', { data: 'codex-instructions' });
 
-			// Act
 			const stats = await getCacheWarmingStats();
 
-			// Assert
 			expect(stats.codexInstructionsCached).toBe(true);
 			expect(stats.opencodePromptCached).toBe(false);
+		});
+
+		it('includes last warming result when available', async () => {
+			mockGetCodexInstructions.mockResolvedValue('codex-instructions');
+			mockGetOpenCodeCodexPrompt.mockResolvedValue('opencode-prompt');
+
+			await warmCachesOnStartup();
+			const stats = await getCacheWarmingStats();
+
+			expect(stats.lastWarmingResult?.success).toBe(true);
+			expect(stats.lastWarmingResult?.codexInstructionsWarmed).toBe(true);
+			expect(stats.lastWarmingResult?.opencodePromptWarmed).toBe(true);
 		});
 	});
 

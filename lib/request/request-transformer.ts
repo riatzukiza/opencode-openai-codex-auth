@@ -1,5 +1,5 @@
 import { TOOL_REMAP_MESSAGE } from "../prompts/codex.js";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { CODEX_OPENCODE_BRIDGE } from "../prompts/codex-opencode-bridge.js";
 import { getOpenCodeCodexPrompt } from "../prompts/opencode-codex.js";
 import { logDebug, logWarn } from "../logger.js";
@@ -403,12 +403,21 @@ export function filterInput(
 			return true; // Keep all other items
 		})
 		.map((item) => {
+			let sanitized = item as InputItem;
+
 			// Strip IDs from all items (Codex API stateless mode)
 			if (item.id && !preserveIds) {
-				const { id, ...itemWithoutId } = item;
-				return itemWithoutId as InputItem;
+				const { id: _id, ...itemWithoutId } = item as Record<string, unknown> & InputItem;
+				sanitized = itemWithoutId as InputItem;
 			}
-			return item;
+
+			// Remove metadata to keep prefixes stable across environments
+			if (!preserveIds && "metadata" in (sanitized as Record<string, unknown>)) {
+				const { metadata: _metadata, ...rest } = sanitized as Record<string, unknown>;
+				sanitized = rest as InputItem;
+			}
+
+			return sanitized;
 		});
 }
 
@@ -641,6 +650,76 @@ export function addToolRemapMessage(
 	return [toolRemapMessage, ...input];
 }
 
+const PROMPT_CACHE_METADATA_KEYS = [
+	"conversation_id",
+	"conversationId",
+	"thread_id",
+	"threadId",
+	"session_id",
+	"sessionId",
+	"chat_id",
+	"chatId",
+];
+
+type PromptCacheKeySource = "existing" | "metadata" | "generated";
+
+interface PromptCacheKeyResult {
+	key: string;
+	source: PromptCacheKeySource;
+	sourceKey?: string;
+}
+
+function extractString(value: unknown): string | undefined {
+	if (typeof value !== "string") {
+		return undefined;
+	}
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function derivePromptCacheKeyFromBody(body: RequestBody): { value: string; sourceKey: string } | undefined {
+	const metadata = body.metadata as Record<string, unknown> | undefined;
+	const root = body as Record<string, unknown>;
+	for (const key of PROMPT_CACHE_METADATA_KEYS) {
+		const fromMetadata = extractString(metadata?.[key]);
+		if (fromMetadata) {
+			return { value: fromMetadata, sourceKey: key };
+		}
+		const fromRoot = extractString(root[key]);
+		if (fromRoot) {
+			return { value: fromRoot, sourceKey: key };
+		}
+	}
+	return undefined;
+}
+
+function generatePromptCacheKey(): string {
+	return `cache_${randomUUID()}`;
+}
+
+function ensurePromptCacheKey(body: RequestBody): PromptCacheKeyResult {
+	const existing = extractString((body as Record<string, unknown>).prompt_cache_key);
+	const hostBody = body as Record<string, unknown>;
+	if (existing) {
+		body.prompt_cache_key = existing;
+		hostBody.promptCacheKey = existing;
+		return { key: existing, source: "existing" };
+	}
+
+	const derived = derivePromptCacheKeyFromBody(body);
+	if (derived) {
+		const sanitized = extractString(derived.value) ?? generatePromptCacheKey();
+		body.prompt_cache_key = sanitized;
+		hostBody.promptCacheKey = sanitized;
+		return { key: sanitized, source: "metadata", sourceKey: derived.sourceKey };
+	}
+
+	const generated = generatePromptCacheKey();
+	body.prompt_cache_key = generated;
+	hostBody.promptCacheKey = generated;
+	return { key: generated, source: "generated" };
+}
+
 /**
  * Transform request body for Codex API
  *
@@ -703,7 +782,20 @@ export async function transformRequestBody(
 
 	if (hostPromptCacheKey && typeof hostPromptCacheKey === "string") {
 		body.prompt_cache_key = hostPromptCacheKey;
+		(body as Record<string, unknown>).promptCacheKey = hostPromptCacheKey;
 		// Do not delete the camelCase field; preserve it for upstream consumers.
+	}
+
+	const cacheKeyResult = ensurePromptCacheKey(body);
+	if (cacheKeyResult.source === "metadata") {
+		logDebug("Prompt cache key missing; derived from metadata", {
+			promptCacheKey: cacheKeyResult.key,
+			sourceKey: cacheKeyResult.sourceKey,
+		});
+	} else if (cacheKeyResult.source === "generated") {
+		logWarn("Prompt cache key missing; generated fallback cache key", {
+			promptCacheKey: cacheKeyResult.key,
+		});
 	}
 
 	// Tool behavior parity with Codex CLI (normalize shapes)
