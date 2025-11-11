@@ -21,6 +21,9 @@ vi.mock('../lib/logger.js', () => ({
 	__esModule: true,
 	logRequest: vi.fn(),
 	logDebug: vi.fn(),
+	logError: vi.fn((message: string, data?: any) => {
+		console.error(message, data || '');
+	}),
 }));
 
 vi.mock('../lib/request/request-transformer.js', () => ({
@@ -36,13 +39,14 @@ vi.mock('../lib/request/response-handler.js', () => ({
 
 // Get mocked functions after import
 const { refreshAccessToken } = await import('../lib/auth/auth.js');
-const { logRequest, logDebug } = await import('../lib/logger.js');
+const { logRequest, logDebug, logError } = await import('../lib/logger.js');
 const { transformRequestBody } = await import('../lib/request/request-transformer.js');
 const { convertSseToJson, ensureContentType } = await import('../lib/request/response-handler.js');
 
 const refreshAccessTokenMock = vi.mocked(refreshAccessToken);
 const logRequestMock = vi.mocked(logRequest);
 const logDebugMock = vi.mocked(logDebug);
+const logErrorMock = vi.mocked(logError);
 const transformRequestBodyMock = vi.mocked(transformRequestBody);
 const convertSseToJsonMock = vi.mocked(convertSseToJson);
 const ensureContentTypeMock = vi.mocked(ensureContentType);
@@ -194,9 +198,7 @@ describe('Fetch Helpers Module', () => {
 			if (!result.success) {
 				expect((await result.response.clone().json()).error).toBe('Token refresh failed');
 			}
-			expect(console.error).toHaveBeenCalledWith(
-				'[openai-codex-plugin] Failed to refresh token, authentication required',
-			);
+			expect(logErrorMock).toHaveBeenCalledWith('Failed to refresh token, authentication required');
 			expect(client.auth.set).not.toHaveBeenCalled();
 		});
 
@@ -245,7 +247,7 @@ describe('Fetch Helpers Module', () => {
 			const init: RequestInit = { body: 'not-json' };
 			const result = await transformRequestForCodex(init, 'url', 'instructions', { global: {}, models: {} });
 			expect(result).toBeUndefined();
-			expect(console.error).toHaveBeenCalledWith('[openai-codex-plugin] Error parsing request:', expect.anything());
+			expect(logErrorMock).toHaveBeenCalledWith('Error parsing request', { error: expect.any(String) });
 		});
 
 		it('transforms request body and returns updated init', async () => {
@@ -291,7 +293,7 @@ describe('Fetch Helpers Module', () => {
 			const result = await handleErrorResponse(response);
 			expect(result.status).toBe(418);
 			expect(await result.text()).toBe('failure');
-			expect(console.error).toHaveBeenCalledWith('[openai-codex-plugin] 418 error:', 'failure');
+			expect(logErrorMock).toHaveBeenCalledWith('418 error', { body: 'failure' });
 		});
 
 		it('handleSuccessResponse converts SSE when no tools', async () => {

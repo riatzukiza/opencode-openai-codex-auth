@@ -47,6 +47,7 @@ vi.mock('../lib/logger.js', () => ({
 	__esModule: true,
 	logRequest: logRequestMock,
 	logDebug: logDebugMock,
+	configureLogger: vi.fn(),
 }));
 
 vi.mock('../lib/request/fetch-helpers.js', () => ({

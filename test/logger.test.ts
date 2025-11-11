@@ -95,7 +95,7 @@ it('logRequest skips writing when logging disabled', async () => {
 
 		logRequest('error-stage', { boom: true });
 
-		expect(errorSpy).toHaveBeenCalledWith('[openai-codex-plugin] Failed to write log:', 'boom');
+		expect(warnSpy).toHaveBeenCalledWith('[openai-codex-plugin] Failed to persist request log {"stage":"error-stage","error":"boom"}');
 	});
 
 	it('logDebug logs only when enabled', async () => {
@@ -112,13 +112,13 @@ it('logRequest skips writing when logging disabled', async () => {
 		await vi.resetModules();
 		mod = await import('../lib/logger.js');
 		mod.logDebug('hello', { a: 1 });
-		expect(logSpy).toHaveBeenCalledWith('[openai-codex-plugin] hello', { a: 1 });
+		expect(logSpy).toHaveBeenCalledWith('[openai-codex-plugin] hello {"a":1}');
 	});
 
 	it('logWarn always logs', async () => {
 			const { logWarn } = await import('../lib/logger.js');
 			logWarn('warning', { detail: 'info' });
-			expect(warnSpy).toHaveBeenCalledWith('[openai-codex-plugin] warning', { detail: 'info' });
+			expect(warnSpy).toHaveBeenCalledWith('[openai-codex-plugin] warning {"detail":"info"}');
 		});
 
 		it('logWarn logs message without data', async () => {

@@ -132,10 +132,10 @@ beforeEach(() => {
 
 		expect(result).toBe('still-good');
 		expect(consoleError).toHaveBeenCalledWith(
-			'[openai-codex-plugin] Failed to fetch instructions from GitHub:',
-			'HTTP 500',
+			'[openai-codex-plugin] Failed to fetch instructions from GitHub {"error":"HTTP 500"}',
+			'',
 		);
-		expect(consoleError).toHaveBeenCalledWith('[openai-codex-plugin] Using cached instructions');
+		expect(consoleError).toHaveBeenCalledWith('[openai-codex-plugin] Using cached instructions due to fetch failure', '');
 		consoleError.mockRestore();
 	});
 });
