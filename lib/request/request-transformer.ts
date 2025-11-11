@@ -698,11 +698,18 @@ function generatePromptCacheKey(): string {
 }
 
 function ensurePromptCacheKey(body: RequestBody): PromptCacheKeyResult {
-	const existing = extractString((body as Record<string, unknown>).prompt_cache_key);
 	const hostBody = body as Record<string, unknown>;
+	const existingSnake = extractString(hostBody.prompt_cache_key);
+	const existingCamel = extractString(hostBody.promptCacheKey);
+	const existing = existingSnake || existingCamel;
+	
 	if (existing) {
+		// Codex backend expects snake_case, so always set prompt_cache_key
+		// Preserve the camelCase field for OpenCode if it was provided
 		body.prompt_cache_key = existing;
-		hostBody.promptCacheKey = existing;
+		if (existingCamel) {
+			hostBody.promptCacheKey = existingCamel; // preserve OpenCode's field
+		}
 		return { key: existing, source: "existing" };
 	}
 
@@ -710,13 +717,13 @@ function ensurePromptCacheKey(body: RequestBody): PromptCacheKeyResult {
 	if (derived) {
 		const sanitized = extractString(derived.value) ?? generatePromptCacheKey();
 		body.prompt_cache_key = sanitized;
-		hostBody.promptCacheKey = sanitized;
+		// Don't set camelCase field for derived keys - only snake_case for Codex
 		return { key: sanitized, source: "metadata", sourceKey: derived.sourceKey };
 	}
 
 	const generated = generatePromptCacheKey();
 	body.prompt_cache_key = generated;
-	hostBody.promptCacheKey = generated;
+	// Don't set camelCase field for generated keys - only snake_case for Codex
 	return { key: generated, source: "generated" };
 }
 
@@ -772,22 +779,11 @@ export async function transformRequestBody(
 	// prompt_cache_key. We accept both camelCase (promptCacheKey) and
 	// snake_case (prompt_cache_key) inputs from the host/runtime.
 
-	// Normalize host-provided cache key from either field for internal use
-	const hostPromptCacheKey =
-		(body as any).prompt_cache_key ||
-		(body as any).promptCacheKey ||
-		(body.metadata && (body.metadata as any).promptCacheKey) ||
-		(body.metadata && (body.metadata as any).prompt_cache_key) ||
-		undefined;
-
-	if (hostPromptCacheKey && typeof hostPromptCacheKey === "string") {
-		body.prompt_cache_key = hostPromptCacheKey;
-		(body as Record<string, unknown>).promptCacheKey = hostPromptCacheKey;
-		// Do not delete the camelCase field; preserve it for upstream consumers.
-	}
-
+	// Ensure prompt_cache_key is set using our robust logic
 	const cacheKeyResult = ensurePromptCacheKey(body);
-	if (cacheKeyResult.source === "metadata") {
+	if (cacheKeyResult.source === "existing") {
+		// Host provided a valid cache key, use it as-is
+	} else if (cacheKeyResult.source === "metadata") {
 		logDebug("Prompt cache key missing; derived from metadata", {
 			promptCacheKey: cacheKeyResult.key,
 			sourceKey: cacheKeyResult.sourceKey,

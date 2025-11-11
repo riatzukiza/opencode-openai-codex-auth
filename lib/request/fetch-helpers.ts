@@ -230,21 +230,32 @@ export async function handleErrorResponse(response: Response): Promise<Response>
 				? { primary, secondary }
 				: undefined;
 
-		// Friendly message for subscription/rate usage limits
+		// Determine if this is a genuine usage limit error
 		const code = (err.code ?? err.type ?? "").toString();
-		const resetsAt = err.resets_at ?? primary.resets_at ?? secondary.resets_at;
-		const mins = resetsAt ? Math.max(0, Math.round((resetsAt * 1000 - Date.now()) / 60000)) : undefined;
+		const isUsageLimitError = /usage_limit_reached|usage_not_included|rate_limit_exceeded/i.test(code);
+
 		let friendly_message: string | undefined;
-		if (/usage_limit_reached|usage_not_included|rate_limit_exceeded/i.test(code) || response.status === 429) {
+		let message: string;
+
+		if (isUsageLimitError) {
+			const resetsAt = err.resets_at ?? primary.resets_at ?? secondary.resets_at;
+			const mins = resetsAt ? Math.max(0, Math.round((resetsAt * 1000 - Date.now()) / 60000)) : undefined;
 			const plan = err.plan_type ? ` (${String(err.plan_type).toLowerCase()} plan)` : "";
 			const when = mins !== undefined ? ` Try again in ~${mins} min.` : "";
 			friendly_message = `You have hit your ChatGPT usage limit${plan}.${when}`.trim();
+			message = err.message ?? friendly_message;
+		} else {
+			// Preserve original error message for non-usage-limit errors
+			message = err.message
+				?? parsed?.error?.message
+				?? (typeof parsed === "string" ? parsed : undefined)
+				?? `Request failed with status ${response.status}.`;
 		}
 
 		const enhanced = {
 			error: {
 				...err,
-				message: err.message ?? friendly_message ?? "Usage limit reached.",
+				message,
 				friendly_message,
 				rate_limits,
 				status: response.status,

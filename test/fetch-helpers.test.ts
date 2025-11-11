@@ -128,12 +128,12 @@ describe('Fetch Helpers Module', () => {
 		});
 	});
 
-		describe('createCodexHeaders', () => {
-	const accountId = 'test-account-123';
-	const accessToken = 'test-access-token';
+	describe('createCodexHeaders', () => {
+		const accountId = 'test-account-123';
+		const accessToken = 'test-access-token';
 
 		it('should create headers with all required fields when cache key provided', () => {
-	    const headers = createCodexHeaders(undefined, accountId, accessToken, { model: 'gpt-5-codex', promptCacheKey: 'session-1' });
+			const headers = createCodexHeaders(undefined, accountId, accessToken, { model: 'gpt-5-codex', promptCacheKey: 'session-1' });
 
 			expect(headers.get('Authorization')).toBe(`Bearer ${accessToken}`);
 			expect(headers.get(OPENAI_HEADERS.ACCOUNT_ID)).toBe(accountId);
@@ -144,40 +144,16 @@ describe('Fetch Helpers Module', () => {
 			expect(headers.get('accept')).toBe('text/event-stream');
 		});
 
-		it('enriches usage limit errors with friendly message and rate limits', async () => {
-			const body = {
-				error: {
-					code: 'usage_limit_reached',
-					message: 'limit reached',
-					plan_type: 'pro',
-				},
-			};
-			const headers = new Headers({
-				'x-codex-primary-used-percent': '75',
-				'x-codex-primary-window-minutes': '300',
-				'x-codex-primary-reset-at': String(Math.floor(Date.now() / 1000) + 1800),
-			});
-			const resp = new Response(JSON.stringify(body), { status: 429, headers });
-			const enriched = await handleErrorResponse(resp);
-			expect(enriched.status).toBe(429);
-			const json = await enriched.json() as any;
-			expect(json.error).toBeTruthy();
-			expect(json.error.friendly_message).toMatch(/usage limit/i);
-			expect(json.error.rate_limits.primary.used_percent).toBe(75);
-			expect(json.error.rate_limits.primary.window_minutes).toBe(300);
-			expect(typeof json.error.rate_limits.primary.resets_at).toBe('number');
-		});
-
 		it('should remove x-api-key header', () => {
-        const init = { headers: { 'x-api-key': 'should-be-removed' } } as any;
-        const headers = createCodexHeaders(init, accountId, accessToken, { model: 'gpt-5', promptCacheKey: 'session-2' });
+			const init = { headers: { 'x-api-key': 'should-be-removed' } } as any;
+			const headers = createCodexHeaders(init, accountId, accessToken, { model: 'gpt-5', promptCacheKey: 'session-2' });
 
 			expect(headers.has('x-api-key')).toBe(false);
 		});
 
 		it('should preserve other existing headers', () => {
-        const init = { headers: { 'Content-Type': 'application/json' } } as any;
-        const headers = createCodexHeaders(init, accountId, accessToken, { model: 'gpt-5', promptCacheKey: 'session-3' });
+			const init = { headers: { 'Content-Type': 'application/json' } } as any;
+			const headers = createCodexHeaders(init, accountId, accessToken, { model: 'gpt-5', promptCacheKey: 'session-3' });
 
 			expect(headers.get('Content-Type')).toBe('application/json');
 		});
@@ -346,4 +322,99 @@ describe('Fetch Helpers Module', () => {
 		});
 	});
 
+	describe('handleErrorResponse', () => {
+		it('enriches usage limit errors with friendly message and rate limits', async () => {
+			const body = {
+				error: {
+					code: 'usage_limit_reached',
+					message: 'limit reached',
+					plan_type: 'pro',
+				},
+			};
+			const headers = new Headers({
+				'x-codex-primary-used-percent': '75',
+				'x-codex-primary-window-minutes': '300',
+				'x-codex-primary-reset-at': String(Math.floor(Date.now() / 1000) + 1800),
+			});
+			const resp = new Response(JSON.stringify(body), { status: 429, headers });
+			const enriched = await handleErrorResponse(resp);
+			expect(enriched.status).toBe(429);
+			const json = await enriched.json() as any;
+			expect(json.error).toBeTruthy();
+			expect(json.error.friendly_message).toMatch(/usage limit/i);
+			expect(json.error.friendly_message).toContain('pro plan');
+			expect(json.error.message).toBe('limit reached');
+			expect(json.error.rate_limits.primary.used_percent).toBe(75);
+			expect(json.error.rate_limits.primary.window_minutes).toBe(300);
+			expect(typeof json.error.rate_limits.primary.resets_at).toBe('number');
+		});
+
+		it('preserves original error message for non-usage-limit 429 errors', async () => {
+			const body = {
+				error: {
+					code: 'upstream_timeout',
+					message: 'Upstream service timeout',
+				},
+			};
+			const resp = new Response(JSON.stringify(body), { status: 429 });
+			const enriched = await handleErrorResponse(resp);
+			expect(enriched.status).toBe(429);
+			const json = await enriched.json() as any;
+			expect(json.error.message).toBe('Upstream service timeout');
+			expect(json.error.friendly_message).toBeUndefined();
+		});
+
+		it('handles non-429 errors without usage-limit messaging', async () => {
+			const body = {
+				error: {
+					code: 'internal_server_error',
+				},
+			};
+			const resp = new Response(JSON.stringify(body), { status: 500 });
+			const enriched = await handleErrorResponse(resp);
+			expect(enriched.status).toBe(500);
+			const json = await enriched.json() as any;
+			expect(json.error.message).toBe('Request failed with status 500.');
+			expect(json.error.friendly_message).toBeUndefined();
+		});
+
+		it('preserves original message for errors with message field', async () => {
+			const body = {
+				error: {
+					code: 'validation_error',
+					message: 'Invalid input parameter',
+				},
+			};
+			const resp = new Response(JSON.stringify(body), { status: 400 });
+			const enriched = await handleErrorResponse(resp);
+			expect(enriched.status).toBe(400);
+			const json = await enriched.json() as any;
+			expect(json.error.message).toBe('Invalid input parameter');
+			expect(json.error.friendly_message).toBeUndefined();
+		});
+
+		it('handles non-JSON error bodies gracefully', async () => {
+			const rawError = '<html>502 Bad Gateway</html>';
+			const resp = new Response(rawError, { status: 502 });
+			const enriched = await handleErrorResponse(resp);
+			expect(enriched.status).toBe(502);
+			expect(await enriched.text()).toBe(rawError);
+		});
+
+		it('handles usage_not_included error type', async () => {
+			const body = {
+				error: {
+					type: 'usage_not_included',
+					plan_type: 'free',
+				},
+			};
+			const resp = new Response(JSON.stringify(body), { status: 403 });
+			const enriched = await handleErrorResponse(resp);
+			expect(enriched.status).toBe(403);
+			const json = await enriched.json() as any;
+			expect(json.error.friendly_message).toContain('usage limit');
+			expect(json.error.friendly_message).toContain('free plan');
+			expect(json.error.message).toContain('usage limit');
+		});
+	});
 });
