@@ -109,6 +109,39 @@ export class SessionManager {
 
 		const conversationId = extractConversationId(body);
 		if (!conversationId) {
+			// Fall back to host-provided prompt_cache_key if no metadata ID is available
+			const hostCacheKey = (body as any).prompt_cache_key || (body as any).promptCacheKey;
+			if (hostCacheKey && typeof hostCacheKey === "string") {
+				// Use the existing cache key as session identifier to maintain continuity
+				const existing = this.sessions.get(hostCacheKey);
+				if (existing) {
+					return {
+						sessionId: hostCacheKey,
+						enabled: true,
+						preserveIds: true,
+						isNew: false,
+						state: existing,
+					};
+				}
+
+				const state: SessionState = {
+					id: hostCacheKey,
+					promptCacheKey: sanitizeCacheKey(hostCacheKey),
+					store: this.options.forceStore ?? false,
+					lastInput: [],
+					lastPrefixHash: null,
+					lastUpdated: Date.now(),
+				};
+
+				this.sessions.set(hostCacheKey, state);
+				return {
+					sessionId: hostCacheKey,
+					enabled: true,
+					preserveIds: true,
+					isNew: true,
+					state,
+				};
+			}
 			return undefined;
 		}
 

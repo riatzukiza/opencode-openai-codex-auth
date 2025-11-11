@@ -672,6 +672,40 @@ const modelConfig = getModelConfig(originalModel, userConfig);  // Lookup "gpt-5
 
 ---
 
+---
+
+## Cache Key Handling
+
+### Dual Field Support
+
+This plugin supports both camelCase and snake_case cache key fields for maximum compatibility:
+
+```typescript
+// Host provides camelCase (OpenCode SDK)
+{
+  "promptCacheKey": "cache-key-123",
+  "messages": [...]
+}
+
+// Host provides snake_case (metadata)
+{
+  "prompt_cache_key": "cache-key-123", 
+  "messages": [...]
+}
+
+// Plugin accepts both with snake_case priority
+const cacheKey = request.prompt_cache_key || request.promptCacheKey;
+```
+
+**Priority Order:**
+1. `prompt_cache_key` (snake_case) - from host or metadata
+2. `promptCacheKey` (camelCase) - from OpenCode SDK
+3. Fallback to generation if neither present
+
+**Purpose:** Ensures cache continuity across different OpenCode runtime versions and request sources.
+
+---
+
 ## See Also
 
 - [CONFIG_FLOW.md](./CONFIG_FLOW.md) - Complete config system guide

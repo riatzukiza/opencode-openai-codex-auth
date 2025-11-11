@@ -555,6 +555,16 @@ describe('Request Transformer Module', () => {
 				expect(result.prompt_cache_key).toBe('ses_host_key_123');
 			});
 
+			it('preserves promptCacheKey (camelCase) from host', async () => {
+				const body: RequestBody = {
+					model: 'gpt-5',
+					input: [],
+					promptCacheKey: 'ses_camel_key_456',
+				};
+				const result: any = await transformRequestBody(body, codexInstructions);
+				expect(result.prompt_cache_key).toBe('ses_camel_key_456');
+			});
+
 			it('leaves prompt_cache_key unset when host does not supply one', async () => {
 				const body: RequestBody = {
 					model: 'gpt-5',
@@ -689,6 +699,19 @@ describe('Request Transformer Module', () => {
 			expect(result.input).toHaveLength(2);
 			expect(result.input?.[0].id).toBe('msg_1');
 			expect(result.input?.[1].id).toBe('call_1');
+		});
+
+		it('should prioritize snake_case cache key when both fields present', async () => {
+			const body: RequestBody = {
+				model: 'gpt-5',
+				input: [{ type: 'message', role: 'user', content: 'hello' }],
+				promptCacheKey: 'camelcase-key',
+				prompt_cache_key: 'snakecase-key',
+			};
+			const result = await transformRequestBody(body, codexInstructions);
+
+			// Should prioritize snake_case over camelCase
+			expect(result.prompt_cache_key).toBe('snakecase-key');
 		});
 
 		it('should add tool remap message when tools present', async () => {

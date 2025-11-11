@@ -97,4 +97,42 @@ describe('SessionManager', () => {
 
 		expect(context.state.lastCachedTokens).toBe(42);
 	});
+
+	it('falls back to prompt_cache_key when metadata missing', () => {
+		const manager = new SessionManager({ enabled: true });
+		const body: RequestBody = {
+			model: 'gpt-5',
+			input: [],
+			prompt_cache_key: 'fallback_cache_key',
+		};
+
+		let context = manager.getContext(body) as SessionContext;
+		expect(context.enabled).toBe(true);
+		expect(context.isNew).toBe(true);
+		expect(context.state.promptCacheKey).toBe('fallback_cache_key');
+	});
+
+	it('reuses session when prompt_cache_key matches existing', () => {
+		const manager = new SessionManager({ enabled: true });
+		const cacheKey = 'persistent_key_789';
+		
+		// First request creates session
+		const firstBody: RequestBody = {
+			model: 'gpt-5',
+			input: [],
+			prompt_cache_key: cacheKey,
+		};
+		let firstContext = manager.getContext(firstBody) as SessionContext;
+		expect(firstContext.isNew).toBe(true);
+		
+		// Second request reuses session
+		const secondBody: RequestBody = {
+			model: 'gpt-5',
+			input: [{ type: 'message', role: 'user', content: 'second' }],
+			prompt_cache_key: cacheKey,
+		};
+		let secondContext = manager.getContext(secondBody) as SessionContext;
+		expect(secondContext.isNew).toBe(false);
+		expect(secondContext.state.promptCacheKey).toBe(firstContext.state.promptCacheKey);
+	});
 });

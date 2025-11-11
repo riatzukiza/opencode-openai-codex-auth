@@ -44,9 +44,9 @@ describe('prompt-fingerprinting', () => {
       expect(hasBridgePromptInConversation(input as any[], bridge)).toBe(true);
     });
 
-    it('only scans last 5 messages', () => {
+    it('scans all messages for bridge prompt', () => {
       const bridge = 'BRIDGE';
-      // Place bridge at the 6th from the end => should NOT detect
+      // Place bridge at the 6th from the end => should detect (now scanning all messages)
       const pre = new Array(6).fill(0).map((_, i) => ({ type: 'message', role: 'user', content: `u${i}` }));
       pre[0] = { type: 'message', role: 'system', content: bridge }; // far back
       const tail = [
@@ -57,9 +57,9 @@ describe('prompt-fingerprinting', () => {
         { type: 'message', role: 'user', content: 'e' },
       ];
       const input = [...pre, ...tail];
-      expect(hasBridgePromptInConversation(input as any[], bridge)).toBe(false);
+      expect(hasBridgePromptInConversation(input as any[], bridge)).toBe(true);
 
-      // Move bridge to the 5th from the end => should detect
+      // Bridge anywhere in conversation should be detected
       const input2 = input.slice();
       input2[input2.length - 5] = { type: 'message', role: 'system', content: bridge } as any;
       expect(hasBridgePromptInConversation(input2 as any[], bridge)).toBe(true);

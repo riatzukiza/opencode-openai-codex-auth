@@ -172,6 +172,7 @@ export interface SessionState {
 	lastPrefixHash: string | null;
 	lastUpdated: number;
 	lastCachedTokens?: number;
+	bridgeInjected?: boolean; // Track whether Codex-OpenCode bridge prompt was added
 }
 
 /**

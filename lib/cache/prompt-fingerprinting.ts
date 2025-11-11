@@ -32,10 +32,8 @@ export function hasBridgePromptInConversation(
 
 	const bridgeHash = generateContentHash(bridgeContent);
 	
-	// Check last 5 messages for bridge prompt (more efficient than scanning all)
-	const recentMessages = input.slice(-5);
-	
-	for (const item of recentMessages) {
+	// Check all messages for bridge prompt (session-scoped, not just recent)
+	for (const item of input) {
 		if (item.type === "message" && 
 			(item.role === "developer" || item.role === "system")) {
 			

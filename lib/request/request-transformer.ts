@@ -16,6 +16,7 @@ import type {
 	ReasoningConfig,
 	RequestBody,
 	InputItem,
+	SessionContext,
 } from "../types.js";
 
 function cloneInputItem<T extends Record<string, unknown>>(item: T): T {
@@ -544,14 +545,16 @@ function analyzeBridgeRequirement(
 
 /**
  * Add Codex-OpenCode bridge message to input if tools are present
- * Uses conditional loading with fingerprinting to avoid redundant injections
+ * Uses session-scoped tracking to ensure bridge is only injected once per session
  * @param input - Input array
  * @param hasTools - Whether tools are present in request
+ * @param sessionContext - Optional session context for tracking bridge injection
  * @returns Input array with bridge message prepended if needed
  */
 export function addCodexBridgeMessage(
 	input: InputItem[] | undefined,
 	hasTools: boolean,
+	sessionContext?: SessionContext,
 ): InputItem[] | undefined {
 	if (!Array.isArray(input)) return input;
 
@@ -560,6 +563,12 @@ export function addCodexBridgeMessage(
 	
 	// Analyze bridge requirement
 	const analysis = analyzeBridgeRequirement(input, hasTools);
+	
+	// Check session-level bridge injection flag first
+	if (sessionContext?.state.bridgeInjected) {
+		logDebug("Bridge prompt already injected in session, skipping injection");
+		return input;
+	}
 	
 	// Check cache first
 	const cachedDecision = getCachedBridgeDecision(inputHash, analysis.toolCount);
@@ -570,7 +579,7 @@ export function addCodexBridgeMessage(
 			: input;
 	}
 
-	// Check if bridge prompt is already in conversation
+	// Check if bridge prompt is already in conversation (fallback)
 	if (hasBridgePromptInConversation(input, CODEX_OPENCODE_BRIDGE)) {
 		logDebug("Bridge prompt already present in conversation, skipping injection");
 		cacheBridgeDecision(inputHash, analysis.toolCount, false);
@@ -586,6 +595,11 @@ export function addCodexBridgeMessage(
 
 	logDebug(`Adding bridge prompt: ${analysis.reason} (tools: ${analysis.toolCount})`);
 	cacheBridgeDecision(inputHash, analysis.toolCount, true);
+
+	// Mark bridge as injected in session state
+	if (sessionContext) {
+		sessionContext.state.bridgeInjected = true;
+	}
 
 	const bridgeMessage: InputItem = {
 		type: "message",
@@ -639,6 +653,8 @@ export function addToolRemapMessage(
  * @param codexInstructions - Codex system instructions
  * @param userConfig - User configuration from loader
  * @param codexMode - Enable CODEX_MODE (bridge prompt instead of tool remap) - defaults to true
+ * @param options - Options including preserveIds flag
+ * @param sessionContext - Optional session context for bridge tracking
  * @returns Transformed request body
  */
 export async function transformRequestBody(
@@ -647,6 +663,7 @@ export async function transformRequestBody(
 	userConfig: UserConfig = { global: {}, models: {} },
 	codexMode = true,
 	options: { preserveIds?: boolean } = {},
+	sessionContext?: SessionContext,
 ): Promise<RequestBody> {
 	const originalModel = body.model;
 	const normalizedModel = normalizeModel(body.model);
@@ -672,8 +689,22 @@ export async function transformRequestBody(
 	body.stream = true;
 	body.instructions = codexInstructions;
 
-    // Prompt caching relies on the host providing a stable prompt_cache_key
-    // (OpenCode passes its session identifier). We no longer synthesize one here.
+	// Prompt caching relies on the host or SessionManager providing a stable
+	// prompt_cache_key. We accept both camelCase (promptCacheKey) and
+	// snake_case (prompt_cache_key) inputs from the host/runtime.
+
+	// Normalize host-provided cache key from either field for internal use
+	const hostPromptCacheKey =
+		(body as any).prompt_cache_key ||
+		(body as any).promptCacheKey ||
+		(body.metadata && (body.metadata as any).promptCacheKey) ||
+		(body.metadata && (body.metadata as any).prompt_cache_key) ||
+		undefined;
+
+	if (hostPromptCacheKey && typeof hostPromptCacheKey === "string") {
+		body.prompt_cache_key = hostPromptCacheKey;
+		// Do not delete the camelCase field; preserve it for upstream consumers.
+	}
 
 	// Tool behavior parity with Codex CLI (normalize shapes)
 	let hasNormalizedTools = false;
@@ -719,7 +750,7 @@ export async function transformRequestBody(
 		if (codexMode) {
 			// CODEX_MODE: Remove OpenCode system prompt, add bridge prompt only when real tools exist
 			body.input = await filterOpenCodeSystemPrompts(body.input);
-			body.input = addCodexBridgeMessage(body.input, hasNormalizedTools);
+			body.input = addCodexBridgeMessage(body.input, hasNormalizedTools, sessionContext);
 		} else {
 			// DEFAULT MODE: Keep original behavior with tool remap message (only when tools truly exist)
 			body.input = addToolRemapMessage(body.input, hasNormalizedTools);
