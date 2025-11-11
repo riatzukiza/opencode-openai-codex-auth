@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { OAuthServerInfo } from "../types.js";
+import { logError } from "../logger.js";
 
 // Resolve path to oauth-success.html (one level up from auth/ subfolder)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -61,11 +62,7 @@ export function startLocalOAuthServer({ state }: { state: string }): Promise<OAu
 				});
 			})
 			.on("error", (err: NodeJS.ErrnoException) => {
-				console.error(
-					"[openai-codex-plugin] Failed to bind http://127.0.0.1:1455 (",
-					err?.code,
-					") Falling back to manual paste.",
-				);
+				logError("Failed to bind OAuth callback server", { code: err?.code });
 				resolve({
 					port: 1455,
 					close: () => {

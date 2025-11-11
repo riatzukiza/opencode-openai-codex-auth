@@ -6,7 +6,7 @@
 import type { Auth } from "@opencode-ai/sdk";
 import type { OpencodeClient } from "@opencode-ai/sdk";
 import { refreshAccessToken } from "../auth/auth.js";
-import { logRequest } from "../logger.js";
+import { logRequest, logError } from "../logger.js";
 import { transformRequestBody } from "./request-transformer.js";
 import { convertSseToJson, ensureContentType } from "./response-handler.js";
 import type { UserConfig, RequestBody, SessionContext } from "../types.js";
@@ -46,7 +46,7 @@ export async function refreshAndUpdateToken(
 	const refreshResult = await refreshAccessToken(refreshToken);
 
 	if (refreshResult.type === "failed") {
-		console.error(`[${PLUGIN_NAME}] ${ERROR_MESSAGES.TOKEN_REFRESH_FAILED}`);
+		logError(ERROR_MESSAGES.TOKEN_REFRESH_FAILED);
 		return {
 			success: false,
 			response: new Response(
@@ -163,7 +163,9 @@ export async function transformRequestForCodex(
 			sessionContext: appliedContext,
 		};
 	} catch (e) {
-		console.error(`[${PLUGIN_NAME}] ${ERROR_MESSAGES.REQUEST_PARSE_ERROR}:`, e);
+		logError(ERROR_MESSAGES.REQUEST_PARSE_ERROR, {
+			error: e instanceof Error ? e.message : String(e),
+		});
 		return undefined;
 	}
 }
@@ -267,11 +269,12 @@ export async function handleErrorResponse(response: Response): Promise<Response>
 		enriched = raw;
 	}
 
-	console.error(`[${PLUGIN_NAME}] ${response.status} error:`, enriched);
 	logRequest(LOG_STAGES.ERROR_RESPONSE, {
 		status: response.status,
 		error: enriched,
 	});
+
+	logError(`${response.status} error`, { body: enriched });
 
 	const headers = new Headers(response.headers);
 	headers.set("content-type", "application/json; charset=utf-8");

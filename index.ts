@@ -43,7 +43,7 @@ import {
 	PLUGIN_NAME,
 	PROVIDER_ID,
 } from "./lib/constants.js";
-import { logRequest, logDebug, logWarn } from "./lib/logger.js";
+import { configureLogger, logRequest, logDebug, logWarn, logError } from "./lib/logger.js";
 import { getCodexInstructions } from "./lib/prompts/codex.js";
 import { warmCachesOnStartup, areCachesWarm } from "./lib/cache/cache-warming.js";
 import {
@@ -75,7 +75,8 @@ import { maybeHandleCodexCommand } from "./lib/commands/codex-metrics.js";
  * }
  * ```
  */
-export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
+export const OpenAIAuthPlugin: Plugin = async ({ client, directory }: PluginInput) => {
+	configureLogger({ client, directory });
 	function isCodexResponsePayload(payload: unknown): payload is CodexResponsePayload {
 		if (!payload || typeof payload !== "object") return false;
 		const usage = (payload as { usage?: unknown }).usage;
@@ -104,7 +105,7 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 				const decoded = decodeJWT(auth.access);
 				const accountId = decoded?.[JWT_CLAIM_PATH]?.chatgpt_account_id;
 				if (!accountId) {
-					console.error(`[${PLUGIN_NAME}] ${ERROR_MESSAGES.NO_ACCOUNT_ID}`);
+					logError(ERROR_MESSAGES.NO_ACCOUNT_ID);
 					return {};
 				}
 
@@ -134,11 +135,9 @@ export const OpenAIAuthPlugin: Plugin = async ({ client }: PluginInput) => {
 					try {
 						await warmCachesOnStartup();
 					} catch (error) {
-						console.warn(
-							`[${PLUGIN_NAME}] Cache warming failed, continuing: ${
-								error instanceof Error ? error.message : String(error)
-							}`,
-						);
+						logWarn("Cache warming failed, continuing", {
+							error: error instanceof Error ? error.message : String(error),
+						});
 					}
 				}
 

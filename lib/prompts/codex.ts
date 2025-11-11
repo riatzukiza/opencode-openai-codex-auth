@@ -5,6 +5,7 @@ import { homedir } from "node:os";
 import type { GitHubRelease, CacheMetadata } from "../types.js";
 import { codexInstructionsCache, getCodexCacheKey } from "../cache/session-cache.js";
 import { recordCacheHit, recordCacheMiss } from "../cache/cache-metrics.js";
+import { logError } from "../logger.js";
 
 // Codex instructions constants
 const GITHUB_API_RELEASES = "https://api.github.com/repos/openai/codex/releases/latest";
@@ -138,19 +139,16 @@ export async function getCodexInstructions(): Promise<string> {
 		throw new Error(`HTTP ${response.status}`);
 	} catch (error) {
 		const err = error as Error;
-		console.error(
-			"[openai-codex-plugin] Failed to fetch instructions from GitHub:",
-			err.message,
-		);
+		logError("Failed to fetch instructions from GitHub", { error: err.message });
 
 		if (cacheFileExists) {
-			console.error("[openai-codex-plugin] Using cached instructions");
+			logError("Using cached instructions due to fetch failure");
 			const fileContent = readFileSync(CACHE_FILE, "utf8");
 			cacheSessionEntry(fileContent, cachedETag, cachedTag);
 			return fileContent;
 		}
 
-		console.error("[openai-codex-plugin] Falling back to bundled instructions");
+		logError("Falling back to bundled instructions");
 		const bundledContent = readFileSync(join(__dirname, "codex-instructions.md"), "utf8");
 		cacheSessionEntry(bundledContent, null, null);
 		return bundledContent;

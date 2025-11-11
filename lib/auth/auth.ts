@@ -1,6 +1,7 @@
 import { generatePKCE } from "@openauthjs/openauth/pkce";
 import { randomBytes } from "node:crypto";
 import type { PKCEPair, AuthorizationFlow, TokenResult, ParsedAuthInput, JWTPayload } from "../types.js";
+import { logError } from "../logger.js";
 
 // OAuth constants (from openai/codex)
 /* Stryker disable StringLiteral */
@@ -75,7 +76,10 @@ export async function exchangeAuthorizationCode(
 	});
 	if (!res.ok) {
 		const text = await res.text().catch(() => "");
-		console.error("[openai-codex-plugin] code->token failed:", res.status, text);
+		logError("Authorization code exchange failed", {
+			status: res.status,
+			body: text,
+		});
 		return { type: "failed" };
 	}
 	const json = (await res.json()) as {
@@ -88,7 +92,7 @@ export async function exchangeAuthorizationCode(
 		!json?.refresh_token ||
 		typeof json?.expires_in !== "number"
 	) {
-		console.error("[openai-codex-plugin] token response missing fields:", json);
+		logError("Token response missing fields", json);
 		return { type: "failed" };
 	}
 	return {
@@ -135,11 +139,10 @@ export async function refreshAccessToken(refreshToken: string): Promise<TokenRes
 
 		if (!response.ok) {
 			const text = await response.text().catch(() => "");
-			console.error(
-				"[openai-codex-plugin] Token refresh failed:",
-				response.status,
-				text,
-			);
+			logError("Token refresh failed", {
+				status: response.status,
+				body: text,
+			});
 			return { type: "failed" };
 		}
 
@@ -153,10 +156,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<TokenRes
 			!json?.refresh_token ||
 			typeof json?.expires_in !== "number"
 		) {
-			console.error(
-				"[openai-codex-plugin] Token refresh response missing fields:",
-				json,
-			);
+			logError("Token refresh response missing fields", json);
 			return { type: "failed" };
 		}
 
@@ -168,7 +168,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<TokenRes
 		};
 	} catch (error) {
 		const err = error as Error;
-		console.error("[openai-codex-plugin] Token refresh error:", err);
+		logError("Token refresh error", { error: err.message });
 		return { type: "failed" };
 	}
 }
