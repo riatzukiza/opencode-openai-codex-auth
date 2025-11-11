@@ -21,7 +21,7 @@ Complete reference for configuring the OpenCode OpenAI Codex Auth Plugin.
         "gpt-5-codex-low": {
           "name": "GPT 5 Codex Low (OAuth)",
           "limit": {
-            "context": 272000,
+            "context": 400000,
             "output": 128000
           },
           "options": {
@@ -188,6 +188,10 @@ Different settings for different models:
       "models": {
         "gpt-5-codex-fast": {
           "name": "Fast Codex",
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
           "options": {
             "reasoningEffort": "low",
             "store": false
@@ -195,6 +199,10 @@ Different settings for different models:
         },
         "gpt-5-codex-smart": {
           "name": "Smart Codex",
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
           "options": {
             "reasoningEffort": "high",
             "reasoningSummary": "detailed",
@@ -253,6 +261,10 @@ Create named variants for common tasks:
   "models": {
     "codex-quick": {
       "name": "⚡ Quick Code",
+      "limit": {
+        "context": 400000,
+        "output": 128000
+      },
       "options": {
         "reasoningEffort": "low",
         "store": false
@@ -260,6 +272,10 @@ Create named variants for common tasks:
     },
     "codex-balanced": {
       "name": "⚖️ Balanced Code",
+      "limit": {
+        "context": 400000,
+        "output": 128000
+      },
       "options": {
         "reasoningEffort": "medium",
         "store": false
@@ -267,6 +283,10 @@ Create named variants for common tasks:
     },
     "codex-quality": {
       "name": "🎯 Max Quality",
+      "limit": {
+        "context": 400000,
+        "output": 128000
+      },
       "options": {
         "reasoningEffort": "high",
         "reasoningSummary": "detailed",
@@ -477,6 +497,10 @@ Old verbose names still work:
   "models": {
     "quick-chat": {
       "name": "Quick Chat",
+      "limit": {
+        "context": 400000,
+        "output": 128000
+      },
       "options": {
         "reasoningEffort": "minimal",
         "textVerbosity": "low",
@@ -485,6 +509,10 @@ Old verbose names still work:
     },
     "code-gen": {
       "name": "Code Generation",
+      "limit": {
+        "context": 400000,
+        "output": 128000
+      },
       "options": {
         "reasoningEffort": "medium",
         "store": false
@@ -492,6 +520,10 @@ Old verbose names still work:
     },
     "debug-help": {
       "name": "Debug Analysis",
+      "limit": {
+        "context": 400000,
+        "output": 128000
+      },
       "options": {
         "reasoningEffort": "high",
         "reasoningSummary": "detailed",
@@ -509,6 +541,10 @@ Old verbose names still work:
   "models": {
     "economy": {
       "name": "Economy Mode",
+      "limit": {
+        "context": 400000,
+        "output": 128000
+      },
       "options": {
         "reasoningEffort": "low",
         "textVerbosity": "low",
@@ -517,6 +553,10 @@ Old verbose names still work:
     },
     "premium": {
       "name": "Premium Mode",
+      "limit": {
+        "context": 400000,
+        "output": 128000
+      },
       "options": {
         "reasoningEffort": "high",
         "textVerbosity": "high",

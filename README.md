@@ -241,12 +241,20 @@ Create your own named variants in the model selector:
       "models": {
         "codex-fast": {
           "name": "My Fast Codex",
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
           "options": {
             "reasoningEffort": "low"
           }
         },
         "gpt-5-smart": {
           "name": "My Smart GPT-5",
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
           "options": {
             "reasoningEffort": "high",
             "textVerbosity": "high"

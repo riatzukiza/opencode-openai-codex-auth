@@ -95,7 +95,7 @@ Plugins can inject options via the `loader()` function.
         "gpt-5-codex-medium": {
           "name": "GPT 5 Codex Medium (OAuth)",
           "limit": {
-            "context": 272000,
+            "context": 400000,
             "output": 128000
           },
           "options": {

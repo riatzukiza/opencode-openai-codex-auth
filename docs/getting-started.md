@@ -49,7 +49,7 @@ Add this to `~/.config/opencode/opencode.json`:
         "gpt-5-codex-low": {
           "name": "GPT 5 Codex Low (OAuth)",
           "limit": {
-            "context": 272000,
+            "context": 400000,
             "output": 128000
           },
           "options": {
@@ -63,7 +63,7 @@ Add this to `~/.config/opencode/opencode.json`:
         "gpt-5-codex-medium": {
           "name": "GPT 5 Codex Medium (OAuth)",
           "limit": {
-            "context": 272000,
+            "context": 400000,
             "output": 128000
           },
           "options": {
@@ -77,7 +77,7 @@ Add this to `~/.config/opencode/opencode.json`:
         "gpt-5-codex-high": {
           "name": "GPT 5 Codex High (OAuth)",
           "limit": {
-            "context": 272000,
+            "context": 400000,
             "output": 128000
           },
           "options": {
@@ -91,7 +91,7 @@ Add this to `~/.config/opencode/opencode.json`:
         "gpt-5-minimal": {
           "name": "GPT 5 Minimal (OAuth)",
           "limit": {
-            "context": 272000,
+            "context": 400000,
             "output": 128000
           },
           "options": {
@@ -105,7 +105,7 @@ Add this to `~/.config/opencode/opencode.json`:
         "gpt-5-low": {
           "name": "GPT 5 Low (OAuth)",
           "limit": {
-            "context": 272000,
+            "context": 400000,
             "output": 128000
           },
           "options": {
@@ -119,7 +119,7 @@ Add this to `~/.config/opencode/opencode.json`:
         "gpt-5-medium": {
           "name": "GPT 5 Medium (OAuth)",
           "limit": {
-            "context": 272000,
+            "context": 400000,
             "output": 128000
           },
           "options": {
@@ -133,7 +133,7 @@ Add this to `~/.config/opencode/opencode.json`:
         "gpt-5-high": {
           "name": "GPT 5 High (OAuth)",
           "limit": {
-            "context": 272000,
+            "context": 400000,
             "output": 128000
           },
           "options": {
@@ -147,7 +147,7 @@ Add this to `~/.config/opencode/opencode.json`:
         "gpt-5-mini": {
           "name": "GPT 5 Mini (OAuth)",
           "limit": {
-            "context": 272000,
+            "context": 400000,
             "output": 128000
           },
           "options": {
@@ -161,7 +161,7 @@ Add this to `~/.config/opencode/opencode.json`:
         "gpt-5-nano": {
           "name": "GPT 5 Nano (OAuth)",
           "limit": {
-            "context": 272000,
+            "context": 400000,
             "output": 128000
           },
           "options": {
@@ -182,7 +182,7 @@ Add this to `~/.config/opencode/opencode.json`:
 - ✅ GPT-5 Codex (Low/Medium/High reasoning)
 - ✅ GPT-5 (Minimal/Low/Medium/High reasoning)
 - ✅ gpt-5-mini, gpt-5-nano (lightweight variants)
-- ✅ 272k context + 128k output window for every preset
+- ✅ 400k context + 128k output window for every preset
 - ✅ All visible in OpenCode model selector
 - ✅ Optimal settings for each reasoning level
 
