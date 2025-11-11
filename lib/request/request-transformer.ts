@@ -464,8 +464,10 @@ export function isOpenCodeSystemPrompt(
 /**
  * Filter out OpenCode system prompts from input
  * Used in CODEX_MODE to replace OpenCode prompts with Codex-OpenCode bridge
+ * Also strips OpenCode's auto-compaction summary instructions that reference
+ * a non-existent "summary file" path in stateless mode.
  * @param input - Input array
- * @returns Input array without OpenCode system prompts
+ * @returns Input array without OpenCode system or compaction prompts
  */
 export async function filterOpenCodeSystemPrompts(
 	input: InputItem[] | undefined,
@@ -481,11 +483,36 @@ export async function filterOpenCodeSystemPrompts(
 		// This is safe because we still have the "starts with" check
 	}
 
+	// Heuristic detector for OpenCode auto-compaction prompts that instruct
+	// saving/reading a conversation summary from a file path.
+	const isOpenCodeCompactionPrompt = (item: InputItem): boolean => {
+		const isSystemRole = item.role === "developer" || item.role === "system";
+		if (!isSystemRole) return false;
+		const getText = (it: InputItem): string => {
+			if (typeof it.content === "string") return it.content;
+			if (Array.isArray(it.content)) {
+				return it.content
+					.filter((c: any) => c && c.type === "input_text" && c.text)
+					.map((c: any) => c.text)
+					.join("\n");
+			}
+			return "";
+		};
+		const text = getText(item).toLowerCase();
+		if (!text) return false;
+		const hasCompaction = /\b(auto[-\s]?compaction|compaction|compact)\b/i.test(text);
+		const hasSummary = /\b(summary|summarize|summarise)\b/i.test(text);
+		const mentionsFile = /(summary[ _-]?file|summary[ _-]?path|write (the )?summary|save (the )?summary)/i.test(text);
+		return hasCompaction && hasSummary && mentionsFile;
+	};
+
 	return input.filter((item) => {
 		// Keep user messages
 		if (item.role === "user") return true;
-		// Filter out OpenCode system prompts
-		return !isOpenCodeSystemPrompt(item, cachedPrompt);
+		// Filter out OpenCode system and compaction prompts
+		if (isOpenCodeSystemPrompt(item, cachedPrompt)) return false;
+		if (isOpenCodeCompactionPrompt(item)) return false;
+		return true;
 	});
 }
 
@@ -649,6 +676,7 @@ export async function transformRequestBody(
     // (OpenCode passes its session identifier). We no longer synthesize one here.
 
 	// Tool behavior parity with Codex CLI (normalize shapes)
+	let hasNormalizedTools = false;
 	if (body.tools) {
 		const normalizedTools = normalizeToolsForResponses(body.tools);
 		if (normalizedTools && normalizedTools.length > 0) {
@@ -657,6 +685,12 @@ export async function transformRequestBody(
 			const modelName = (body.model || "").toLowerCase();
 			const codexParallelDisabled = modelName.includes("gpt-5-codex");
 			(body as any).parallel_tool_calls = !codexParallelDisabled;
+			hasNormalizedTools = true;
+		} else {
+			// Ensure empty objects don't count as tools and don't leak to backend
+			delete (body as any).tools;
+			delete (body as any).tool_choice;
+			delete (body as any).parallel_tool_calls;
 		}
 	}
 
@@ -683,12 +717,12 @@ export async function transformRequestBody(
 		}
 
 		if (codexMode) {
-			// CODEX_MODE: Remove OpenCode system prompt, add bridge prompt
+			// CODEX_MODE: Remove OpenCode system prompt, add bridge prompt only when real tools exist
 			body.input = await filterOpenCodeSystemPrompts(body.input);
-			body.input = addCodexBridgeMessage(body.input, !!body.tools);
+			body.input = addCodexBridgeMessage(body.input, hasNormalizedTools);
 		} else {
-			// DEFAULT MODE: Keep original behavior with tool remap message
-			body.input = addToolRemapMessage(body.input, !!body.tools);
+			// DEFAULT MODE: Keep original behavior with tool remap message (only when tools truly exist)
+			body.input = addToolRemapMessage(body.input, hasNormalizedTools);
 		}
 	}
 
