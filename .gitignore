@@ -1,11 +1,26 @@
-node_modules/
-bun.lockb
-pnpm-lock.yaml
+# Build artifacts
 dist/
-.DS_Store
-.history/
-opencode.json
-.opencode/
-tmp
-.codex-cache
-.nx/
+build/
+lib/
+*.tsbuildinfo
+
+# Dependencies 
+node_modules/
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
