@@ -10,3 +10,4 @@ opencode.json
 .opencode/
 tmp
 .codex-cache
+.nx/
