@@ -155,6 +155,10 @@ describe('createCodexFetcher', () => {
 		const fetcher = createCodexFetcher(baseDeps());
 		const response = await fetcher('https://api.openai.com', {});
 		expect(response).toBe(commandResponse);
+		expect(maybeHandleCodexCommandMock).toHaveBeenCalledWith(
+			expect.objectContaining({ model: 'gpt-5' }),
+			{ sessionManager },
+		);
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
