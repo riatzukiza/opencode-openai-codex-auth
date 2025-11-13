@@ -203,7 +203,7 @@ export interface CodexResponsePayload {
  * Cache metadata for Codex instructions
  */
 export interface CacheMetadata {
-	etag: string | null;
+	etag?: string;
 	tag: string;
 	lastChecked: number;
 	url: string;

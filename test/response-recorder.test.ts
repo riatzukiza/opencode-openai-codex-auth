@@ -91,6 +91,26 @@ describe("recordSessionResponseFromHandledResponse", () => {
 
 		expect(recordResponseMock).not.toHaveBeenCalled();
 	});
+
+	it("logs debug output when payload parsing fails", async () => {
+		const sessionContext = createSessionContext();
+		const malformedResponse = new Response("oops", {
+			status: 200,
+			headers: { "content-type": "application/json" },
+		});
+
+		await recordSessionResponseFromHandledResponse({
+			sessionManager,
+			sessionContext,
+			handledResponse: malformedResponse,
+		});
+
+		expect(logDebugMock).toHaveBeenCalledWith(
+			"SessionManager: failed to parse response payload",
+			expect.objectContaining({ error: expect.stringContaining("Unexpected") }),
+		);
+		expect(recordResponseMock).not.toHaveBeenCalled();
+	});
 });
 
 describe("isCodexResponsePayload", () => {

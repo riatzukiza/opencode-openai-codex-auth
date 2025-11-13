@@ -1,29 +1,23 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { homedir } from "node:os";
+import { readFileSync } from "node:fs";
 import type { GitHubRelease, CacheMetadata } from "../types.js";
 import { codexInstructionsCache, getCodexCacheKey } from "../cache/session-cache.js";
 import { recordCacheHit, recordCacheMiss } from "../cache/cache-metrics.js";
 import { logError } from "../logger.js";
+import { getOpenCodePath, safeWriteFile, safeReadFile, fileExistsAndNotEmpty } from "../utils/file-system-utils.js";
+import { CACHE_FILES, CACHE_TTL_MS } from "../utils/cache-config.js";
 
 // Codex instructions constants
 const GITHUB_API_RELEASES = "https://api.github.com/repos/openai/codex/releases/latest";
-const CACHE_DIR = join(homedir(), ".opencode", "cache");
-const CACHE_FILE = join(CACHE_DIR, "codex-instructions.md");
-const CACHE_METADATA_FILE = join(CACHE_DIR, "codex-instructions-meta.json");
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+function cacheSessionEntry(data: string, etag?: string | undefined, tag?: string | undefined): void {
+	const cachePayload = { data, etag, tag };
 
-function cacheSessionEntry(data: string, etag?: string | null, tag?: string | null): void {
-	const normalizedEtag = etag ?? undefined;
-	const normalizedTag = tag ?? undefined;
-	const cachePayload = { data, etag: normalizedEtag, tag: normalizedTag };
-
-	const cacheKey = getCodexCacheKey(normalizedEtag, normalizedTag);
+	const cacheKey = getCodexCacheKey(etag, tag);
 	codexInstructionsCache.set(cacheKey, cachePayload);
 	codexInstructionsCache.set("latest", cachePayload);
 }
@@ -59,9 +53,13 @@ export async function getCodexInstructions(): Promise<string> {
 	let cachedTag: string | null = null;
 	let cachedTimestamp: number | null = null;
 
-	if (existsSync(CACHE_METADATA_FILE)) {
-		const metadata = JSON.parse(readFileSync(CACHE_METADATA_FILE, "utf8")) as CacheMetadata;
-		cachedETag = metadata.etag;
+	const cacheMetaPath = getOpenCodePath("cache", CACHE_FILES.CODEX_INSTRUCTIONS_META);
+	const cacheFilePath = getOpenCodePath("cache", CACHE_FILES.CODEX_INSTRUCTIONS);
+	
+	const cachedMetaContent = safeReadFile(cacheMetaPath);
+	if (cachedMetaContent) {
+		const metadata = JSON.parse(cachedMetaContent) as CacheMetadata;
+		cachedETag = metadata.etag || null;
 		cachedTag = metadata.tag;
 		cachedTimestamp = metadata.lastChecked;
 	}
@@ -73,14 +71,14 @@ export async function getCodexInstructions(): Promise<string> {
 		return sessionFromMetadata.data;
 	}
 
-	const cacheFileExists = existsSync(CACHE_FILE);
+	const cacheFileExists = fileExistsAndNotEmpty(cacheFilePath);
 	const isCacheFresh = Boolean(
 		cachedTimestamp && (Date.now() - cachedTimestamp) < CACHE_TTL_MS && cacheFileExists,
 	);
 
 	if (isCacheFresh) {
-		const fileContent = readFileSync(CACHE_FILE, "utf8");
-		cacheSessionEntry(fileContent, cachedETag, cachedTag);
+		const fileContent = safeReadFile(cacheFilePath) || "";
+		cacheSessionEntry(fileContent, cachedETag || undefined, cachedTag || undefined);
 		return fileContent;
 	}
 
@@ -107,8 +105,8 @@ export async function getCodexInstructions(): Promise<string> {
 		const response = await fetch(CODEX_INSTRUCTIONS_URL, { headers });
 
 		if (response.status === 304 && cacheFileExists) {
-			const fileContent = readFileSync(CACHE_FILE, "utf8");
-			cacheSessionEntry(fileContent, cachedETag, latestTag);
+			const fileContent = safeReadFile(cacheFilePath) || "";
+			cacheSessionEntry(fileContent, cachedETag || undefined, latestTag || undefined);
 			return fileContent;
 		}
 
@@ -116,23 +114,19 @@ export async function getCodexInstructions(): Promise<string> {
 			const instructions = await response.text();
 			const newETag = response.headers.get("etag");
 
-			if (!existsSync(CACHE_DIR)) {
-				mkdirSync(CACHE_DIR, { recursive: true });
-			}
-
-			writeFileSync(CACHE_FILE, instructions, "utf8");
-			writeFileSync(
-				CACHE_METADATA_FILE,
+			// Save to file cache
+			safeWriteFile(cacheFilePath, instructions);
+			safeWriteFile(
+				cacheMetaPath,
 				JSON.stringify({
-					etag: newETag,
+					etag: newETag || undefined,
 					tag: latestTag,
 					lastChecked: Date.now(),
 					url: CODEX_INSTRUCTIONS_URL,
 				} satisfies CacheMetadata),
-				"utf8",
 			);
 
-			cacheSessionEntry(instructions, newETag, latestTag);
+			cacheSessionEntry(instructions, newETag || undefined, latestTag);
 			return instructions;
 		}
 
@@ -143,14 +137,14 @@ export async function getCodexInstructions(): Promise<string> {
 
 		if (cacheFileExists) {
 			logError("Using cached instructions due to fetch failure");
-			const fileContent = readFileSync(CACHE_FILE, "utf8");
-			cacheSessionEntry(fileContent, cachedETag, cachedTag);
+			const fileContent = safeReadFile(cacheFilePath) || "";
+		cacheSessionEntry(fileContent, cachedETag || undefined, cachedTag || undefined);
 			return fileContent;
 		}
 
 		logError("Falling back to bundled instructions");
 		const bundledContent = readFileSync(join(__dirname, "codex-instructions.md"), "utf8");
-		cacheSessionEntry(bundledContent, null, null);
+		cacheSessionEntry(bundledContent, undefined, undefined);
 		return bundledContent;
 	}
 }

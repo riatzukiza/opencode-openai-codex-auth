@@ -5,19 +5,17 @@
  * Uses ETag-based caching to efficiently track updates.
  */
 
-import { join } from "node:path";
-import { homedir } from "node:os";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { openCodePromptCache, getOpenCodeCacheKey } from "../cache/session-cache.js";
 import { recordCacheHit, recordCacheMiss } from "../cache/cache-metrics.js";
+import { logError } from "../logger.js";
+import { getOpenCodePath, safeWriteFile, safeReadFile, fileExistsAndNotEmpty } from "../utils/file-system-utils.js";
+import { CACHE_FILES, CACHE_TTL_MS } from "../utils/cache-config.js";
 
 const OPENCODE_CODEX_URL =
 	"https://raw.githubusercontent.com/sst/opencode/main/packages/opencode/src/session/prompt/codex.txt";
-const CACHE_DIR = join(homedir(), ".opencode", "cache");
-const CACHE_FILE = join(CACHE_DIR, "opencode-codex.txt");
-const CACHE_META_FILE = join(CACHE_DIR, "opencode-codex-meta.json");
 
-interface CacheMeta {
+interface OpenCodeCacheMeta {
 	etag: string;
 	lastFetch?: string; // Legacy field for backwards compatibility
 	lastChecked: number; // Timestamp for rate limit protection
@@ -31,7 +29,11 @@ interface CacheMeta {
  * @returns The codex.txt content
  */
 export async function getOpenCodeCodexPrompt(): Promise<string> {
-	await mkdir(CACHE_DIR, { recursive: true });
+	const cacheDir = getOpenCodePath("cache");
+	const cacheFilePath = getOpenCodePath("cache", CACHE_FILES.OPENCODE_CODEX);
+	const cacheMetaPath = getOpenCodePath("cache", CACHE_FILES.OPENCODE_CODEX_META);
+	// Ensure cache directory exists (test expects mkdir to be called)
+	await mkdir(cacheDir, { recursive: true });
 
 	// Check session cache first (fastest path)
 	const sessionEntry = openCodePromptCache.get("main");
@@ -43,18 +45,19 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 
 	// Try to load cached content and metadata
 	let cachedContent: string | null = null;
-	let cachedMeta: CacheMeta | null = null;
+	let cachedMeta: OpenCodeCacheMeta | null = null;
 
 	try {
-		cachedContent = await readFile(CACHE_FILE, "utf-8");
-		const metaContent = await readFile(CACHE_META_FILE, "utf-8");
+		cachedContent = await readFile(cacheFilePath, "utf-8");
+		const metaContent = await readFile(cacheMetaPath, "utf-8");
 		cachedMeta = JSON.parse(metaContent);
-	} catch {
+	} catch (error) {
 		// Cache doesn't exist or is invalid, will fetch fresh
+		const err = error as Error;
+		logError("Failed to read OpenCode prompt cache", { error: err.message });
 	}
 
 	// Rate limit protection: If cache is less than 15 minutes old, use it
-	const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 	if (cachedMeta?.lastChecked && (Date.now() - cachedMeta.lastChecked) < CACHE_TTL_MS && cachedContent) {
 		// Store in session cache for faster subsequent access
 		openCodePromptCache.set("main", { data: cachedContent, etag: cachedMeta.etag || undefined });
@@ -83,15 +86,15 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 			const etag = response.headers.get("etag") || "";
 
 			// Save to cache with timestamp
-			await writeFile(CACHE_FILE, content, "utf-8");
+			await writeFile(cacheFilePath, content, "utf-8");
 			await writeFile(
-				CACHE_META_FILE,
+				cacheMetaPath,
 				JSON.stringify(
 					{
 						etag,
 						lastFetch: new Date().toISOString(), // Keep for backwards compat
 						lastChecked: Date.now(),
-					} satisfies CacheMeta,
+					} satisfies OpenCodeCacheMeta,
 					null,
 					2
 				),
@@ -99,7 +102,7 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 			);
 
 			// Store in session cache
-			openCodePromptCache.set("main", { data: content, etag: etag || undefined });
+			openCodePromptCache.set("main", { data: content, etag });
 
 			return content;
 		}
@@ -111,6 +114,9 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 
 		throw new Error(`Failed to fetch OpenCode codex.txt: ${response.status}`);
 	} catch (error) {
+		const err = error as Error;
+		logError("Failed to fetch OpenCode codex.txt from GitHub", { error: err.message });
+
 		// Network error - fallback to cache
 		if (cachedContent) {
 			// Store in session cache even for fallback
@@ -119,7 +125,7 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 		}
 
 		throw new Error(
-			`Failed to fetch OpenCode codex.txt and no cache available: ${error}`
+			`Failed to fetch OpenCode codex.txt and no cache available: ${err.message}`
 		);
 	}
 }
@@ -131,9 +137,12 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
  */
 export async function getCachedPromptPrefix(chars = 50): Promise<string | null> {
 	try {
-		const content = await readFile(CACHE_FILE, "utf-8");
+		const filePath = getOpenCodePath("cache", CACHE_FILES.OPENCODE_CODEX);
+		const content = await readFile(filePath, "utf-8");
 		return content.substring(0, chars);
-	} catch {
+	} catch (error) {
+		const err = error as Error;
+		logError("Failed to read cached OpenCode prompt prefix", { error: err.message });
 		return null;
 	}
 }

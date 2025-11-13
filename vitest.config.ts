@@ -20,7 +20,15 @@ export default defineConfig({
       provider: 'v8',
       reportsDirectory: './coverage',
       reporter: ['text', 'json', 'html', 'lcov'],
-      exclude: ['node_modules/', 'dist/', 'test/'],
+      exclude: [
+        'node_modules/',
+        'dist/',
+        'test/',
+        '.stryker-tmp/**',
+        '**/*.d.ts',
+        'coverage/**',
+        'scripts/**',
+      ],
     },
   },
 });

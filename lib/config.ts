@@ -1,10 +1,8 @@
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
-import { homedir } from "node:os";
 import type { PluginConfig } from "./types.js";
 import { logWarn } from "./logger.js";
+import { getOpenCodePath, safeReadFile } from "./utils/file-system-utils.js";
 
-const CONFIG_PATH = join(homedir(), ".opencode", "openai-codex-auth-config.json");
+const CONFIG_PATH = getOpenCodePath("openai-codex-auth-config.json");
 
 /**
  * Default plugin configuration
@@ -24,11 +22,12 @@ const DEFAULT_CONFIG: PluginConfig = {
  */
 export function loadPluginConfig(): PluginConfig {
 	try {
-		if (!existsSync(CONFIG_PATH)) {
+		const fileContent = safeReadFile(CONFIG_PATH);
+		if (!fileContent) {
+			logWarn("Plugin config file not found, using defaults", { path: CONFIG_PATH });
 			return DEFAULT_CONFIG;
 		}
 
-		const fileContent = readFileSync(CONFIG_PATH, "utf-8");
 		const userConfig = JSON.parse(fileContent) as Partial<PluginConfig>;
 
 		// Merge with defaults

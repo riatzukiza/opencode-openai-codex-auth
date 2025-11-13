@@ -1,12 +1,13 @@
 import type { OpencodeClient } from "@opencode-ai/sdk";
-import { writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { PLUGIN_NAME } from "./constants.js";
+import { getOpenCodePath, ensureDirectory } from "./utils/file-system-utils.js";
 
 export const LOGGING_ENABLED = process.env.ENABLE_PLUGIN_REQUEST_LOGGING === "1";
 const DEBUG_ENABLED = process.env.DEBUG_CODEX_PLUGIN === "1" || LOGGING_ENABLED;
-const LOG_DIR = join(homedir(), ".opencode", "logs", "codex-plugin");
+const LOG_DIR = getOpenCodePath("logs", "codex-plugin");
 
 type LogLevel = "debug" | "info" | "warn" | "error";
 
@@ -128,9 +129,7 @@ function sanitizeExtra(extra?: Record<string, unknown>): Record<string, unknown>
 }
 
 function ensureLogDir(): void {
-	if (!existsSync(LOG_DIR)) {
-		mkdirSync(LOG_DIR, { recursive: true });
-	}
+	ensureDirectory(LOG_DIR);
 }
 
 function persistRequestStage(stage: string, payload: Record<string, unknown>): string | undefined {
