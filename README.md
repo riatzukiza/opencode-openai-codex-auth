@@ -32,6 +32,19 @@ Check out the original project by [numman-ali](https://github.com/numman-ali) an
 
 ## 💰 Token Usage & Prompt Caching
 
+- ✅ **ChatGPT Plus/Pro OAuth authentication** - Use your existing subscription
+- ✅ **11 pre-configured model variants** - Includes Codex Mini (medium/high) alongside all gpt-5 and gpt-5-codex presets
+- ✅ **Zero external dependencies** - Lightweight with only @openauthjs/openauth
+- ✅ **Auto-refreshing tokens** - Handles token expiration automatically
+- ✅ **Prompt caching** - Reuses responses across turns via stable `prompt_cache_key`
+- ✅ **Smart auto-updating Codex instructions** - Tracks latest stable release with ETag caching
+- ✅ **Full tool support** - write, edit, bash, grep, glob, and more
+- ✅ **CODEX_MODE** - Codex-OpenCode bridge prompt with Task tool & MCP awareness (enabled by default)
+- ✅ **Automatic tool remapping** - Codex tools → opencode tools
+- ✅ **Configurable reasoning** - Control effort, summary verbosity, and text output
+- ✅ **Usage-aware errors** - Shows clear guidance when ChatGPT subscription limits are reached
+- ✅ **Type-safe & tested** - Strict TypeScript with 160+ unit tests + 14 integration tests
+- ✅ **Modular architecture** - Easy to maintain and extend
 **Prompt caching is enabled by default** to optimize your token usage and reduce costs.
 
 ### How Caching Works
@@ -42,6 +55,222 @@ Check out the original project by [numman-ali](https://github.com/numman-ali) an
 - **Lowers costs** significantly for multi-turn conversations
 
 ### Managing Caching
+
+#### Recommended: Full Configuration (Codex CLI Experience)
+
+For the complete experience with all reasoning variants matching the official Codex CLI:
+
+1. **Copy the full configuration** from [`config/full-opencode.json`](./config/full-opencode.json) to your opencode config file:
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    "opencode-openai-codex-auth"
+  ],
+  "provider": {
+    "openai": {
+      "options": {
+        "reasoningEffort": "medium",
+        "reasoningSummary": "auto",
+        "textVerbosity": "medium",
+        "include": [
+          "reasoning.encrypted_content"
+        ],
+        "store": false
+      },
+      "models": {
+        "gpt-5-codex-low": {
+          "name": "GPT 5 Codex Low (OAuth)",
+          "limit": {
+            "context": 272000,
+            "output": 128000
+          },
+          "options": {
+            "reasoningEffort": "low",
+            "reasoningSummary": "auto",
+            "textVerbosity": "medium",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        },
+        "gpt-5-codex-medium": {
+          "name": "GPT 5 Codex Medium (OAuth)",
+          "limit": {
+            "context": 272000,
+            "output": 128000
+          },
+          "options": {
+            "reasoningEffort": "medium",
+            "reasoningSummary": "auto",
+            "textVerbosity": "medium",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        },
+        "gpt-5-codex-high": {
+          "name": "GPT 5 Codex High (OAuth)",
+          "limit": {
+            "context": 272000,
+            "output": 128000
+          },
+          "options": {
+            "reasoningEffort": "high",
+            "reasoningSummary": "detailed",
+            "textVerbosity": "medium",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        },
+        "gpt-5-codex-mini-medium": {
+          "name": "GPT 5 Codex Mini Medium (OAuth)",
+          "limit": {
+            "context": 200000,
+            "output": 100000
+          },
+          "options": {
+            "reasoningEffort": "medium",
+            "reasoningSummary": "auto",
+            "textVerbosity": "medium",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        },
+        "gpt-5-codex-mini-high": {
+          "name": "GPT 5 Codex Mini High (OAuth)",
+          "limit": {
+            "context": 200000,
+            "output": 100000
+          },
+          "options": {
+            "reasoningEffort": "high",
+            "reasoningSummary": "detailed",
+            "textVerbosity": "medium",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        },
+        "gpt-5-minimal": {
+          "name": "GPT 5 Minimal (OAuth)",
+          "limit": {
+            "context": 272000,
+            "output": 128000
+          },
+          "options": {
+            "reasoningEffort": "minimal",
+            "reasoningSummary": "auto",
+            "textVerbosity": "low",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        },
+        "gpt-5-low": {
+          "name": "GPT 5 Low (OAuth)",
+          "limit": {
+            "context": 272000,
+            "output": 128000
+          },
+          "options": {
+            "reasoningEffort": "low",
+            "reasoningSummary": "auto",
+            "textVerbosity": "low",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        },
+        "gpt-5-medium": {
+          "name": "GPT 5 Medium (OAuth)",
+          "limit": {
+            "context": 272000,
+            "output": 128000
+          },
+          "options": {
+            "reasoningEffort": "medium",
+            "reasoningSummary": "auto",
+            "textVerbosity": "medium",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        },
+        "gpt-5-high": {
+          "name": "GPT 5 High (OAuth)",
+          "limit": {
+            "context": 272000,
+            "output": 128000
+          },
+          "options": {
+            "reasoningEffort": "high",
+            "reasoningSummary": "detailed",
+            "textVerbosity": "high",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        },
+        "gpt-5-mini": {
+          "name": "GPT 5 Mini (OAuth)",
+          "limit": {
+            "context": 272000,
+            "output": 128000
+          },
+          "options": {
+            "reasoningEffort": "low",
+            "reasoningSummary": "auto",
+            "textVerbosity": "low",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        },
+        "gpt-5-nano": {
+          "name": "GPT 5 Nano (OAuth)",
+          "limit": {
+            "context": 272000,
+            "output": 128000
+          },
+          "options": {
+            "reasoningEffort": "minimal",
+            "reasoningSummary": "auto",
+            "textVerbosity": "low",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+   **Global config**: `~/.config/opencode/opencode.json`
+   **Project config**: `<project>/.opencode.json`
+
+   This gives you 11 model variants with different reasoning levels:
+   - **gpt-5-codex** (low/medium/high) - Code-optimized reasoning
+   - **gpt-5-codex-mini** (medium/high) - Cheaper Codex tier with 200k/100k tokens
+   - **gpt-5** (minimal/low/medium/high) - General-purpose reasoning
+   - **gpt-5-mini** and **gpt-5-nano** - Lightweight variants
+
+   All appear in the opencode model selector as "GPT 5 Codex Low (OAuth)", "GPT 5 High (OAuth)", etc.
 
 ### Prompt caching & usage limits
 
@@ -139,6 +368,8 @@ When using [`config/full-opencode.json`](./config/full-opencode.json), you get t
 | `gpt-5-codex-low` | GPT 5 Codex Low (OAuth) | Low | Fast code generation |
 | `gpt-5-codex-medium` | GPT 5 Codex Medium (OAuth) | Medium | Balanced code tasks |
 | `gpt-5-codex-high` | GPT 5 Codex High (OAuth) | High | Complex code & tools |
+| `gpt-5-codex-mini-medium` | GPT 5 Codex Mini Medium (OAuth) | Medium | Cheaper Codex tier (200k/100k) |
+| `gpt-5-codex-mini-high` | GPT 5 Codex Mini High (OAuth) | High | Codex Mini with maximum reasoning |
 | `gpt-5-minimal` | GPT 5 Minimal (OAuth) | Minimal | Quick answers, simple tasks |
 | `gpt-5-low` | GPT 5 Low (OAuth) | Low | Faster responses with light reasoning |
 | `gpt-5-medium` | GPT 5 Medium (OAuth) | Medium | Balanced general-purpose tasks |
@@ -148,6 +379,8 @@ When using [`config/full-opencode.json`](./config/full-opencode.json), you get t
 
 **Usage**: `--model=openai/<CLI Model ID>` (e.g., `--model=openai/gpt-5-codex-low`)
 **Display**: TUI shows the friendly name (e.g., "GPT 5 Codex Low (OAuth)")
+
+> **Note**: All `gpt-5-codex-mini*` presets normalize to the ChatGPT slug `codex-mini-latest` (200k input / 100k output tokens).
 
 All accessed via your ChatGPT Plus/Pro subscription.
 
@@ -188,7 +421,7 @@ These defaults match the official Codex CLI behavior and can be customized (see 
 ### Recommended: Use Pre-Configured File
 
 The easiest way to get started is to use [`config/full-opencode.json`](./config/full-opencode.json), which provides:
-- 9 pre-configured model variants matching Codex CLI presets
+- 11 pre-configured model variants matching Codex CLI presets
 - Optimal settings for each reasoning level
 - All variants visible in the opencode model selector
 

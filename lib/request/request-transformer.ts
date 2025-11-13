@@ -1,3 +1,4 @@
+import { logDebug, logWarn } from "../logger.js";
 import { TOOL_REMAP_MESSAGE } from "../prompts/codex.js";
 import { createHash, randomUUID } from "node:crypto";
 import { CODEX_OPENCODE_BRIDGE } from "../prompts/codex-opencode-bridge.js";
@@ -11,8 +12,8 @@ import {
 	cacheBridgeDecision 
 } from "../cache/prompt-fingerprinting.js";
 import type {
-	UserConfig,
 	ConfigOptions,
+	InputItem,
 	ReasoningConfig,
 	RequestBody,
 	InputItem,
@@ -293,12 +294,18 @@ function normalizeToolsForResponses(tools: unknown): any[] | undefined {
 export function normalizeModel(model: string | undefined): string {
 	if (!model) return "gpt-5";
 
+	const normalized = model.toLowerCase();
+
+	if (normalized.includes("codex-mini")) {
+		return "codex-mini-latest";
+	}
+
 	// Case-insensitive check for "codex" anywhere in the model name
-	if (model.toLowerCase().includes("codex")) {
+	if (normalized.includes("codex")) {
 		return "gpt-5-codex";
 	}
 	// Case-insensitive check for "gpt-5" or "gpt 5" (with space)
-	if (model.toLowerCase().includes("gpt-5") || model.toLowerCase().includes("gpt 5")) {
+	if (normalized.includes("gpt-5") || normalized.includes("gpt 5")) {
 		return "gpt-5";
 	}
 
@@ -339,17 +346,36 @@ export function getReasoningConfig(
 	originalModel: string | undefined,
 	userConfig: ConfigOptions = {},
 ): ReasoningConfig {
+	const normalizedOriginal = originalModel?.toLowerCase() ?? "";
+	const isCodexMini =
+		normalizedOriginal.includes("codex-mini") ||
+		normalizedOriginal.includes("codex mini") ||
+		normalizedOriginal.includes("codex_mini") ||
+		normalizedOriginal.includes("codex-mini-latest");
+	const isCodex = normalizedOriginal.includes("codex") && !isCodexMini;
 	const isLightweight =
-		originalModel?.includes("nano") || originalModel?.includes("mini");
-	const isCodex = originalModel?.includes("codex");
+		!isCodexMini &&
+		(normalizedOriginal.includes("nano") ||
+			normalizedOriginal.includes("mini"));
 
 	// Default based on model type (Codex CLI defaults)
-	const defaultEffort: "minimal" | "low" | "medium" | "high" = isLightweight
-		? "minimal"
-		: "medium";
+	const defaultEffort: "minimal" | "low" | "medium" | "high" = isCodexMini
+		? "medium"
+		: isLightweight
+			? "minimal"
+			: "medium";
 
 	// Get user-requested effort
 	let effort = userConfig.reasoningEffort || defaultEffort;
+
+	if (isCodexMini) {
+		if (effort === "minimal" || effort === "low") {
+			effort = "medium";
+		}
+		if (effort !== "high") {
+			effort = "medium";
+		}
+	}
 
 	// Normalize "minimal" to "low" for gpt-5-codex
 	// Codex CLI does not provide a "minimal" preset for gpt-5-codex
@@ -761,10 +787,13 @@ export async function transformRequestBody(
 	const modelConfig = getModelConfig(lookupModel, userConfig);
 
 	// Debug: Log which config was resolved
-	logDebug(`Model config lookup: "${lookupModel}" → normalized to "${normalizedModel}" for API`, {
-		hasModelSpecificConfig: !!userConfig.models?.[lookupModel],
-		resolvedConfig: modelConfig,
-	});
+	logDebug(
+		`Model config lookup: "${lookupModel}" → normalized to "${normalizedModel}" for API`,
+		{
+			hasModelSpecificConfig: !!userConfig.models?.[lookupModel],
+			resolvedConfig: modelConfig,
+		},
+	);
 
 	// Normalize model name for API call
 	body.model = normalizedModel;
@@ -816,9 +845,14 @@ export async function transformRequestBody(
 	// Filter and transform input
 	if (body.input && Array.isArray(body.input)) {
 		// Debug: Log original input message IDs before filtering
-		const originalIds = body.input.filter(item => item.id).map(item => item.id);
+		const originalIds = body.input
+			.filter((item) => item.id)
+			.map((item) => item.id);
 		if (originalIds.length > 0) {
-			logDebug(`Processing ${originalIds.length} message IDs from input (preserve=${preserveIds})`, originalIds);
+			logDebug(
+				`Filtering ${originalIds.length} message IDs from input:`,
+				originalIds,
+			);
 		}
 
 		body.input = filterInput(body.input, { preserveIds });
