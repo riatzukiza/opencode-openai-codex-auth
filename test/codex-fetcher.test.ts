@@ -181,6 +181,20 @@ describe('createCodexFetcher', () => {
 		expect(response.status).toBe(502);
 	});
 
+	it('logs response metadata with the response stage', async () => {
+		transformRequestForCodexMock.mockResolvedValue({
+			body: { model: 'gpt-5' },
+		});
+		fetchMock.mockResolvedValue(new Response('ok', { status: 202, statusText: 'accepted' }));
+
+		const fetcher = createCodexFetcher(baseDeps());
+		await fetcher('https://api.openai.com', {});
+		expect(logRequestMock).toHaveBeenCalledWith(
+			LOG_STAGES.RESPONSE,
+			expect.objectContaining({ status: 202, statusText: 'accepted' }),
+		);
+	});
+
 	it('falls back to original init when no transformation occurs', async () => {
 		transformRequestForCodexMock.mockResolvedValue(undefined);
 		const deps = baseDeps();
@@ -202,6 +216,23 @@ describe('createCodexFetcher', () => {
 		);
 	});
 
+	it('uses an empty request init when both transformation and init are missing', async () => {
+		transformRequestForCodexMock.mockResolvedValue(undefined);
+		const fetcher = createCodexFetcher(baseDeps());
+
+		await fetcher('https://api.openai.com');
+		expect(createCodexHeadersMock).toHaveBeenCalledWith(
+			{},
+			'acc-123',
+			'access-token',
+			expect.any(Object),
+		);
+		expect(fetchMock).toHaveBeenCalledWith(
+			'https://codex/backend',
+			expect.objectContaining({ headers: expect.any(Headers) }),
+		);
+	});
+
 	it('records responses only after successful handling', async () => {
 		transformRequestForCodexMock.mockResolvedValue({
 			body: { model: 'gpt-5' },
@@ -216,5 +247,22 @@ describe('createCodexFetcher', () => {
 			sessionContext: { sessionId: 's-2', enabled: true },
 			handledResponse: expect.any(Response),
 		});
+	});
+
+	it('uses empty tokens when auth type is not oauth', async () => {
+		transformRequestForCodexMock.mockResolvedValue({
+			body: { model: 'gpt-5' },
+		});
+		const deps = baseDeps();
+		deps.getAuth.mockResolvedValue({ type: 'api', key: 'abc' } as any);
+
+		const fetcher = createCodexFetcher(deps);
+		await fetcher('https://api.openai.com', {});
+		expect(createCodexHeadersMock).toHaveBeenCalledWith(
+			expect.any(Object),
+			'acc-123',
+			'',
+			expect.any(Object),
+		);
 	});
 });
