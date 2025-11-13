@@ -11,3 +11,5 @@ opencode.json
 tmp
 .codex-cache
 .nx/
+
+.stryker-tmp/
