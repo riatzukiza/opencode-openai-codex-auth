@@ -3,7 +3,6 @@ import { TOOL_REMAP_MESSAGE } from "../prompts/codex.js";
 import { createHash, randomUUID } from "node:crypto";
 import { CODEX_OPENCODE_BRIDGE } from "../prompts/codex-opencode-bridge.js";
 import { getOpenCodeCodexPrompt } from "../prompts/opencode-codex.js";
-import { logDebug, logWarn } from "../logger.js";
 import { 
 	generateInputHash, 
 	generateContentHash,
@@ -16,8 +15,8 @@ import type {
 	InputItem,
 	ReasoningConfig,
 	RequestBody,
-	InputItem,
 	SessionContext,
+	UserConfig,
 } from "../types.js";
 
 function cloneInputItem<T extends Record<string, unknown>>(item: T): T {
