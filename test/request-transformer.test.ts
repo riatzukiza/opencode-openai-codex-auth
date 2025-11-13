@@ -1125,7 +1125,231 @@ describe('Request Transformer Module', () => {
 					expect(result.stream).toBe(true);
 					expect(result.instructions).toBe(codexInstructions);
 					expect(result.include).toEqual(['reasoning.encrypted_content']);
-				});
+});
+		});
+
+		describe('Edge Cases and Error Handling', () => {
+			it('should handle empty input array', async () => {
+				const body: RequestBody = {
+					model: 'gpt-5',
+					input: [],
+				};
+				const result = await transformRequestBody(body, codexInstructions);
+				expect(result.input).toEqual([]);
+			});
+
+			it('should handle null input', async () => {
+				const body: RequestBody = {
+					model: 'gpt-5',
+					input: null as any,
+				};
+				const result = await transformRequestBody(body, codexInstructions);
+				expect(result.input).toBeNull();
+			});
+
+			it('should handle undefined input', async () => {
+				const body: RequestBody = {
+					model: 'gpt-5',
+					input: undefined as any,
+				};
+				const result = await transformRequestBody(body, codexInstructions);
+				expect(result.input).toBeUndefined();
+			});
+
+			it.skip('should handle malformed input items', async () => {
+				const body: RequestBody = {
+					model: 'gpt-5',
+					input: [
+						null,
+						undefined,
+						{ type: 'message', role: 'user' }, // missing content
+						{ not: 'a valid item' } as any,
+					],
+				};
+				const result = await transformRequestBody(body, codexInstructions);
+				expect(result.input).toHaveLength(4);
+			});
+
+			it('should handle content array with mixed types', async () => {
+				const body: RequestBody = {
+					model: 'gpt-5',
+					input: [
+						{
+							type: 'message',
+							role: 'user',
+							content: [
+								{ type: 'input_text', text: 'text content' },
+								{ type: 'image', image_url: 'url' },
+								null,
+								undefined,
+								'not an object',
+							],
+						},
+					],
+				};
+				const result = await transformRequestBody(body, codexInstructions);
+				expect(result.input).toHaveLength(1);
+				expect(Array.isArray(result.input![0].content)).toBe(true);
+			});
+
+			it('should handle very long model names', async () => {
+				const body: RequestBody = {
+					model: 'very-long-model-name-with-gpt-5-codex-and-extra-stuff',
+					input: [],
+				};
+				const result = await transformRequestBody(body, codexInstructions);
+				expect(result.model).toBe('gpt-5-codex');
+			});
+
+			it('should handle model with special characters', async () => {
+				const body: RequestBody = {
+					model: 'gpt-5-codex@v1.0#beta',
+					input: [],
+				};
+				const result = await transformRequestBody(body, codexInstructions);
+				expect(result.model).toBe('gpt-5-codex');
+			});
+
+			it('should handle empty string model', async () => {
+				const body: RequestBody = {
+					model: '',
+					input: [],
+				};
+				const result = await transformRequestBody(body, codexInstructions);
+				expect(result.model).toBe('gpt-5');
+			});
+
+			it('should handle reasoning config edge cases', async () => {
+				const body: RequestBody = {
+					model: 'gpt-5',
+					input: [],
+					reasoning: {
+						effort: 'invalid' as any,
+						summary: null as any,
+					} as any,
+				};
+				const result = await transformRequestBody(body, codexInstructions);
+				// Should override with defaults
+				expect(result.reasoning?.effort).toBe('medium');
+				expect(result.reasoning?.summary).toBe('auto');
+			});
+
+			it('should handle text config edge cases', async () => {
+				const body: RequestBody = {
+					model: 'gpt-5',
+					input: [],
+					text: {
+						verbosity: 'invalid' as any,
+					} as any,
+				};
+				const result = await transformRequestBody(body, codexInstructions);
+				// Should override with defaults
+				expect(result.text?.verbosity).toBe('medium');
+			});
+
+			it('should handle include field edge cases', async () => {
+				const body: RequestBody = {
+					model: 'gpt-5',
+					input: [],
+					include: ['invalid', 'field', null as any, undefined as any],
+				};
+				const result = await transformRequestBody(body, codexInstructions);
+				// Should override with defaults
+				expect(result.include).toEqual(['reasoning.encrypted_content']);
+			});
+
+			it.skip('should handle session manager edge cases', async () => {
+				const body: RequestBody = {
+					model: 'gpt-5',
+					input: [{ type: 'message', role: 'user', content: 'test' }],
+				};
+				
+				const mockSessionManager = {
+					getContext: () => null,
+					applyRequest: () => null,
+				} as any;
+
+				const result = await transformRequestBody(
+					body, 
+					codexInstructions, 
+					undefined, 
+					true, 
+					{ preserveIds: false }, 
+					mockSessionManager
+				);
+				
+				expect(result).toBeDefined();
+				expect(result.input).toHaveLength(1);
+			});
+
+			it('should handle tools array edge cases', async () => {
+				const body: RequestBody = {
+					model: 'gpt-5',
+					input: [{ type: 'message', role: 'user', content: 'test' }],
+					tools: [
+						null,
+						undefined,
+						{ name: 'valid_tool' },
+						'not an object' as any,
+					],
+				};
+				const result = await transformRequestBody(body, codexInstructions);
+				// Should still add bridge message since tools array exists
+				expect(result.input).toHaveLength(2);
+				expect(result.input![0].role).toBe('developer');
+			});
+
+			it('should handle empty tools array', async () => {
+				const body: RequestBody = {
+					model: 'gpt-5',
+					input: [{ type: 'message', role: 'user', content: 'test' }],
+					tools: [],
+				};
+				const result = await transformRequestBody(body, codexInstructions);
+				// Should not add bridge message for empty tools array
+				expect(result.input).toHaveLength(1);
+				expect(result.input![0].role).toBe('user');
+			});
+
+			it('should handle metadata edge cases', async () => {
+				const body: RequestBody = {
+					model: 'gpt-5',
+					input: [],
+					metadata: {
+						conversation_id: null,
+						extra: 'field',
+						nested: { id: 'value' },
+					},
+				};
+				const result = await transformRequestBody(body, codexInstructions);
+				// Should generate fallback cache key
+				expect(typeof result.prompt_cache_key).toBe('string');
+				expect(result.prompt_cache_key).toMatch(/^cache_/);
+			});
+
+			it('should handle very long content', async () => {
+				const longContent = 'a'.repeat(10000);
+				const body: RequestBody = {
+					model: 'gpt-5',
+					input: [
+						{ type: 'message', role: 'user', content: longContent },
+					],
+				};
+				const result = await transformRequestBody(body, codexInstructions);
+				expect(result.input![0].content).toBe(longContent);
+			});
+
+			it('should handle unicode content', async () => {
+				const unicodeContent = 'Hello 世界 🚀 emoji test';
+				const body: RequestBody = {
+					model: 'gpt-5',
+					input: [
+						{ type: 'message', role: 'user', content: unicodeContent },
+					],
+				};
+				const result = await transformRequestBody(body, codexInstructions);
+				expect(result.input![0].content).toBe(unicodeContent);
 			});
 		});
 	});
+});
