@@ -47,6 +47,17 @@ Check out the original project by [numman-ali](https://github.com/numman-ali) an
 - ✅ **Modular architecture** - Easy to maintain and extend
 **Prompt caching is enabled by default** to optimize your token usage and reduce costs.
 
+### Built-in Codex Commands
+
+These commands are typed as normal chat messages (no slash required). The plugin intercepts them before any network call, so they **do not** send prompts to OpenAI:
+
+| Command | Aliases | Description |
+|---------|---------|-------------|
+| `codex-metrics` | `?codex-metrics`, `codexmetrics`, `/codex-metrics`* | Shows cache stats, recent prompt-cache sessions, and cache-warm status |
+| `codex-inspect` | `?codex-inspect`, `codexinspect`, `/codex-inspect`* | Dumps the pending request configuration (model, prompt cache key, tools, reasoning/text settings) |
+
+> \*Slash-prefixed variants only work in environments that allow arbitrary `/` commands. In the opencode TUI, stick to `codex-metrics` / `codex-inspect` so the message is treated as normal chat text.
+
 ### How Caching Works
 
 - **Enabled by default**: `enablePromptCaching: true` 

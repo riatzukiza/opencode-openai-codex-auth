@@ -30,6 +30,22 @@ function buildBody(message: string): RequestBody {
 	};
 }
 
+async function readCommandPayload(response: Response) {
+	const raw = await response.text();
+	const chunks = raw
+		.split("\n\n")
+		.map((chunk) => chunk.trim())
+		.filter(Boolean);
+	const dataChunk = chunks.find(
+		(chunk) => chunk.startsWith("data: ") && !chunk.includes("[DONE]"),
+	);
+	if (!dataChunk) {
+		throw new Error("No data chunk found in SSE payload");
+	}
+	const json = dataChunk.replace(/^data: /, "");
+	return JSON.parse(json);
+}
+
 describe("maybeHandleCodexCommand", () => {
 	beforeEach(() => {
 		resetCacheMetrics();
@@ -45,7 +61,7 @@ describe("maybeHandleCodexCommand", () => {
 		const body = buildBody("/codex-metrics");
 		const response = maybeHandleCodexCommand(body);
 		expect(response).toBeInstanceOf(Response);
-		const payload = await response!.json();
+		const payload = await readCommandPayload(response!);
 		expect(payload.metadata.command).toBe("codex-metrics");
 		const firstOutput = payload.output?.[0]?.content?.[0]?.text ?? "";
 		expect(firstOutput).toContain("Codex Metrics");
@@ -66,7 +82,7 @@ describe("maybeHandleCodexCommand", () => {
 		}
 
 		const response = maybeHandleCodexCommand(buildBody("/codex-metrics"), { sessionManager: manager });
-		const payload = await response!.json();
+		const payload = await readCommandPayload(response!);
 		expect(payload.metadata.promptCache.totalSessions).toBeGreaterThanOrEqual(1);
 		expect(payload.metadata.promptCache.recentSessions[0].id).toBe("metrics-session");
 	});
@@ -75,7 +91,7 @@ describe("maybeHandleCodexCommand", () => {
 		const body = buildBody("/codex-metrics detailed");
 		const response = maybeHandleCodexCommand(body);
 		expect(response).toBeInstanceOf(Response);
-		const payload = await response!.json();
+		const payload = await readCommandPayload(response!);
 		expect(payload.metadata.command).toBe("codex-metrics");
 		const firstOutput = payload.output?.[0]?.content?.[0]?.text ?? "";
 		expect(firstOutput).toContain("Codex Metrics");
@@ -85,7 +101,7 @@ describe("maybeHandleCodexCommand", () => {
 		const body = buildBody("/CODEX-METRICS");
 		const response = maybeHandleCodexCommand(body);
 		expect(response).toBeInstanceOf(Response);
-		const payload = await response!.json();
+		const payload = await readCommandPayload(response!);
 		expect(payload.metadata.command).toBe("codex-metrics");
 	});
 
@@ -93,7 +109,7 @@ describe("maybeHandleCodexCommand", () => {
 		const body = buildBody("  /codex-metrics  ");
 		const response = maybeHandleCodexCommand(body);
 		expect(response).toBeInstanceOf(Response);
-		const payload = await response!.json();
+		const payload = await readCommandPayload(response!);
 		expect(payload.metadata.command).toBe("codex-metrics");
 	});
 
@@ -215,7 +231,7 @@ describe("maybeHandleCodexCommand", () => {
 		const response = maybeHandleCodexCommand(body);
 		expect(response).toBeInstanceOf(Response);
 		
-		const payload = await response!.json();
+		const payload = await readCommandPayload(response!);
 		expect(payload).toHaveProperty('id');
 		expect(payload).toHaveProperty('object', 'response');
 		expect(payload).toHaveProperty('created');
@@ -241,7 +257,7 @@ describe("maybeHandleCodexCommand", () => {
 	it("estimates tokens correctly for short text", async () => {
 		const body = buildBody("/codex-metrics");
 		const response = maybeHandleCodexCommand(body);
-		const payload = await response!.json();
+		const payload = await readCommandPayload(response!);
 		// Short text should still have at least 1 token
 		expect(payload.usage.output_tokens).toBeGreaterThanOrEqual(1);
 	});
@@ -250,7 +266,7 @@ describe("maybeHandleCodexCommand", () => {
 		// Mock a longer response by manipulating the format function
 		const body = buildBody("/codex-metrics");
 		const response = maybeHandleCodexCommand(body);
-		const payload = await response!.json();
+		const payload = await readCommandPayload(response!);
 		// Longer text should have more tokens
 		expect(payload.usage.output_tokens).toBeGreaterThan(10);
 	});
@@ -258,7 +274,7 @@ describe("maybeHandleCodexCommand", () => {
 	it("handles missing session manager", async () => {
 		const body = buildBody("/codex-metrics");
 		const response = maybeHandleCodexCommand(body, {});
-		const payload = await response!.json();
+		const payload = await readCommandPayload(response!);
 		expect(payload.metadata.promptCache.enabled).toBe(false);
 		expect(payload.metadata.promptCache.totalSessions).toBe(0);
 		expect(payload.metadata.promptCache.recentSessions).toEqual([]);
@@ -271,14 +287,14 @@ describe("maybeHandleCodexCommand", () => {
 		
 		const body = buildBody("/codex-metrics");
 		const response = maybeHandleCodexCommand(body, { sessionManager: managerWithoutMetrics });
-		const payload = await response!.json();
+		const payload = await readCommandPayload(response!);
 		expect(payload.metadata.promptCache.enabled).toBe(false);
 	});
 
 	it("includes cache warm status in response", async () => {
 		const body = buildBody("/codex-metrics");
 		const response = maybeHandleCodexCommand(body);
-		const payload = await response!.json();
+		const payload = await readCommandPayload(response!);
 		expect(payload.metadata.cacheWarmStatus).toHaveProperty('codexInstructions');
 		expect(payload.metadata.cacheWarmStatus).toHaveProperty('opencodePrompt');
 	});
@@ -288,8 +304,8 @@ describe("maybeHandleCodexCommand", () => {
 		const response1 = maybeHandleCodexCommand(body);
 		const response2 = maybeHandleCodexCommand(body);
 		
-		const payload1 = await response1!.json();
-		const payload2 = await response2!.json();
+		const payload1 = await readCommandPayload(response1!);
+		const payload2 = await readCommandPayload(response2!);
 		
 		expect(payload1.id).not.toBe(payload2.id);
 		expect(payload1.output[0].id).not.toBe(payload2.output[0].id);
@@ -298,7 +314,7 @@ describe("maybeHandleCodexCommand", () => {
 	it("sets correct content type header", () => {
 		const body = buildBody("/codex-metrics");
 		const response = maybeHandleCodexCommand(body);
-		expect(response?.headers.get('content-type')).toBe('application/json; charset=utf-8');
+		expect(response?.headers.get('content-type')).toBe('text/event-stream; charset=utf-8');
 	});
 
 	it("handles model undefined in body", async () => {
@@ -313,7 +329,7 @@ describe("maybeHandleCodexCommand", () => {
 			],
 		};
 		const response = maybeHandleCodexCommand(body);
-		const payload = await response!.json();
+		const payload = await readCommandPayload(response!);
 		expect(payload.model).toBe("gpt-5"); // fallback model
 	});
 });

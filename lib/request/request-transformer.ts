@@ -745,14 +745,28 @@ function extractString(value: unknown): string | undefined {
 function derivePromptCacheKeyFromBody(body: RequestBody): { value: string; sourceKey: string } | undefined {
 	const metadata = body.metadata as Record<string, unknown> | undefined;
 	const root = body as Record<string, unknown>;
+
+	const getForkIdentifier = (): string | undefined => {
+		// Prefer metadata over root, and support both camelCase and snake_case
+		return (
+			extractString(metadata?.forkId) ||
+			extractString(metadata?.fork_id) ||
+			extractString(metadata?.branchId) ||
+			extractString(metadata?.branch_id) ||
+			extractString(root.forkId) ||
+			extractString(root.fork_id) ||
+			extractString(root.branchId) ||
+			extractString(root.branch_id)
+		);
+	};
+
+	const forkId = getForkIdentifier();
+
 	for (const key of PROMPT_CACHE_METADATA_KEYS) {
-		const fromMetadata = extractString(metadata?.[key]);
-		if (fromMetadata) {
-			return { value: fromMetadata, sourceKey: key };
-		}
-		const fromRoot = extractString(root[key]);
-		if (fromRoot) {
-			return { value: fromRoot, sourceKey: key };
+		const base = extractString(metadata?.[key]) ?? extractString(root[key]);
+		if (base) {
+			const value = forkId ? `${base}::fork::${forkId}` : base;
+			return { value, sourceKey: key };
 		}
 	}
 	return undefined;

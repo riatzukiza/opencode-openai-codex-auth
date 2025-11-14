@@ -644,6 +644,51 @@ describe('transformRequestBody', () => {
 		expect(result.prompt_cache_key).toBe('meta-conv-123');
 	});
 
+	it('derives fork-aware prompt_cache_key when fork id is present in metadata', async () => {
+		const body: RequestBody = {
+			model: 'gpt-5',
+			input: [],
+			metadata: { conversation_id: 'meta-conv-123', forkId: 'branch-1' },
+		};
+		const result: any = await transformRequestBody(body, codexInstructions);
+		expect(result.prompt_cache_key).toBe('meta-conv-123::fork::branch-1');
+	});
+
+	it('derives fork-aware prompt_cache_key when fork id is present in root', async () => {
+		const body: RequestBody = {
+			model: 'gpt-5',
+			input: [],
+			metadata: { conversation_id: 'meta-conv-123' },
+			forkId: 'branch-2' as any,
+		} as any;
+		const result: any = await transformRequestBody(body, codexInstructions);
+		expect(result.prompt_cache_key).toBe('meta-conv-123::fork::branch-2');
+	});
+
+	it('reuses the same prompt_cache_key across non-structural overrides', async () => {
+		const baseMetadata = { conversation_id: 'meta-conv-789', forkId: 'fork-x' };
+		const body1: RequestBody = {
+			model: 'gpt-5',
+			input: [],
+			metadata: { ...baseMetadata },
+		};
+		const body2: RequestBody = {
+			model: 'gpt-5',
+			input: [],
+			metadata: { ...baseMetadata },
+			// Soft overrides that should not change the cache key
+			max_output_tokens: 1024,
+			reasoning: { effort: 'high' } as any,
+			text: { verbosity: 'high' } as any,
+		};
+
+		const result1: any = await transformRequestBody(body1, codexInstructions);
+		const result2: any = await transformRequestBody(body2, codexInstructions);
+
+		expect(result1.prompt_cache_key).toBe('meta-conv-789::fork::fork-x');
+		expect(result2.prompt_cache_key).toBe('meta-conv-789::fork::fork-x');
+	});
+
 	it('generates fallback prompt_cache_key when no identifiers exist', async () => {
 		const body: RequestBody = {
 			model: 'gpt-5',
@@ -1356,17 +1401,23 @@ describe('transformRequestBody', () => {
 			const body: RequestBody = {
 				model: 'gpt-5',
 				input: [],
-				metadata: {
-					conversation_id: null,
-					extra: 'field',
-					nested: { id: 'value' },
-				},
-			};
-			const result = await transformRequestBody(body, codexInstructions);
-			// Should generate fallback cache key
-			expect(typeof result.prompt_cache_key).toBe('string');
-			expect(result.prompt_cache_key).toMatch(/^cache_/);
-		});
+			metadata: {
+				conversation_id: null,
+				extra: 'field',
+				nested: { id: 'value' },
+			},
+		};
+		const result1 = await transformRequestBody(body, codexInstructions);
+		const firstKey = result1.prompt_cache_key;
+		// Should generate fallback cache key
+		expect(typeof firstKey).toBe('string');
+		expect(firstKey).toMatch(/^cache_/);
+
+		// Second transform of the same body should reuse the existing key
+		const result2 = await transformRequestBody(body, codexInstructions);
+		expect(result2.prompt_cache_key).toBe(firstKey);
+	});
+
 
 		it('should handle very long content', async () => {
 			const longContent = 'a'.repeat(10000);
