@@ -32,6 +32,7 @@ Explore the engineering depth behind this plugin:
 - [Config System](development/CONFIG_FLOW.md) - How configuration loading and merging works
 - [Config Fields](development/CONFIG_FIELDS.md) - Understanding config keys, `id`, and `name` fields
 - [Testing Guide](development/TESTING.md) - Test scenarios, integration testing, verification matrix
+- [CI & Release Automation](development/ci.md) - Secrets, mutation runs, and automatic publishing
 
 ---
 
