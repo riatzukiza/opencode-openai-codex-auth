@@ -9,7 +9,7 @@ Comprehensive testing matrix for all config scenarios and backwards compatibilit
 **Config:**
 ```json
 {
-  "plugin": ["@promethean-os/opencode-openai-codex-auth"]
+  "plugin": ["openhax/codex"]
 }
 ```
 
@@ -40,7 +40,7 @@ Comprehensive testing matrix for all config scenarios and backwards compatibilit
 **Config:**
 ```json
 {
-  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
+  "plugin": ["openhax/codex"],
   "provider": {
     "openai": {
       "options": {
@@ -81,7 +81,7 @@ Comprehensive testing matrix for all config scenarios and backwards compatibilit
 **Config:**
 ```json
 {
-  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
+  "plugin": ["openhax/codex"],
   "provider": {
     "openai": {
       "options": {
@@ -116,7 +116,7 @@ Comprehensive testing matrix for all config scenarios and backwards compatibilit
 **Config:**
 ```json
 {
-  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
+  "plugin": ["openhax/codex"],
   "provider": {
     "openai": {
       "models": {
@@ -209,7 +209,7 @@ API receives: "gpt-5-codex" ✅
 **Config:**
 ```json
 {
-  "plugin": ["@promethean-os/opencode-openai-codex-auth"]
+  "plugin": ["openhax/codex"]
 }
 ```
 
@@ -346,7 +346,7 @@ Turn 4: > now delete it
 **Config:**
 ```json
 {
-  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
+  "plugin": ["openhax/codex"],
   "model": "openai/gpt-5-codex"
 }
 ```
@@ -443,12 +443,12 @@ DEBUG_CODEX_PLUGIN=1 opencode run "test" --model=openai/gpt-5-codex
 
 ```bash
 # 1. Clear cache
-(cd ~ && rm -rf .cache/opencode/node_modules/@promethean-os/opencode-openai-codex-auth)
+(cd ~ && rm -rf .cache/opencode/node_modules/openhax/codex)
 
 # 2. Use minimal config
 cat > ~/.config/opencode/opencode.json <<'EOF'
 {
-  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
+  "plugin": ["openhax/codex"],
   "model": "openai/gpt-5-codex"
 }
 EOF
@@ -472,7 +472,7 @@ DEBUG_CODEX_PLUGIN=1 opencode run "write hello world to test.txt"
 # Update config with custom models
 cat > ~/.config/opencode/opencode.json <<'EOF'
 {
-  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
+  "plugin": ["openhax/codex"],
   "provider": {
     "openai": {
       "models": {

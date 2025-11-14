@@ -132,7 +132,7 @@ update_config() {
             cat > "${OPENCODE_JSON}" << 'EOCONFIG'
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["file:///Users/numman/Repos/opencode-codex-plugin-fresh/dist"],
+  "plugin": ["file:///Users/you/Repos/openhax/codex/dist"],
   "provider": {
     "openai": {
       "options": {

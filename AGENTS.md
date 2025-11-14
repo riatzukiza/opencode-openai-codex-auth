@@ -89,7 +89,7 @@ The main entry point orchestrates a **7-step fetch flow**:
 - Encrypted reasoning content persists context across turns
 
 **2. CODEX_MODE** (enabled by default):
-- **Priority**: `CODEX_MODE` env var > `~/.opencode/openai-codex-auth-config.json` > default (true)
+- **Priority**: `CODEX_MODE` env var > `~/.opencode/openhax-codex-config.json` > default (true)
 - When enabled: Filters out OpenCode system prompts, adds Codex-OpenCode bridge prompt with Task tool & MCP awareness
 - When disabled: Uses legacy tool remap message
 - Bridge prompt (~550 tokens): Tool mappings, available tools, working style, **Task tool/sub-agent awareness**, **MCP tool awareness**
@@ -159,7 +159,7 @@ This plugin **intentionally differs from opencode defaults** because it accesses
 
 ## File Paths & Locations
 
-- **Plugin config**: `~/.opencode/openai-codex-auth-config.json`
+- **Plugin config**: `~/.opencode/openhax-codex-config.json`
 - **Cache dir**: `~/.opencode/cache/`
   - `codex-instructions.md` (Codex CLI instructions from GitHub)
   - `codex-instructions-meta.json` (ETag + release tag for Codex instructions)

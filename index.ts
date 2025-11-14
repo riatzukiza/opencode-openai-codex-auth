@@ -17,9 +17,9 @@
  *
  * For production applications, use the OpenAI Platform API: https://platform.openai.com/
  *
- * @license MIT with Usage Disclaimer (see LICENSE file)
- * @author riatzukiza
- * @repository https://github.com/riatzukiza/opencode-openai-codex-auth
+ * @license GPL-3.0-only (see LICENSE file)
+ * @author Open Hax
+ * @repository https://github.com/open-hax/codex
  */
 
 import type { Plugin, PluginInput } from "@opencode-ai/plugin";
@@ -59,7 +59,7 @@ import type { UserConfig } from "./lib/types.js";
  * @example
  * ```json
  * {
- *   "plugin": ["@promethean-os/opencode-openai-codex-auth"],
+ *   "plugin": ["openhax/codex"],
  *   "model": "openai/gpt-5-codex"
  * }
  * ```

@@ -194,7 +194,7 @@ For a given model, options are merged:
 ### Example 1: Global Options Only
 ```json
 {
-  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
+  "plugin": ["openhax/codex"],
   "provider": {
     "openai": {
       "options": {
@@ -212,7 +212,7 @@ For a given model, options are merged:
 ### Example 2: Per-Model Override
 ```json
 {
-  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
+  "plugin": ["openhax/codex"],
   "provider": {
     "openai": {
       "options": {
@@ -248,7 +248,7 @@ For a given model, options are merged:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
+  "plugin": ["openhax/codex"],
   "model": "openai/gpt-5-codex-medium",
   "provider": {
     "openai": {
@@ -375,7 +375,7 @@ While you can set `CODEX_MODE=0` to disable the bridge prompt, it's better to do
 
 ❌ **Bad**: `CODEX_MODE=0 opencode`
 
-✅ **Good**: Create `~/.opencode/openai-codex-auth-config.json`:
+✅ **Good**: Create `~/.opencode/openhax-codex-config.json`:
 ```json
 {
   "codexMode": false

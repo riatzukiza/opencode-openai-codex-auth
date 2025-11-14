@@ -1,6 +1,6 @@
 # Contributing Guidelines
 
-Thank you for your interest in contributing to @promethean-os/opencode-openai-codex-auth!
+Thank you for your interest in contributing to openhax/codex!
 
 Before submitting contributions, please review these guidelines to ensure all changes maintain compliance with OpenAI's Terms of Service and the project's goals.
 
@@ -130,7 +130,7 @@ For questions about:
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the MIT License with Usage Disclaimer (see LICENSE file).
+By contributing, you agree that your contributions will be licensed under the GPL-3.0 license (see LICENSE file).
 
 ---
 

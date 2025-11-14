@@ -1,4 +1,4 @@
-# OpenCode OpenAI Codex Auth Cross-Reference Documentation
+# OpenHax Codex Plugin Cross-Reference Documentation
 
 > OpenAI Codex OAuth authentication plugin with comprehensive repository cross-references
 
@@ -108,7 +108,7 @@ cd ../stt/opencode-feat-clojure-syntax-highlighting && bun dev
 npm run build && npm run test:mutation
 
 # Package distribution
-cd ../opencode-hub && pnpm publish opencode-openai-codex-auth
+cd ../codex && pnpm publish --access public
 ```
 
 ### **Agent Integration**

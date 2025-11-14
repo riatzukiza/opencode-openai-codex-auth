@@ -2,7 +2,7 @@ import type { PluginConfig } from "./types.js";
 import { logWarn } from "./logger.js";
 import { getOpenCodePath, safeReadFile } from "./utils/file-system-utils.js";
 
-const CONFIG_PATH = getOpenCodePath("openai-codex-auth-config.json");
+const CONFIG_PATH = getOpenCodePath("openhax-codex-config.json");
 
 /**
  * Default plugin configuration
@@ -15,7 +15,7 @@ const DEFAULT_CONFIG: PluginConfig = {
 };
 
 /**
- * Load plugin configuration from ~/.opencode/openai-codex-auth-config.json
+ * Load plugin configuration from ~/.opencode/openhax-codex-config.json
  * Falls back to defaults if file doesn't exist or is invalid
  *
  * @returns Plugin configuration

@@ -50,7 +50,7 @@ describe('Plugin Configuration', () => {
 
 			expect(config).toEqual({ codexMode: true, enablePromptCaching: true });
 			expect(mockExistsSync).toHaveBeenCalledWith(
-				path.join(os.homedir(), '.opencode', 'openai-codex-auth-config.json')
+				path.join(os.homedir(), '.opencode', 'openhax-codex-config.json')
 			);
 		});
 

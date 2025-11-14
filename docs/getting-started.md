@@ -1,6 +1,6 @@
 # Getting Started
 
-Complete installation and setup guide for the OpenCode OpenAI Codex Auth Plugin.
+Complete installation and setup guide for the OpenHax Codex Plugin.
 
 ## ⚠️ Before You Begin
 
@@ -35,7 +35,7 @@ Add this to `~/.config/opencode/opencode.json`:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
+  "plugin": ["openhax/codex"],
   "provider": {
     "openai": {
       "options": {
@@ -226,7 +226,7 @@ Just want to get started quickly?
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
+  "plugin": ["openhax/codex"],
   "model": "openai/gpt-5-codex"
 }
 ```
@@ -283,7 +283,7 @@ When a new version is released, you must manually update:
 
 ```bash
 # Step 1: Clear plugin cache
-(cd ~ && sed -i.bak '/"@promethean-os\/opencode-openai-codex-auth"/d' .cache/opencode/package.json && rm -rf .cache/opencode/node_modules/@promethean-os/opencode-openai-codex-auth)
+(cd ~ && sed -i.bak '/"openhax\/codex"/d' .cache/opencode/package.json && rm -rf .cache/opencode/node_modules/openhax/codex)
 
 # Step 2: Restart OpenCode - it will reinstall the latest version
 opencode
@@ -294,7 +294,7 @@ opencode
 - Bug fixes available
 - Security updates
 
-**Check for updates**: [Releases Page](https://github.com/riatzukiza/opencode-openai-codex-auth/releases)
+**Check for updates**: [Releases Page](https://github.com/open-hax/codex/releases)
 
 **Pro tip**: Subscribe to release notifications on GitHub to get notified of updates.
 
@@ -306,7 +306,7 @@ For plugin development or testing unreleased changes:
 
 ```json
 {
-  "plugin": ["file:///absolute/path/to/your-fork/opencode-openai-codex-auth/dist"]
+  "plugin": ["file:///absolute/path/to/your-fork/openhax/codex/dist"]
 }
 ```
 
@@ -314,7 +314,7 @@ For plugin development or testing unreleased changes:
 
 **Build the plugin:**
 ```bash
-cd opencode-openai-codex-auth
+cd codex
 npm install
 npm run build
 ```
@@ -360,7 +360,7 @@ ls ~/.opencode/logs/codex-plugin/
 - Lower overall costs compared to stateless operation
 
 ### Managing Caching
-Create `~/.opencode/openai-codex-auth-config.json`:
+Create `~/.opencode/openhax-codex-config.json`:
 
 ```json
 {

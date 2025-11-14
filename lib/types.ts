@@ -1,7 +1,7 @@
 import type { Auth, Provider, Model } from "@opencode-ai/sdk";
 
 /**
- * Plugin configuration from ~/.opencode/openai-codex-auth-config.json
+ * Plugin configuration from ~/.opencode/openhax-codex-config.json
  */
 export interface PluginConfig {
 	/**

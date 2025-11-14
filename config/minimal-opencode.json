@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
+  "plugin": ["openhax/codex"],
   "provider": {
     "openai": {
       "options": {

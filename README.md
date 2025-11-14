@@ -1,13 +1,12 @@
-# OpenAI ChatGPT OAuth Plugin for opencode
+# OpenHax Codex Plugin for Opencode
 
-[![npm version](https://img.shields.io/npm/v/@promethean-os/opencode-openai-codex-auth.svg)](https://www.npmjs.com/package/@promethean-os/opencode-openai-codex-auth)
-[![Tests](https://github.com/riatzukiza/opencode-openai-codex-auth/actions/workflows/ci.yml/badge.svg)](https://github.com/riatzukiza/opencode-openai-codex-auth/actions)
-[![npm downloads](https://img.shields.io/npm/dm/@promethean-os/opencode-openai-codex-auth.svg)](https://www.npmjs.com/package/@promethean-os/opencode-openai-codex-auth)
+[![npm version](https://img.shields.io/npm/v/openhax%2Fcodex.svg)](https://www.npmjs.com/package/openhax/codex)
+[![Tests](https://github.com/open-hax/codex/actions/workflows/ci.yml/badge.svg)](https://github.com/open-hax/codex/actions)
+[![npm downloads](https://img.shields.io/npm/dm/openhax%2Fcodex.svg)](https://www.npmjs.com/package/openhax/codex)
 
 This plugin enables opencode to use OpenAI's Codex backend via ChatGPT Plus/Pro OAuth authentication, allowing you to use your ChatGPT subscription instead of OpenAI Platform API credits.
 
-> **Found this useful?**
-Check out the original project by [numman-ali](https://github.com/numman-ali) and follow [X @nummanthinks](https://x.com/nummanthinks) for future updates!
+> **Maintained by Open Hax.** Follow project updates at [github.com/open-hax/codex](https://github.com/open-hax/codex) and report issues or ideas there.
 
 ## ⚠️ Terms of Service & Usage Notice
 
@@ -77,7 +76,7 @@ For the complete experience with all reasoning variants matching the official Co
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
-    "@promethean-os/opencode-openai-codex-auth"
+    "openhax/codex"
   ],
   "provider": {
     "openai": {
@@ -478,7 +477,7 @@ model: openai/gpt-5-codex-low
 model: gpt-5-codex-low
 ```
 
-See [Configuration Guide](https://riatzukiza.github.io/opencode-openai-codex-auth/configuration) for advanced usage.
+See [Configuration Guide](https://open-hax.github.io/codex/configuration) for advanced usage.
 
 ### Plugin Defaults
 
@@ -528,7 +527,7 @@ If you want to customize settings yourself, you can configure options at provide
 
 #### Plugin-Level Settings
 
-Set these in `~/.opencode/openai-codex-auth-config.json`:
+Set these in `~/.opencode/openhax-codex-config.json`:
 
 - `codexMode` (default `true`): enable the Codex ↔ OpenCode bridge prompt
 - `enablePromptCaching` (default `true`): keep a stable `prompt_cache_key` and preserved message IDs so Codex can reuse cached prompts, reducing token usage and costs
@@ -540,7 +539,7 @@ Apply settings to all models:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
+  "plugin": ["openhax/codex"],
   "model": "openai/gpt-5-codex",
   "provider": {
     "openai": {
@@ -560,7 +559,7 @@ Create your own named variants in the model selector:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
+  "plugin": ["openhax/codex"],
   "provider": {
     "openai": {
       "models": {
@@ -599,7 +598,7 @@ Create your own named variants in the model selector:
 
 For advanced options, custom presets, and troubleshooting:
 
-**📖 [Configuration Guide](https://riatzukiza.github.io/opencode-openai-codex-auth/configuration)** - Complete reference with examples
+**📖 [Configuration Guide](https://open-hax.github.io/codex/configuration)** - Complete reference with examples
 
 ## Rate Limits & Responsible Use
 
@@ -634,7 +633,7 @@ This plugin respects the same rate limits enforced by OpenAI's official Codex CL
 - **Model not found**: Add `openai/` prefix (e.g., `--model=openai/gpt-5-codex-low`)
 - **"Item not found" errors**: Update to latest plugin version
 
-**Full troubleshooting guide**: [docs/troubleshooting.md](https://riatzukiza.github.io/opencode-openai-codex-auth/troubleshooting)
+**Full troubleshooting guide**: [docs/troubleshooting.md](https://open-hax.github.io/codex/troubleshooting)
 
 ## Debug Mode
 
@@ -652,7 +651,7 @@ ENABLE_PLUGIN_REQUEST_LOGGING=1 opencode run "your prompt"
 
 Logs saved to: `~/.opencode/logs/codex-plugin/`
 
-See [Troubleshooting Guide](https://riatzukiza.github.io/opencode-openai-codex-auth/troubleshooting) for details.
+See [Troubleshooting Guide](https://open-hax.github.io/codex/troubleshooting) for details.
 
 ## Frequently Asked Questions
 
@@ -718,7 +717,7 @@ ChatGPT, GPT-5, and Codex are trademarks of OpenAI.
 - **Lowers costs** significantly for multi-turn conversations  
 - **Maintains context** so the AI remembers previous parts of your conversation
 
-You can disable it by creating `~/.opencode/openai-codex-auth-config.json` with:
+You can disable it by creating `~/.opencode/openhax-codex-config.json` with:
 ```json
 {
   "enablePromptCaching": false
@@ -755,9 +754,9 @@ Based on research and working implementations from:
 - [Installation](#installation) - Get started in 2 minutes
 - [Configuration](#configuration) - Customize your setup
 - [Troubleshooting](#troubleshooting) - Common issues
-- [GitHub Pages Docs](https://riatzukiza.github.io/opencode-openai-codex-auth/) - Extended guides
-- [Developer Docs](https://riatzukiza.github.io/opencode-openai-codex-auth/development/ARCHITECTURE) - Technical deep dive
+- [GitHub Pages Docs](https://open-hax.github.io/codex/) - Extended guides
+- [Developer Docs](https://open-hax.github.io/codex/development/ARCHITECTURE) - Technical deep dive
 
 ## License
 
-MIT
+GPL-3.0 — see [LICENSE](./LICENSE) for details.

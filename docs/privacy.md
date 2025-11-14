@@ -1,6 +1,6 @@
 # Privacy & Data Handling
 
-This page explains how the OpenCode OpenAI Codex Auth Plugin handles your data and protects your privacy.
+This page explains how the OpenHax Codex Plugin handles your data and protects your privacy.
 
 ## Overview
 
@@ -171,7 +171,7 @@ However, data sent to OpenAI is subject to OpenAI's privacy practices.
 
 ### Open Source
 The entire plugin source code is available at:
-- **GitHub:** [https://github.com/riatzukiza/opencode-openai-codex-auth](https://github.com/riatzukiza/opencode-openai-codex-auth)
+- **GitHub:** [https://github.com/open-hax/codex](https://github.com/open-hax/codex)
 
 You can:
 - Review all code
@@ -190,7 +190,7 @@ You can:
 ## Questions?
 
 For privacy-related questions:
-- **Plugin-specific:** [GitHub Issues](https://github.com/riatzukiza/opencode-openai-codex-auth/issues)
+- **Plugin-specific:** [GitHub Issues](https://github.com/open-hax/codex/issues)
 - **OpenAI data handling:** [OpenAI Support](https://help.openai.com/)
 - **Security concerns:** See [SECURITY.md](../SECURITY.md)
 

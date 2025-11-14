@@ -1,13 +1,13 @@
 # Configuration Guide
 
-Complete reference for configuring the OpenCode OpenAI Codex Auth Plugin.
+Complete reference for configuring the OpenHax Codex Plugin.
 
 ## Quick Reference
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
+  "plugin": ["openhax/codex"],
   "provider": {
     "openai": {
       "options": {
@@ -159,7 +159,7 @@ Apply same settings to all models:
 
 ```json
 {
-  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
+  "plugin": ["openhax/codex"],
   "provider": {
     "openai": {
       "options": {
@@ -180,7 +180,7 @@ Different settings for different models:
 
 ```json
 {
-  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
+  "plugin": ["openhax/codex"],
   "provider": {
     "openai": {
       "options": {
@@ -325,7 +325,7 @@ Global config has defaults, project overrides for specific work:
 **~/.config/opencode/opencode.json** (global):
 ```json
 {
-  "plugin": ["@promethean-os/opencode-openai-codex-auth"],
+  "plugin": ["openhax/codex"],
   "provider": {
     "openai": {
       "options": {
@@ -357,7 +357,7 @@ Result: Project uses `high`, other projects use `medium`.
 
 ## Plugin Configuration
 
-Advanced plugin settings in `~/.opencode/openai-codex-auth-config.json`:
+Advanced plugin settings in `~/.opencode/openhax-codex-config.json`:
 
 ```json
 {
@@ -409,7 +409,7 @@ CODEX_MODE=1 opencode run "task"  # Temporarily enable
 **Your Configs:**
 - `~/.config/opencode/opencode.json` - Global config
 - `<project>/.opencode.json` - Project-specific config
-- `~/.opencode/openai-codex-auth-config.json` - Plugin config
+- `~/.opencode/openhax-codex-config.json` - Plugin config
 
 ---
 
