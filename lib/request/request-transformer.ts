@@ -163,6 +163,10 @@ function normalizeToolsForResponses(tools: unknown): any[] | undefined {
 		definition: "{}",
 	};
 
+	const isNativeCodexTool = (value: unknown): value is "shell" | "apply_patch" => {
+		return typeof value === "string" && (value === "shell" || value === "apply_patch");
+	};
+
 	const makeFunctionTool = (
 		name: unknown,
 		description?: unknown,
@@ -208,7 +212,11 @@ function normalizeToolsForResponses(tools: unknown): any[] | undefined {
 	const convertTool = (candidate: unknown): any | undefined => {
 		if (!candidate) return undefined;
 		if (typeof candidate === "string") {
-			return makeFunctionTool(candidate);
+			const trimmed = candidate.trim();
+			if (isNativeCodexTool(trimmed)) {
+				return { type: trimmed };
+			}
+			return makeFunctionTool(trimmed);
 		}
 		if (typeof candidate !== "object") {
 			return undefined;
@@ -219,6 +227,9 @@ function normalizeToolsForResponses(tools: unknown): any[] | undefined {
 				? (obj.function as Record<string, unknown>)
 				: undefined;
 		const type = typeof obj.type === "string" ? obj.type : undefined;
+		if (type && isNativeCodexTool(type)) {
+			return { type };
+		}
 		if (type === "function") {
 			return makeFunctionTool(
 				nestedFn?.name ?? obj.name,
@@ -239,6 +250,9 @@ function normalizeToolsForResponses(tools: unknown): any[] | undefined {
 			return { type };
 		}
 		if (typeof obj.name === "string") {
+			if (isNativeCodexTool(obj.name)) {
+				return { type: obj.name };
+			}
 			return makeFunctionTool(obj.name, obj.description, obj.parameters, obj.strict);
 		}
 		if (nestedFn?.name) {
@@ -291,24 +305,38 @@ function normalizeToolsForResponses(tools: unknown): any[] | undefined {
  * @returns Normalized model name
  */
 export function normalizeModel(model: string | undefined): string {
-	if (!model) return "gpt-5";
+	const fallback = "gpt-5.1";
+	if (!model) return fallback;
 
-	const normalized = model.toLowerCase();
+	const lowered = model.toLowerCase();
+	const sanitized = lowered.replace(/\./g, "-").replace(/[\s_\/]+/g, "-");
 
-	if (normalized.includes("codex-mini")) {
-		return "codex-mini-latest";
+	const contains = (needle: string) => sanitized.includes(needle);
+	const hasGpt51 = contains("gpt-5-1") || sanitized.includes("gpt51");
+
+	if (contains("gpt-5-1-codex-mini") || (hasGpt51 && contains("codex-mini"))) {
+		return "gpt-5.1-codex-mini";
 	}
-
-	// Case-insensitive check for "codex" anywhere in the model name
-	if (normalized.includes("codex")) {
+	if (contains("codex-mini")) {
+		return "gpt-5.1-codex-mini";
+	}
+	if (contains("gpt-5-1-codex") || (hasGpt51 && contains("codex"))) {
+		return "gpt-5.1-codex";
+	}
+	if (hasGpt51) {
+		return "gpt-5.1";
+	}
+	if (contains("gpt-5-codex-mini") || contains("codex-mini-latest")) {
+		return "gpt-5.1-codex-mini";
+	}
+	if (contains("gpt-5-codex") || (contains("codex") && !contains("mini"))) {
 		return "gpt-5-codex";
 	}
-	// Case-insensitive check for "gpt-5" or "gpt 5" (with space)
-	if (normalized.includes("gpt-5") || normalized.includes("gpt 5")) {
+	if (contains("gpt-5")) {
 		return "gpt-5";
 	}
 
-	return "gpt-5"; // Default fallback
+	return fallback;
 }
 
 /**
@@ -345,47 +373,59 @@ export function getReasoningConfig(
 	originalModel: string | undefined,
 	userConfig: ConfigOptions = {},
 ): ReasoningConfig {
-	const normalizedOriginal = originalModel?.toLowerCase() ?? "";
+	const normalized = normalizeModel(originalModel);
+	const normalizedOriginal = originalModel?.toLowerCase() ?? normalized;
+	const isGpt51 = normalized.startsWith("gpt-5.1");
+	const isCodexMiniSlug = normalized === "gpt-5.1-codex-mini" || normalized === "codex-mini-latest";
+	const isLegacyCodexMini = normalizedOriginal.includes("codex-mini-latest");
 	const isCodexMini =
+		isCodexMiniSlug ||
+		isLegacyCodexMini ||
 		normalizedOriginal.includes("codex-mini") ||
 		normalizedOriginal.includes("codex mini") ||
-		normalizedOriginal.includes("codex_mini") ||
-		normalizedOriginal.includes("codex-mini-latest");
-	const isCodex = normalizedOriginal.includes("codex") && !isCodexMini;
+		normalizedOriginal.includes("codex_mini");
+	const isCodexFamily =
+		normalized.startsWith("gpt-5-codex") ||
+		normalized.startsWith("gpt-5.1-codex") ||
+		(normalizedOriginal.includes("codex") && !isCodexMini);
 	const isLightweight =
 		!isCodexMini &&
-		(normalizedOriginal.includes("nano") ||
-			normalizedOriginal.includes("mini"));
+		!isCodexFamily &&
+		(normalizedOriginal.includes("nano") || normalizedOriginal.includes("mini"));
 
-	// Default based on model type (Codex CLI defaults)
-	const defaultEffort: "minimal" | "low" | "medium" | "high" = isCodexMini
-		? "medium"
-		: isLightweight
-			? "minimal"
-			: "medium";
+	let defaultEffort: ReasoningConfig["effort"];
+	if (isGpt51 && !isCodexFamily && !isCodexMini) {
+		defaultEffort = "none";
+	} else if (isCodexMini) {
+		defaultEffort = "medium";
+	} else if (isLightweight) {
+		defaultEffort = "minimal";
+	} else {
+		defaultEffort = "medium";
+	}
 
-	// Get user-requested effort
 	let effort = userConfig.reasoningEffort || defaultEffort;
 
 	if (isCodexMini) {
-		if (effort === "minimal" || effort === "low") {
+		if (effort === "minimal" || effort === "low" || effort === "none") {
 			effort = "medium";
 		}
 		if (effort !== "high") {
 			effort = "medium";
 		}
-	}
-
-	// Normalize "minimal" to "low" for gpt-5-codex
-	// Codex CLI does not provide a "minimal" preset for gpt-5-codex
-	// (only low/medium/high - see model_presets.rs:20-40)
-	if (isCodex && effort === "minimal") {
-		effort = "low";
+	} else if (isCodexFamily) {
+		if (effort === "minimal" || effort === "none") {
+			effort = "low";
+		}
+	} else if (isGpt51 && effort === "minimal") {
+		effort = "none";
+	} else if (!isGpt51 && effort === "none") {
+		effort = "minimal";
 	}
 
 	return {
 		effort,
-		summary: userConfig.reasoningSummary || "auto", // Changed from "detailed" to match Codex CLI
+		summary: userConfig.reasoningSummary || "auto",
 	};
 }
 
@@ -830,7 +870,8 @@ export async function transformRequestBody(
 			(body as any).tools = normalizedTools;
 			(body as any).tool_choice = "auto";
 			const modelName = (body.model || "").toLowerCase();
-			const codexParallelDisabled = modelName.includes("gpt-5-codex");
+			const codexParallelDisabled =
+				modelName.includes("gpt-5-codex") || modelName.includes("gpt-5.1-codex");
 			(body as any).parallel_tool_calls = !codexParallelDisabled;
 			hasNormalizedTools = true;
 		} else {

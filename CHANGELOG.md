@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here. Dates use the ISO format (YYYY-MM-DD).
 
+## [3.2.0] - 2025-11-13
+### Added
+- GPT-5.1 family integration: normalization for `gpt-5.1`/`gpt-5.1-codex`/`gpt-5.1-codex-mini`, expanded reasoning heuristics (including `reasoningEffort: "none"`), and preservation of the native `shell`/`apply_patch` tools emitted by Codex CLI.
+- Updated configuration, diagnostics script, and docs to showcase the 5.1 lineup (low/medium/high plus `none`) while keeping GPT-5 presets available for backwards compatibility.
+
+### Changed
+- Default fallback model now targets `gpt-5.1`, and Codex Mini requests always use the new `gpt-5.1-codex-mini` slug to stay in sync with the latest Codex release.
+
+### Fixed
+- Prevented invalid reasoning combinations by clamping unsupported `none`/`minimal` requests on Codex models and ensuring parallel tool-call behavior matches both GPT-5 and GPT-5.1 Codex variants.
+
 ## [3.1.0] - 2025-11-11
 ### Added
 - Codex Mini support end-to-end: normalization to the `codex-mini-latest` slug, proper reasoning defaults, and two new presets (`gpt-5-codex-mini-medium` / `gpt-5-codex-mini-high`).

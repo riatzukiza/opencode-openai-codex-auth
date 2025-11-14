@@ -33,7 +33,7 @@ Check out the original project by [numman-ali](https://github.com/numman-ali) an
 ## 💰 Token Usage & Prompt Caching
 
 - ✅ **ChatGPT Plus/Pro OAuth authentication** - Use your existing subscription
-- ✅ **11 pre-configured model variants** - Includes Codex Mini (medium/high) alongside all gpt-5 and gpt-5-codex presets
+- ✅ **20 pre-configured model variants** - Adds GPT-5.1 Codex (low/med/high), GPT-5.1 Codex Mini, and GPT-5.1 general presets (none/low/medium/high) alongside the legacy gpt-5 lineup
 - ✅ **Zero external dependencies** - Lightweight with only @openauthjs/openauth
 - ✅ **Auto-refreshing tokens** - Handles token expiration automatically
 - ✅ **Prompt caching** - Reuses responses across turns via stable `prompt_cache_key`
@@ -50,6 +50,7 @@ Check out the original project by [numman-ali](https://github.com/numman-ali) an
 ### How Caching Works
 
 - **Enabled by default**: `enablePromptCaching: true` 
+- **GPT-5.1 models** leverage OpenAI's extended 24-hour prompt cache retention window for cheaper follow-ups
 - **Maintains conversation context** across multiple turns
 - **Reduces token consumption** by reusing cached prompts
 - **Lowers costs** significantly for multi-turn conversations
@@ -264,107 +265,33 @@ For the complete experience with all reasoning variants matching the official Co
    **Global config**: `~/.config/opencode/opencode.json`
    **Project config**: `<project>/.opencode.json`
 
-   This gives you 11 model variants with different reasoning levels:
-   - **gpt-5-codex** (low/medium/high) - Code-optimized reasoning
-   - **gpt-5-codex-mini** (medium/high) - Cheaper Codex tier with 200k/100k tokens
-   - **gpt-5** (minimal/low/medium/high) - General-purpose reasoning
-   - **gpt-5-mini** and **gpt-5-nano** - Lightweight variants
+   This now gives you 20 model variants: the new GPT-5.1 lineup (recommended) plus every legacy gpt-5 preset for backwards compatibility.
 
-   All appear in the opencode model selector as "GPT 5 Codex Low (OAuth)", "GPT 5 High (OAuth)", etc.
-
-### Prompt caching & usage limits
-
-Codex backend caching is enabled automatically. When OpenCode supplies a `prompt_cache_key` (its session identifier), the plugin forwards it unchanged so Codex can reuse work between turns. The plugin no longer synthesizes its own cache IDs—if the host omits `prompt_cache_key`, Codex will treat the turn as uncached. The bundled CODEX_MODE bridge prompt is synchronized with the latest Codex CLI release, so opencode and Codex stay in lock-step on tool availability. When your ChatGPT subscription nears a limit, opencode surfaces the plugin's friendly error message with the 5-hour and weekly windows, mirroring the Codex CLI summary.
-
-> **Auto-compaction note:** OpenCode's context auto-compaction and usage sidebar only populate when the full configuration above is used (the minimal config lacks the per-model metadata OpenCode needs). Stick with `config/full-opencode.json` if you want live token counts and automatic history compaction inside the UI.
-
-#### Alternative: Minimal Configuration
-
-Create `~/.opencode/openai-codex-auth-config.json` to control caching:
-
-```json
-{
-  "enablePromptCaching": true
-}
-```
-
-**Settings:**
-- `true` (default): Preserve conversation context, reduce costs
-- `false`: Fresh context each turn, higher token usage
-
-### When to Disable Caching
-
-Only disable caching if you experience:
-- Context-related issues in conversations
-- Stale responses that should be fresh
-- Debugging or testing scenarios
-
-**Note**: Disabling caching will significantly increase token usage and costs.
-
----
-
-## Authentication
-
-```bash
-opencode auth login
-```
-
-Select "OpenAI" → "ChatGPT Plus/Pro (Codex Subscription)"
-
-> **⚠️ First-time setup**: Stop Codex CLI if running (both use port 1455)
-
----
-
-## Updating the Plugin
-
-**⚠️ Important**: OpenCode does NOT auto-update plugins.
-
-To install the latest version:
-
-```bash
-# Clear plugin cache
-(cd ~ && sed -i.bak '/"@promethean-os\/opencode-openai-codex-auth"/d' .cache/opencode/package.json && rm -rf .cache/opencode/node_modules/@promethean-os/opencode-openai-codex-auth)
-
-# Restart OpenCode - it will reinstall latest version
-opencode
-```
-
-Check [releases](https://github.com/riatzukiza/opencode-openai-codex-auth/releases) for version history.
-
-## Usage
-
-If using the full configuration, select from the model picker in opencode, or specify via command line:
-
-```bash
-# Use different reasoning levels for gpt-5-codex
-opencode run "simple task" --model=openai/gpt-5-codex-low
-opencode run "complex task" --model=openai/gpt-5-codex-high
-
-# Use different reasoning levels for gpt-5
-opencode run "quick question" --model=openai/gpt-5-minimal
-opencode run "deep analysis" --model=openai/gpt-5-high
-
-# Or with minimal config (uses defaults)
-opencode run "create a hello world file" --model=openai/gpt-5-codex
-opencode run "solve this complex problem" --model=openai/gpt-5
-```
-
-### Built-in Diagnostics Command
-
-Type `/codex-metrics` in any opencode session to get an instant summary of:
-
-- Cache hit/miss rates for Codex instructions, OpenCode prompt verification, and bridge decisions
-- Prompt-caching status, including how many sessions are tracked and their most recent cache usage
-- Whether the Codex + OpenCode prompt caches are already warm (no network fetches are triggered)
-
-The command is handled entirely inside the plugin, so it never consumes Codex tokens or makes a network request.
+   All appear in the opencode model selector as "GPT 5.1 Codex Low (OAuth)", "GPT 5 High (OAuth)", etc.
 
 ### Available Model Variants (Full Config)
 
-When using [`config/full-opencode.json`](./config/full-opencode.json), you get these pre-configured variants:
+When using [`config/full-opencode.json`](./config/full-opencode.json), you get these GPT-5.1 presets plus the original gpt-5 variants:
+
+#### GPT-5.1 lineup (recommended)
 
 | CLI Model ID | TUI Display Name | Reasoning Effort | Best For |
 |--------------|------------------|-----------------|----------|
+| `gpt-5.1-codex-low` | GPT 5.1 Codex Low (OAuth) | Low | Fast code generation on the newest Codex tier |
+| `gpt-5.1-codex-medium` | GPT 5.1 Codex Medium (OAuth) | Medium | Balanced code + tooling workflows |
+| `gpt-5.1-codex-high` | GPT 5.1 Codex High (OAuth) | High | Multi-step coding tasks with deep tool use |
+| `gpt-5.1-codex-mini-medium` | GPT 5.1 Codex Mini Medium (OAuth) | Medium | Budget-friendly Codex runs (200k/100k tokens) |
+| `gpt-5.1-codex-mini-high` | GPT 5.1 Codex Mini High (OAuth) | High | Cheaper Codex tier with maximum reasoning |
+| `gpt-5.1-none` | GPT 5.1 None (OAuth) | None | Latency-sensitive chat/tasks using the new "no reasoning" mode |
+| `gpt-5.1-low` | GPT 5.1 Low (OAuth) | Low | Fast general-purpose chat with light reasoning |
+| `gpt-5.1-medium` | GPT 5.1 Medium (OAuth) | Medium | Default adaptive reasoning for everyday work |
+| `gpt-5.1-high` | GPT 5.1 High (OAuth) | High | Deep analysis when reliability matters most |
+
+#### Legacy GPT-5 lineup (still supported)
+
+| CLI Model ID | TUI Display Name | Reasoning Effort | Best For |
+|--------------|------------------|-----------------|----------|
+
 | `gpt-5-codex-low` | GPT 5 Codex Low (OAuth) | Low | Fast code generation |
 | `gpt-5-codex-medium` | GPT 5 Codex Medium (OAuth) | Medium | Balanced code tasks |
 | `gpt-5-codex-high` | GPT 5 Codex High (OAuth) | High | Complex code & tools |
@@ -380,7 +307,7 @@ When using [`config/full-opencode.json`](./config/full-opencode.json), you get t
 **Usage**: `--model=openai/<CLI Model ID>` (e.g., `--model=openai/gpt-5-codex-low`)
 **Display**: TUI shows the friendly name (e.g., "GPT 5 Codex Low (OAuth)")
 
-> **Note**: All `gpt-5-codex-mini*` presets normalize to the ChatGPT slug `codex-mini-latest` (200k input / 100k output tokens).
+> **Note**: All `gpt-5.1-codex-mini*` and legacy `gpt-5-codex-mini*` presets normalize to the ChatGPT slug `gpt-5.1-codex-mini` (200k input / 100k output tokens).
 
 All accessed via your ChatGPT Plus/Pro subscription.
 
@@ -414,14 +341,14 @@ When no configuration is specified, the plugin uses these defaults for all GPT-5
 - **`reasoningSummary: "auto"`** - Automatically adapts summary verbosity
 - **`textVerbosity: "medium"`** - Balanced output length
 
-These defaults match the official Codex CLI behavior and can be customized (see Configuration below).
+These defaults match the official Codex CLI behavior and can be customized (see Configuration below). GPT-5.1 requests automatically start at `reasoningEffort: "none"`, while Codex/Codex Mini presets continue to clamp to their supported levels.
 
 ## Configuration
 
 ### Recommended: Use Pre-Configured File
 
 The easiest way to get started is to use [`config/full-opencode.json`](./config/full-opencode.json), which provides:
-- 11 pre-configured model variants matching Codex CLI presets
+- 20 pre-configured model variants matching the latest Codex CLI presets (GPT-5.1 + GPT-5)
 - Optimal settings for each reasoning level
 - All variants visible in the opencode model selector
 
