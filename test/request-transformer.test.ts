@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
 	normalizeModel,
 	getModelConfig,
+	getReasoningConfig,
 	filterInput,
 	addToolRemapMessage,
 	isOpenCodeSystemPrompt,
@@ -26,13 +27,13 @@ describe('normalizeModel', () => {
 		expect(normalizeModel('gpt-5-nano')).toBe('gpt-5');
 	});
 
-	it('should return gpt-5 as default for unknown models', async () => {
-		expect(normalizeModel('unknown-model')).toBe('gpt-5');
-		expect(normalizeModel('gpt-4')).toBe('gpt-5');
+	it('should return gpt-5.1 as default for unknown models', async () => {
+		expect(normalizeModel('unknown-model')).toBe('gpt-5.1');
+		expect(normalizeModel('gpt-4')).toBe('gpt-5.1');
 	});
 
-	it('should return gpt-5 for undefined', async () => {
-		expect(normalizeModel(undefined)).toBe('gpt-5');
+	it('should return gpt-5.1 for undefined', async () => {
+		expect(normalizeModel(undefined)).toBe('gpt-5.1');
 	});
 
 	it('should normalize all gpt-5 presets to gpt-5', async () => {
@@ -49,16 +50,35 @@ describe('normalizeModel', () => {
 		expect(normalizeModel('my-gpt-5-codex-model')).toBe('gpt-5-codex');
 	});
 
-	it('should normalize codex mini presets to codex-mini-latest', async () => {
-		expect(normalizeModel('gpt-5-codex-mini')).toBe('codex-mini-latest');
-		expect(normalizeModel('gpt-5-codex-mini-medium')).toBe('codex-mini-latest');
-		expect(normalizeModel('gpt-5-codex-mini-high')).toBe('codex-mini-latest');
-		expect(normalizeModel('openai/gpt-5-codex-mini-high')).toBe('codex-mini-latest');
+	it('should normalize codex mini presets to gpt-5.1-codex-mini', async () => {
+		expect(normalizeModel('gpt-5-codex-mini')).toBe('gpt-5.1-codex-mini');
+		expect(normalizeModel('gpt-5-codex-mini-medium')).toBe('gpt-5.1-codex-mini');
+		expect(normalizeModel('gpt-5-codex-mini-high')).toBe('gpt-5.1-codex-mini');
+		expect(normalizeModel('openai/gpt-5-codex-mini-high')).toBe('gpt-5.1-codex-mini');
 	});
 
-	it('should normalize raw codex-mini-latest slug to codex-mini-latest', async () => {
-		expect(normalizeModel('codex-mini-latest')).toBe('codex-mini-latest');
-		expect(normalizeModel('openai/codex-mini-latest')).toBe('codex-mini-latest');
+	it('should normalize raw codex-mini-latest slug to gpt-5.1-codex-mini', async () => {
+		expect(normalizeModel('codex-mini-latest')).toBe('gpt-5.1-codex-mini');
+		expect(normalizeModel('openai/codex-mini-latest')).toBe('gpt-5.1-codex-mini');
+	});
+
+	it('should normalize gpt-5.1 general presets to gpt-5.1', async () => {
+		expect(normalizeModel('gpt-5.1')).toBe('gpt-5.1');
+		expect(normalizeModel('gpt-5.1-medium')).toBe('gpt-5.1');
+		expect(normalizeModel('gpt51-high')).toBe('gpt-5.1');
+		expect(normalizeModel('gpt 5.1 none')).toBe('gpt-5.1');
+	});
+
+	it('should normalize gpt-5.1 codex presets to gpt-5.1-codex', async () => {
+		expect(normalizeModel('gpt-5.1-codex-low')).toBe('gpt-5.1-codex');
+		expect(normalizeModel('gpt51-codex')).toBe('gpt-5.1-codex');
+		expect(normalizeModel('openai/gpt-5.1-codex-high')).toBe('gpt-5.1-codex');
+	});
+
+	it('should normalize gpt-5.1 codex mini presets to gpt-5.1-codex-mini', async () => {
+		expect(normalizeModel('gpt-5.1-codex-mini')).toBe('gpt-5.1-codex-mini');
+		expect(normalizeModel('gpt-5.1-codex-mini-medium')).toBe('gpt-5.1-codex-mini');
+		expect(normalizeModel('gpt51-codex-mini-high')).toBe('gpt-5.1-codex-mini');
 	});
 
 	it('should handle mixed case', async () => {
@@ -77,7 +97,30 @@ describe('normalizeModel', () => {
 	});
 
 	it('should handle empty string', async () => {
-		expect(normalizeModel('')).toBe('gpt-5');
+		expect(normalizeModel('')).toBe('gpt-5.1');
+	});
+});
+
+describe('getReasoningConfig (gpt-5.1)', () => {
+	it('defaults gpt-5.1 to none when no overrides are provided', async () => {
+		const result = getReasoningConfig('gpt-5.1', {});
+		expect(result.effort).toBe('none');
+		expect(result.summary).toBe('auto');
+	});
+
+	it('maps unsupported none effort to low for gpt-5.1-codex', async () => {
+		const result = getReasoningConfig('gpt-5.1-codex', { reasoningEffort: 'none' });
+		expect(result.effort).toBe('low');
+	});
+
+	it('enforces medium minimum effort for gpt-5.1-codex-mini', async () => {
+		const result = getReasoningConfig('gpt-5.1-codex-mini', { reasoningEffort: 'low' });
+		expect(result.effort).toBe('medium');
+	});
+
+	it('downgrades none to minimal on legacy gpt-5 models', async () => {
+		const result = getReasoningConfig('gpt-5', { reasoningEffort: 'none' });
+		expect(result.effort).toBe('minimal');
 	});
 });
 
@@ -1207,14 +1250,15 @@ describe('transformRequestBody', () => {
 			expect(result.model).toBe('gpt-5-codex');
 		});
 
-		it('should handle empty string model', async () => {
-			const body: RequestBody = {
-				model: '',
-				input: [],
-			};
-			const result = await transformRequestBody(body, codexInstructions);
-			expect(result.model).toBe('gpt-5');
-		});
+	it('should handle empty string model', async () => {
+		const body: RequestBody = {
+			model: '',
+			input: [],
+		};
+		const result = await transformRequestBody(body, codexInstructions);
+		expect(result.model).toBe('gpt-5.1');
+	});
+
 
 		it('should handle reasoning config edge cases', async () => {
 			const body: RequestBody = {

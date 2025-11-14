@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { join } from 'node:path';
-import { codexInstructionsCache } from '../lib/cache/session-cache.js';
+import { codexInstructionsCache, getCodexCacheKey } from '../lib/cache/session-cache.js';
 
 const files = new Map<string, string>();
 const existsSync = vi.fn((file: string) => files.has(file));
@@ -136,6 +136,123 @@ beforeEach(() => {
 			'',
 		);
 		expect(consoleError).toHaveBeenCalledWith('[openai-codex-plugin] Using cached instructions due to fetch failure', '');
+		consoleError.mockRestore();
+	});
+
+	it('serves in-memory session cache when latest entry exists', async () => {
+		codexInstructionsCache.set('latest', {
+			data: 'session-cached',
+			etag: '"etag-latest"',
+			tag: 'v-latest',
+		});
+
+		const { getCodexInstructions } = await import('../lib/prompts/codex.js');
+		const result = await getCodexInstructions();
+
+		expect(result).toBe('session-cached');
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('reuses session cache based on metadata cache key', async () => {
+		const metadata = {
+			etag: '"meta-etag"',
+			tag: 'v1',
+			lastChecked: Date.now() - 10 * 60 * 1000,
+		};
+		files.set(cacheMeta, JSON.stringify(metadata));
+
+		const cacheKey = getCodexCacheKey(metadata.etag, metadata.tag);
+		codexInstructionsCache.set(cacheKey, {
+			data: 'session-meta',
+			etag: metadata.etag,
+			tag: metadata.tag,
+		});
+
+		const { getCodexInstructions } = await import('../lib/prompts/codex.js');
+		const result = await getCodexInstructions();
+
+		expect(result).toBe('session-meta');
+		expect(fetchMock).not.toHaveBeenCalled();
+
+		const latestEntry = codexInstructionsCache.get('latest');
+		expect(latestEntry?.data).toBe('session-meta');
+	});
+
+	it('uses file cache when GitHub responds 304 Not Modified', async () => {
+		files.set(cacheFile, 'from-file-304');
+		files.set(
+			cacheMeta,
+			JSON.stringify({
+				etag: '"etag-304"',
+				tag: 'v1',
+				lastChecked: Date.now() - 20 * 60 * 1000,
+			}),
+		);
+
+		const notModifiedResponse = {
+			status: 304,
+			ok: false,
+			headers: {
+				get: (name: string) => {
+					if (name.toLowerCase() === 'etag') return '"etag-304"';
+					return null;
+				},
+			},
+		} as any;
+
+		fetchMock
+			.mockResolvedValueOnce(
+				new Response(JSON.stringify({ tag_name: 'v1' }), {
+					status: 200,
+					headers: { 'content-type': 'application/json' },
+				}),
+			)
+			.mockResolvedValueOnce(notModifiedResponse);
+
+		const { getCodexInstructions } = await import('../lib/prompts/codex.js');
+		const result = await getCodexInstructions();
+
+		expect(result).toBe('from-file-304');
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+
+		const latestEntry = codexInstructionsCache.get('latest');
+		expect(latestEntry?.data).toBe('from-file-304');
+	});
+
+	it('falls back to bundled instructions when no cache is available', async () => {
+		const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+		fetchMock
+			.mockResolvedValueOnce(
+				new Response(JSON.stringify({ tag_name: 'v1' }), {
+					status: 200,
+					headers: { 'content-type': 'application/json' },
+				}),
+			)
+			.mockResolvedValueOnce(new Response('', { status: 500 }));
+
+		const { getCodexInstructions } = await import('../lib/prompts/codex.js');
+		const result = await getCodexInstructions();
+
+		expect(typeof result).toBe('string');
+		expect(consoleError).toHaveBeenCalledWith(
+			'[openai-codex-plugin] Failed to fetch instructions from GitHub {"error":"HTTP 500"}',
+			'',
+		);
+		expect(consoleError).toHaveBeenCalledWith(
+			'[openai-codex-plugin] Falling back to bundled instructions',
+			'',
+		);
+
+		const readPaths = readFileSync.mock.calls.map((call) => call[0] as string);
+		const fallbackPath = readPaths.find(
+			(path) => path.endsWith('codex-instructions.md') && !path.startsWith(cacheDir),
+		);
+		expect(fallbackPath).toBeDefined();
+
+		const latestEntry = codexInstructionsCache.get('latest');
+		expect(latestEntry).not.toBeNull();
+
 		consoleError.mockRestore();
 	});
 });
