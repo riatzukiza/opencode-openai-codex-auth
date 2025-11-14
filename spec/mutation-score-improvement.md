@@ -48,14 +48,15 @@
 
 ## 2025-11-13 Update
 
-- Latest `pnpm test:mutation` run reports an overall mutation score of **59.10%** (threshold remains 60).
+- Latest `pnpm test:mutation` run reports an overall mutation score of **63.69%** (threshold remains 60).
 - `index.ts` has been improved to ~90% mutation score; remaining gaps are concentrated in:
-  - `lib/request/request-transformer.ts` (~41.56%; 367 killed / 304 survived / 212 no-cov).
-  - `lib/prompts/codex.ts` (~43.48%; 50 killed / 42 survived / 23 no-cov).
+  - `lib/request/request-transformer.ts` (~52.32%; 462 killed / 260 survived / 161 no-cov).
+  - `lib/prompts/codex.ts` (~61.74%; 71 killed / 39 survived / 5 no-cov).
   - `lib/constants.ts` (25%; 1 killed / 3 survived).
-- For this iteration we will:
-  - Strengthen `lib/prompts/codex.ts` tests around cache layering (in-memory session cache, on-disk cache, 304 responses, and bundled fallback).
-  - Add small focused assertions for `lib/constants.ts` to ensure key HTTP status codes, header names/values, URL paths, and OAuth labels are pinned by tests.
+- For this iteration we implemented:
+  - Stronger `lib/prompts/codex.ts` tests around cache layering (in-memory session cache, on-disk cache, 304 responses, and bundled fallback).
+  - Focused assertions for `lib/constants.ts` to ensure key HTTP status codes, header names/values, URL paths, and OAuth labels are pinned by tests.
+  - Additional `transformRequestBody` tests that exercise Codex tool normalization for string tools, function-style tools, and map-based tool configurations.
 - Definition of done for this pass:
-  - Overall mutation score ≥ 60 with at least a small buffer (target ≥ 61).
+  - Overall mutation score ≥ 60 with a comfortable buffer (current score **63.69%**).
   - No new flaky or slow tests introduced.
