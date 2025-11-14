@@ -45,3 +45,17 @@
 - Keep new tests focused on existing behavior—no product changes desired.
 - Maintain ASCII-only text in tests; prefer `vi.mock` and `vi.hoisted` patterns already used in `test/index.test.ts`.
 - Ensure mocks reset between tests to avoid cross-test interference, as `vitest` currently uses hoisted mocks throughout this suite.
+
+## 2025-11-13 Update
+
+- Latest `pnpm test:mutation` run reports an overall mutation score of **59.10%** (threshold remains 60).
+- `index.ts` has been improved to ~90% mutation score; remaining gaps are concentrated in:
+  - `lib/request/request-transformer.ts` (~41.56%; 367 killed / 304 survived / 212 no-cov).
+  - `lib/prompts/codex.ts` (~43.48%; 50 killed / 42 survived / 23 no-cov).
+  - `lib/constants.ts` (25%; 1 killed / 3 survived).
+- For this iteration we will:
+  - Strengthen `lib/prompts/codex.ts` tests around cache layering (in-memory session cache, on-disk cache, 304 responses, and bundled fallback).
+  - Add small focused assertions for `lib/constants.ts` to ensure key HTTP status codes, header names/values, URL paths, and OAuth labels are pinned by tests.
+- Definition of done for this pass:
+  - Overall mutation score ≥ 60 with at least a small buffer (target ≥ 61).
+  - No new flaky or slow tests introduced.
