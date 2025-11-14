@@ -66,7 +66,7 @@ For the complete experience with all reasoning variants matching the official Co
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
-    "opencode-openai-codex-auth"
+    "@promethean-os/opencode-openai-codex-auth"
   ],
   "provider": {
     "openai": {
@@ -80,10 +80,154 @@ For the complete experience with all reasoning variants matching the official Co
         "store": false
       },
       "models": {
+        "gpt-5.1-codex-low": {
+          "name": "GPT 5.1 Codex Low (OAuth)",
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
+          "options": {
+            "reasoningEffort": "low",
+            "reasoningSummary": "auto",
+            "textVerbosity": "medium",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        },
+        "gpt-5.1-codex-medium": {
+          "name": "GPT 5.1 Codex Medium (OAuth)",
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
+          "options": {
+            "reasoningEffort": "medium",
+            "reasoningSummary": "auto",
+            "textVerbosity": "medium",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        },
+        "gpt-5.1-codex-high": {
+          "name": "GPT 5.1 Codex High (OAuth)",
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
+          "options": {
+            "reasoningEffort": "high",
+            "reasoningSummary": "detailed",
+            "textVerbosity": "medium",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        },
+        "gpt-5.1-codex-mini-medium": {
+          "name": "GPT 5.1 Codex Mini Medium (OAuth)",
+          "limit": {
+            "context": 200000,
+            "output": 100000
+          },
+          "options": {
+            "reasoningEffort": "medium",
+            "reasoningSummary": "auto",
+            "textVerbosity": "medium",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        },
+        "gpt-5.1-codex-mini-high": {
+          "name": "GPT 5.1 Codex Mini High (OAuth)",
+          "limit": {
+            "context": 200000,
+            "output": 100000
+          },
+          "options": {
+            "reasoningEffort": "high",
+            "reasoningSummary": "detailed",
+            "textVerbosity": "medium",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        },
+        "gpt-5.1-none": {
+          "name": "GPT 5.1 None (OAuth)",
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
+          "options": {
+            "reasoningEffort": "none",
+            "reasoningSummary": "auto",
+            "textVerbosity": "medium",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        },
+        "gpt-5.1-low": {
+          "name": "GPT 5.1 Low (OAuth)",
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
+          "options": {
+            "reasoningEffort": "low",
+            "reasoningSummary": "auto",
+            "textVerbosity": "low",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        },
+        "gpt-5.1-medium": {
+          "name": "GPT 5.1 Medium (OAuth)",
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
+          "options": {
+            "reasoningEffort": "medium",
+            "reasoningSummary": "auto",
+            "textVerbosity": "medium",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        },
+        "gpt-5.1-high": {
+          "name": "GPT 5.1 High (OAuth)",
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
+          "options": {
+            "reasoningEffort": "high",
+            "reasoningSummary": "detailed",
+            "textVerbosity": "high",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        },
         "gpt-5-codex-low": {
           "name": "GPT 5 Codex Low (OAuth)",
           "limit": {
-            "context": 272000,
+            "context": 400000,
             "output": 128000
           },
           "options": {
@@ -99,7 +243,7 @@ For the complete experience with all reasoning variants matching the official Co
         "gpt-5-codex-medium": {
           "name": "GPT 5 Codex Medium (OAuth)",
           "limit": {
-            "context": 272000,
+            "context": 400000,
             "output": 128000
           },
           "options": {
@@ -115,7 +259,7 @@ For the complete experience with all reasoning variants matching the official Co
         "gpt-5-codex-high": {
           "name": "GPT 5 Codex High (OAuth)",
           "limit": {
-            "context": 272000,
+            "context": 400000,
             "output": 128000
           },
           "options": {
@@ -163,7 +307,7 @@ For the complete experience with all reasoning variants matching the official Co
         "gpt-5-minimal": {
           "name": "GPT 5 Minimal (OAuth)",
           "limit": {
-            "context": 272000,
+            "context": 400000,
             "output": 128000
           },
           "options": {
@@ -179,7 +323,7 @@ For the complete experience with all reasoning variants matching the official Co
         "gpt-5-low": {
           "name": "GPT 5 Low (OAuth)",
           "limit": {
-            "context": 272000,
+            "context": 400000,
             "output": 128000
           },
           "options": {
@@ -195,7 +339,7 @@ For the complete experience with all reasoning variants matching the official Co
         "gpt-5-medium": {
           "name": "GPT 5 Medium (OAuth)",
           "limit": {
-            "context": 272000,
+            "context": 400000,
             "output": 128000
           },
           "options": {
@@ -211,7 +355,7 @@ For the complete experience with all reasoning variants matching the official Co
         "gpt-5-high": {
           "name": "GPT 5 High (OAuth)",
           "limit": {
-            "context": 272000,
+            "context": 400000,
             "output": 128000
           },
           "options": {
@@ -227,7 +371,7 @@ For the complete experience with all reasoning variants matching the official Co
         "gpt-5-mini": {
           "name": "GPT 5 Mini (OAuth)",
           "limit": {
-            "context": 272000,
+            "context": 400000,
             "output": 128000
           },
           "options": {
@@ -243,7 +387,7 @@ For the complete experience with all reasoning variants matching the official Co
         "gpt-5-nano": {
           "name": "GPT 5 Nano (OAuth)",
           "limit": {
-            "context": 272000,
+            "context": 400000,
             "output": 128000
           },
           "options": {
@@ -362,14 +506,14 @@ If you want to customize settings yourself, you can configure options at provide
 
 ⚠️ **Important**: The two base models have different supported values.
 
-| Setting | GPT-5 Values | GPT-5-Codex Values | Plugin Default |
+| Setting | GPT-5 / GPT-5.1 Values | GPT-5-Codex / Codex Mini Values | Plugin Default |
 |---------|-------------|-------------------|----------------|
-| `reasoningEffort` | `minimal`, `low`, `medium`, `high` | `low`, `medium`, `high` | `medium` |
+| `reasoningEffort` | `none`, `minimal`, `low`, `medium`, `high` | `low`, `medium`, `high` | `medium` |
 | `reasoningSummary` | `auto`, `detailed` | `auto`, `detailed` | `auto` |
 | `textVerbosity` | `low`, `medium`, `high` | `medium` only | `medium` |
 | `include` | Array of strings | Array of strings | `["reasoning.encrypted_content"]` |
 
-> **Note**: `minimal` effort is auto-normalized to `low` for gpt-5-codex (not supported by the API).
+> **Note**: `minimal` effort is auto-normalized to `low` for gpt-5-codex (not supported by the API). `none` is only supported on GPT-5.1 general models; when used with legacy gpt-5 it is normalized to `minimal`.
 
 #### Plugin-Level Settings
 
