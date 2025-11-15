@@ -35,7 +35,7 @@ jobs:
 
       - name: Install OpenCode CLI
         run: |
-          npm install -g opencode
+          npm install -g opencode-ai@latest
           NPM_PREFIX="$(npm config get prefix)"
           echo "${NPM_PREFIX}/bin" >> "$GITHUB_PATH"
           opencode --version
