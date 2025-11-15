@@ -32,4 +32,4 @@ This plugin bridges two different systems with careful engineering:
 
 ---
 
-**Quick Links**: [GitHub](https://github.com/open-hax/codex) • [npm](https://www.npmjs.com/package/openhax/codex) • [Issues](https://github.com/open-hax/codex/issues)
+**Quick Links**: [GitHub](https://github.com/open-hax/codex) • [npm](https://www.npmjs.com/package/@openhax/codex) • [Issues](https://github.com/open-hax/codex/issues)

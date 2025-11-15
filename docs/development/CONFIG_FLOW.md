@@ -194,7 +194,7 @@ For a given model, options are merged:
 ### Example 1: Global Options Only
 ```json
 {
-  "plugin": ["openhax/codex"],
+  "plugin": ["@openhax/codex"],
   "provider": {
     "openai": {
       "options": {
@@ -212,7 +212,7 @@ For a given model, options are merged:
 ### Example 2: Per-Model Override
 ```json
 {
-  "plugin": ["openhax/codex"],
+  "plugin": ["@openhax/codex"],
   "provider": {
     "openai": {
       "options": {
@@ -248,7 +248,7 @@ For a given model, options are merged:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["openhax/codex"],
+  "plugin": ["@openhax/codex"],
   "model": "openai/gpt-5-codex-medium",
   "provider": {
     "openai": {

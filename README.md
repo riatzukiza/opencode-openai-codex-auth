@@ -1,8 +1,8 @@
 # OpenHax Codex Plugin for Opencode
 
-[![npm version](https://img.shields.io/npm/v/openhax%2Fcodex.svg)](https://www.npmjs.com/package/openhax/codex)
+[![npm version](https://img.shields.io/npm/v/%40openhax%2Fcodex.svg)](https://www.npmjs.com/package/@openhax/codex)
 [![Tests](https://github.com/open-hax/codex/actions/workflows/ci.yml/badge.svg)](https://github.com/open-hax/codex/actions)
-[![npm downloads](https://img.shields.io/npm/dm/openhax%2Fcodex.svg)](https://www.npmjs.com/package/openhax/codex)
+[![npm downloads](https://img.shields.io/npm/dm/%40openhax%2Fcodex.svg)](https://www.npmjs.com/package/@openhax/codex)
 
 This plugin enables opencode to use OpenAI's Codex backend via ChatGPT Plus/Pro OAuth authentication, allowing you to use your ChatGPT subscription instead of OpenAI Platform API credits.
 
@@ -76,7 +76,7 @@ For the complete experience with all reasoning variants matching the official Co
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
-    "openhax/codex"
+    "@openhax/codex"
   ],
   "provider": {
     "openai": {
@@ -539,7 +539,7 @@ Apply settings to all models:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["openhax/codex"],
+  "plugin": ["@openhax/codex"],
   "model": "openai/gpt-5-codex",
   "provider": {
     "openai": {
@@ -559,7 +559,7 @@ Create your own named variants in the model selector:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["openhax/codex"],
+  "plugin": ["@openhax/codex"],
   "provider": {
     "openai": {
       "models": {

@@ -35,7 +35,7 @@ Add this to `~/.config/opencode/opencode.json`:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["openhax/codex"],
+  "plugin": ["@openhax/codex"],
   "provider": {
     "openai": {
       "options": {
@@ -226,7 +226,7 @@ Just want to get started quickly?
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["openhax/codex"],
+  "plugin": ["@openhax/codex"],
   "model": "openai/gpt-5-codex"
 }
 ```
@@ -283,7 +283,7 @@ When a new version is released, you must manually update:
 
 ```bash
 # Step 1: Clear plugin cache
-(cd ~ && sed -i.bak '/"openhax\/codex"/d' .cache/opencode/package.json && rm -rf .cache/opencode/node_modules/openhax/codex)
+(cd ~ && sed -i.bak '/"@openhax\/codex"/d' .cache/opencode/package.json && rm -rf .cache/opencode/node_modules/@openhax/codex)
 
 # Step 2: Restart OpenCode - it will reinstall the latest version
 opencode
@@ -306,7 +306,7 @@ For plugin development or testing unreleased changes:
 
 ```json
 {
-  "plugin": ["file:///absolute/path/to/your-fork/openhax/codex/dist"]
+  "plugin": ["file:///absolute/path/to/your-fork/@openhax/codex/dist"]
 }
 ```
 
