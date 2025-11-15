@@ -38,3 +38,4 @@
 2. Keep `strict: true` and `enforce_admins: true`.
 3. Document the exact job names in `docs/development/ci.md` and CONTRIBUTING so maintainers know which checks must stay in sync with workflow `name` fields.
 4. Optionally add a CI test (or script) that fails if branch protection contexts drift from workflow job names (e.g., script hitting REST API + parsing `.github/workflows/ci.yml`).
+
