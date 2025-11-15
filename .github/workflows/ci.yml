@@ -132,17 +132,16 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
- 
+
       - name: Install OpenCode CLI
         run: |
           npm install -g opencode
           NPM_PREFIX="$(npm config get prefix)"
           echo "${NPM_PREFIX}/bin" >> "$GITHUB_PATH"
           opencode --version
- 
-       - name: Validate release secrets
-        run: |
 
+      - name: Validate release secrets
+        run: |
           if [ -z "$NPM_TOKEN" ]; then
             echo "NPM_TOKEN secret is required to publish" >&2
             exit 1
@@ -151,6 +150,7 @@ jobs:
             echo "OPENCODE_API_KEY secret is required to classify releases" >&2
             exit 1
           fi
+
 
       - name: Analyze repository for release
         id: analyze
