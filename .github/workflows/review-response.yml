@@ -35,8 +35,10 @@ jobs:
 
       - name: Install OpenCode CLI
         run: |
-          curl -fsSL https://opencode.ai/install.sh | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          npm install -g opencode
+          NPM_PREFIX="$(npm config get prefix)"
+          echo "${NPM_PREFIX}/bin" >> "$GITHUB_PATH"
+          opencode --version
 
       - name: Prepare review context
         id: context
