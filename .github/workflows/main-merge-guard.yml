@@ -1,0 +1,21 @@
+name: Main Merge Guard
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  enforce-staging-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure only staging targets main
+        run: |
+          if [ "${GITHUB_HEAD_REF}" != "staging" ]; then
+            echo "Only staging can merge into main. Update your PR to target staging." >&2
+            exit 1
+          fi
+          echo "Branch check passed: ${GITHUB_HEAD_REF} -> ${GITHUB_BASE_REF}"
