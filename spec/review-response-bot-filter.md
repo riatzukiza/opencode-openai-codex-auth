@@ -1,19 +1,23 @@
 # Review Response Bot Filter Fix
 
 ## Context
-Issue #10 reports that `.github/workflows/review-response.yml` filters out bot comments by checking `github.event.comment.user.type != 'Bot'`. The workflow is meant to trigger when CodeRabbit (bot) leaves review comments, so the condition is reversed and prevents the automation from running.
+Issue #10 reports that `.github/workflows/review-response.yml` filters out bot comments by checking `github.event.comment.user.type != 'Bot'`. The intent is to run the automation for CodeRabbit (bot) and for maintainers reviewing PRs, while ignoring review comments from external contributors.
 
 ## Requirements
-1. Update the workflow `if:` condition to _allow_ CodeRabbit bot comments. Either check explicitly for `coderabbitai` or for `user.type == 'Bot'`. The issue description prefers matching the login to prevent other bots from firing the workflow.
-2. Ensure we still ignore other commenters (human reviewers, other bots) so we do not spam the workflow.
-3. Document the change in the spec and final PR summary.
+1. Update the workflow `if:` condition so the job runs when:
+   - The comment author login is `coderabbitai`, **or**
+   - The comment author belongs to the maintainer whitelist (e.g., `riatzukiza`, `coderabbitai`, `open-hax-maintainers` members).
+2. Encode the maintainer list in one place (YAML env or separate JSON) to avoid scattering logins throughout the workflow.
+3. Continue ignoring other commenters so random PR authors cannot trigger the automation.
+4. Document the change in `docs`/spec and final PR summary.
 
 ## Plan
-1. Modify `.github/workflows/review-response.yml:9` so the job runs only when `github.event.comment.user.login == 'coderabbitai'`. 
-2. Leave other workflow steps untouched.
-3. No additional tests available, but we can run `act` manually if needed (not required here). We'll rely on workflow linting.
+1. Introduce a small script or inline step to check whether `github.event.comment.user.login` is in a `MAINTAINERS` list. Simplest approach: store a comma-separated list in an env var and use a shell condition in the job `if`.
+2. Update the job condition to call an expression (or set an output) that returns true when login matches `coderabbitai` or a maintainer.
+3. Update `spec/review-response-bot-filter.md` with the new rule.
+4. (Optional) Document the maintainer list in `docs/`.
 
 ## Definition of Done
-- Workflow triggers only when the review comment author is `coderabbitai`.
-- No regressions to the rest of the automation.
-- Issue #10 can be closed once merged.
+- Workflow triggers for CodeRabbit comments and maintainer logins while skipping strangers.
+- Maintainer list is easy to update.
+- Spec updated; PR references issue #10.

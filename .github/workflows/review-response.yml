@@ -6,13 +6,14 @@ on:
 
 jobs:
   auto-review-response:
-    if: github.event.comment.user.login == 'coderabbitai'
+    env:
+      REVIEW_RESPONDER_WHITELIST: coderabbitai,riatzukiza
+      OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+    if: contains(env.REVIEW_RESPONDER_WHITELIST, github.event.comment.user.login)
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
-    env:
-      OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
     steps:
       - name: Checkout PR head
         uses: actions/checkout@v4
