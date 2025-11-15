@@ -148,7 +148,7 @@ Items are not persisted when `store` is set to false.
 **Solution:**
 ```bash
 # Update plugin
-(cd ~ && sed -i.bak '/"openhax\/codex"/d' .cache/opencode/package.json && rm -rf .cache/opencode/node_modules/openhax/codex)
+(cd ~ && sed -i.bak '/"@openhax\/codex"/d' .cache/opencode/package.json && rm -rf .cache/opencode/node_modules/@openhax/codex)
 
 # Restart OpenCode
 opencode

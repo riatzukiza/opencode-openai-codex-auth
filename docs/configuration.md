@@ -7,7 +7,7 @@ Complete reference for configuring the OpenHax Codex Plugin.
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["openhax/codex"],
+  "plugin": ["@openhax/codex"],
   "provider": {
     "openai": {
       "options": {
@@ -159,7 +159,7 @@ Apply same settings to all models:
 
 ```json
 {
-  "plugin": ["openhax/codex"],
+  "plugin": ["@openhax/codex"],
   "provider": {
     "openai": {
       "options": {
@@ -180,7 +180,7 @@ Different settings for different models:
 
 ```json
 {
-  "plugin": ["openhax/codex"],
+  "plugin": ["@openhax/codex"],
   "provider": {
     "openai": {
       "options": {
@@ -325,7 +325,7 @@ Global config has defaults, project overrides for specific work:
 **~/.config/opencode/opencode.json** (global):
 ```json
 {
-  "plugin": ["openhax/codex"],
+  "plugin": ["@openhax/codex"],
   "provider": {
     "openai": {
       "options": {

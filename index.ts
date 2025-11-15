@@ -59,7 +59,7 @@ import type { UserConfig } from "./lib/types.js";
  * @example
  * ```json
  * {
- *   "plugin": ["openhax/codex"],
+ *   "plugin": ["@openhax/codex"],
  *   "model": "openai/gpt-5-codex"
  * }
  * ```

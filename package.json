@@ -30,6 +30,8 @@
   "scripts": {
     "build": "tsc && cp lib/oauth-success.html dist/lib/",
     "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "sync:secrets": "node scripts/sync-github-secrets.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
@@ -48,6 +50,7 @@
     "@opencode-ai/plugin": "^0.13.7"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.3.5",
     "@opencode-ai/plugin": "^0.13.7",
     "@opencode-ai/sdk": "^0.13.9",
     "@stryker-mutator/core": "^8.2.0",

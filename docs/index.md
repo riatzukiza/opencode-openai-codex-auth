@@ -2,7 +2,7 @@
 
 > Access GPT-5 Codex through your ChatGPT Plus/Pro subscription in OpenCode
 
-[![npm version](https://badge.fury.io/js/openhax%2Fcodex.svg)](https://www.npmjs.com/package/openhax/codex)
+[![npm version](https://badge.fury.io/js/%40openhax%2Fcodex.svg)](https://www.npmjs.com/package/@openhax/codex)
 [![Tests](https://github.com/open-hax/codex/actions/workflows/ci.yml/badge.svg)](https://github.com/open-hax/codex/actions)
 
 > **Maintained by the Open Hax team.** Follow the project at [github.com/open-hax/codex](https://github.com/open-hax/codex) for updates and contributions.
@@ -32,6 +32,7 @@ Explore the engineering depth behind this plugin:
 - [Config System](development/CONFIG_FLOW.md) - How configuration loading and merging works
 - [Config Fields](development/CONFIG_FIELDS.md) - Understanding config keys, `id`, and `name` fields
 - [Testing Guide](development/TESTING.md) - Test scenarios, integration testing, verification matrix
+- [CI & Release Automation](development/ci.md) - Secrets, mutation runs, and automatic publishing
 
 ---
 
@@ -56,7 +57,7 @@ opencode auth login
 
 To get the latest version:
 ```bash
-(cd ~ && sed -i.bak '/"openhax\/codex"/d' .cache/opencode/package.json && rm -rf .cache/opencode/node_modules/openhax/codex)
+(cd ~ && sed -i.bak '/"@openhax\/codex"/d' .cache/opencode/package.json && rm -rf .cache/opencode/node_modules/@openhax/codex)
 opencode  # Reinstalls latest
 ```
 
@@ -65,7 +66,7 @@ opencode  # Reinstalls latest
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["openhax/codex"],
+  "plugin": ["@openhax/codex"],
   "model": "openai/gpt-5-codex"
 }
 ```

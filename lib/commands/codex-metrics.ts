@@ -134,11 +134,31 @@ function createStaticResponse(
 ): Response {
   const outputTokens = estimateTokenCount(text);
   const commandName = metadata.command;
+  const responseId = `resp_cmd_${randomUUID()}`;
+  const messageId = `msg_cmd_${randomUUID()}`;
+  const created = Math.floor(Date.now() / 1000);
+  const resolvedModel = model || "gpt-5";
+
+  const assistantMessage = {
+    id: messageId,
+    type: "message",
+    role: "assistant",
+    content: [
+      {
+        type: "output_text",
+        text,
+      },
+    ],
+    metadata: {
+      source: commandName,
+    },
+  };
+
   const responsePayload = {
-    id: `resp_cmd_${randomUUID()}`,
+    id: responseId,
     object: "response",
-    created: Math.floor(Date.now() / 1000),
-    model: model || "gpt-5",
+    created,
+    model: resolvedModel,
     status: "completed",
     usage: {
       input_tokens: 0,
@@ -146,26 +166,53 @@ function createStaticResponse(
       reasoning_tokens: 0,
       total_tokens: outputTokens,
     },
-    output: [
-      {
-        id: `msg_cmd_${randomUUID()}`,
-        type: "message",
-        role: "assistant",
-        content: [
-          {
-            type: "output_text",
-            text,
-          },
-        ],
-        metadata: {
-          source: commandName,
-        },
-      },
-    ],
+    output: [assistantMessage],
     metadata,
   };
 
-  const stream = createSsePayload(responsePayload);
+  // Emit the same SSE event sequence that OpenAI's Responses API uses so CLI validators pass.
+  const events: Record<string, unknown>[] = [
+    {
+      id: responseId,
+      type: "response.created",
+      response: {
+        id: responseId,
+        object: "response",
+        created,
+        model: resolvedModel,
+        status: "in_progress",
+      },
+    },
+    {
+      id: responseId,
+      type: "response.output_text.delta",
+      response_id: responseId,
+      output_index: 0,
+      item_id: messageId,
+      delta: text,
+    },
+    {
+      id: responseId,
+      type: "response.output_item.added",
+      response_id: responseId,
+      output_index: 0,
+      item: assistantMessage,
+    },
+    {
+      id: responseId,
+      type: "response.output_item.done",
+      response_id: responseId,
+      output_index: 0,
+      item: assistantMessage,
+    },
+    {
+      id: responseId,
+      type: "response.completed",
+      response: responsePayload,
+    },
+  ];
+
+  const stream = createSsePayload(events);
   return new Response(stream, {
     status: 200,
     headers: {
@@ -176,10 +223,10 @@ function createStaticResponse(
   });
 }
 
-function createSsePayload(payload: Record<string, unknown>): string {
-  const dataLine = `data: ${JSON.stringify(payload)}\n\n`;
+function createSsePayload(events: Array<Record<string, unknown>>): string {
+  const chunks = events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
   const doneLine = `data: [DONE]\n\n`;
-  return dataLine + doneLine;
+  return chunks + doneLine;
 }
 
 function extractLatestUserText(body: RequestBody): string | null {
