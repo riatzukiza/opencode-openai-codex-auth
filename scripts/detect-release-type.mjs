@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -96,94 +96,45 @@ function parseArgs(argv) {
 	return result;
 }
 
-function extractAssistantText(response) {
-	const output = Array.isArray(response.output) ? response.output : [];
-	for (const item of output) {
-		if (!item || item.type !== "message" || item.role !== "assistant") {
-			continue;
-		}
-		const parts = Array.isArray(item.content) ? item.content : [];
-		return parts
-			.map((part) => {
-				if (!part || typeof part !== "object") return "";
-				if (part.type === "output_text" && typeof part.text === "string") {
-					return part.text;
-				}
-				if (part.type === "input_text" && typeof part.text === "string") {
-					return part.text;
-				}
-				if ("text" in part && typeof part.text === "string") {
-					return part.text;
-				}
-				return "";
-			})
-			.filter(Boolean)
-			.join("\n")
+function parseJsonFromCliOutput(raw) {
+	let text = (raw || "").trim();
+	if (!text) {
+		throw new Error("Empty analyzer response from opencode CLI");
+	}
+	if (text.startsWith("```")) {
+		text = text
+			.replace(/^```(?:json)?\s*/i, "")
+			.replace(/```$/, "")
 			.trim();
 	}
-	return "";
-}
-
-async function callOpencodeModel(systemPrompt, userPrompt) {
-	const apiKey = process.env.OPENCODE_API_KEY;
-	if (!apiKey) {
-		throw new Error("OPENCODE_API_KEY is not configured");
-	}
-	const url = process.env.OPENCODE_API_URL || "https://opencode.ai/zen/v1/responses";
-	const schema = {
-		name: "release_version",
-		schema: {
-			type: "object",
-			additionalProperties: false,
-			properties: {
-				releaseType: { type: "string", enum: ["major", "minor", "patch"] },
-				reasoning: { type: "string" },
-				highlights: {
-					type: "array",
-					items: { type: "string" },
-					default: [],
-				},
-				breakingChanges: {
-					type: "array",
-					items: { type: "string" },
-					default: [],
-				},
-			},
-			required: ["releaseType", "reasoning"],
-		},
-	};
-	const body = {
-		model: "opencode/gpt-5-nano",
-		response_format: { type: "json_schema", json_schema: schema },
-		input: [
-			{
-				role: "system",
-				content: [{ type: "input_text", text: systemPrompt }],
-			},
-			{
-				role: "user",
-				content: [{ type: "input_text", text: userPrompt }],
-			},
-		],
-	};
-	const response = await fetch(url, {
-		method: "POST",
-		headers: {
-			Authorization: `Bearer ${apiKey}`,
-			"Content-Type": "application/json",
-		},
-		body: JSON.stringify(body),
-	});
-	if (!response.ok) {
-		const errorBody = await response.text().catch(() => "");
-		throw new Error(`Opencode request failed: ${response.status} ${response.statusText} ${errorBody}`);
-	}
-	const data = await response.json();
-	const text = extractAssistantText(data);
-	if (!text) {
-		throw new Error("Empty assistant response from opencode analyzer");
+	const firstBrace = text.indexOf("{");
+	const lastBrace = text.lastIndexOf("}");
+	if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+		text = text.slice(firstBrace, lastBrace + 1);
 	}
 	return JSON.parse(text);
+}
+
+function runOpencodeAnalyzer(systemPrompt, userPrompt) {
+	const schemaReminder = [
+		"Respond ONLY with JSON having the shape:",
+		'{"releaseType":"major|minor|patch","reasoning":"string","highlights":["string"],"breakingChanges":["string"]}',
+		"No markdown, no commentary.",
+	].join(" ");
+	const prompt = `${systemPrompt.trim()}\n\n${userPrompt.trim()}\n\n${schemaReminder}`;
+	try {
+		const output = execFileSync("opencode", ["run", "-m", "opencode/gpt-5-nano", prompt], {
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "pipe"],
+		});
+		return parseJsonFromCliOutput(output);
+	} catch (error) {
+		const stderr = error?.stderr?.toString?.()?.trim();
+		const stdout = error?.stdout?.toString?.()?.trim();
+		const details = [stderr, stdout].filter(Boolean).join(" | ");
+		const message = details ? `${error.message}: ${details}` : error.message;
+		throw new Error(`Opencode CLI failed: ${message}`);
+	}
 }
 
 function formatReleaseNotes(result) {
@@ -205,7 +156,7 @@ function formatReleaseNotes(result) {
 	return lines.join("\n").trim();
 }
 
-async function main() {
+function main() {
 	const args = parseArgs(process.argv.slice(2));
 	const baseRef = getBaseRef();
 	const headRef = getHeadRef();
@@ -236,7 +187,7 @@ async function main() {
 	};
 	let analysis;
 	try {
-		analysis = await callOpencodeModel(systemPrompt, userPrompt);
+		analysis = runOpencodeAnalyzer(systemPrompt, userPrompt);
 	} catch (error) {
 		console.error(`[release] Falling back to patch bump: ${error.message}`);
 		analysis = fallback;
@@ -272,4 +223,4 @@ async function main() {
 	console.log(JSON.stringify(result, null, 2));
 }
 
-await main();
+main();
