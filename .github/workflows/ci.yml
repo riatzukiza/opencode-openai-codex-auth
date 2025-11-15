@@ -106,12 +106,11 @@ jobs:
     needs:
       - lint
       - test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'chore: release v') }}
     permissions:
       contents: write
     env:
-      OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-      OPENCODE_API_URL: ${{ secrets.OPENCODE_API_URL }}
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - name: Checkout
@@ -132,70 +131,53 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Install OpenCode CLI
-        run: |
-          npm install -g opencode-ai@latest
-          NPM_PREFIX="$(npm config get prefix)"
-          echo "${NPM_PREFIX}/bin" >> "$GITHUB_PATH"
-          opencode --version
-
-
+ 
       - name: Validate release secrets
         run: |
           if [ -z "$NPM_TOKEN" ]; then
             echo "NPM_TOKEN secret is required to publish" >&2
             exit 1
           fi
-          if [ -z "$OPENCODE_API_KEY" ]; then
-            echo "OPENCODE_API_KEY secret is required to classify releases" >&2
+ 
+      - name: Configure npm auth
+
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+ 
+      - name: Read release metadata
+        id: release_meta
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [ -z "$VERSION" ]; then
+            echo "Unable to read package version" >&2
             exit 1
           fi
-
-
-      - name: Analyze repository for release
-        id: analyze
-        run: |
-          node scripts/detect-release-type.mjs --output release-analysis.json
-          echo "release_type=$(jq -r '.releaseType' release-analysis.json)" >> "$GITHUB_OUTPUT"
-          echo "next_version=$(jq -r '.nextVersion' release-analysis.json)" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          NOTES_FILE=release-notes.txt
+          git tag -l --format='%(contents)' "v$VERSION" > "$NOTES_FILE"
+          if [ ! -s "$NOTES_FILE" ]; then
+            echo "Release notes missing from tag v$VERSION" >&2
+            exit 1
+          fi
           NOTES_DELIM="NOTES_$(date +%s)_$RANDOM"
           {
             echo "notes<<${NOTES_DELIM}"
-            jq -r '.releaseNotes' release-analysis.json
+            cat "$NOTES_FILE"
             echo "${NOTES_DELIM}"
           } >> "$GITHUB_OUTPUT"
-
-      - name: Remove analyzer scratch file
-        run: rm -f release-analysis.json
-
-      - name: Configure git user
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Configure npm auth
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
-
-      - name: Bump version and tag
-        run: pnpm version ${{ steps.analyze.outputs.next_version }}
-
+ 
       - name: Build package
         run: pnpm run build
-
+ 
       - name: Publish to npm
         env:
           NODE_AUTH_TOKEN: ${{ env.NPM_TOKEN }}
         run: pnpm publish --access public
-
-      - name: Push changes
-        run: |
-          git push origin HEAD:main --follow-tags
-
+ 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.analyze.outputs.next_version }}
-          name: Release ${{ steps.analyze.outputs.next_version }}
-          body: ${{ steps.analyze.outputs.notes }}
+          tag_name: v${{ steps.release_meta.outputs.version }}
+          name: Release ${{ steps.release_meta.outputs.version }}
+          body: ${{ steps.release_meta.outputs.notes }}
+
