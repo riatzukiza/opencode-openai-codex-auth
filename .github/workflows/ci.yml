@@ -140,6 +140,7 @@ jobs:
           echo "${NPM_PREFIX}/bin" >> "$GITHUB_PATH"
           opencode --version
 
+
       - name: Validate release secrets
         run: |
           if [ -z "$NPM_TOKEN" ]; then
