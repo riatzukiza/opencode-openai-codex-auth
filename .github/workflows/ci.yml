@@ -137,9 +137,9 @@ jobs:
             echo "NPM_TOKEN secret is required to publish" >&2
             exit 1
           fi
-
-
+ 
       - name: Configure npm auth
+
         run: |
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
  
