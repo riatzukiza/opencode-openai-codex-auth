@@ -9,13 +9,19 @@ Our single workflow (`.github/workflows/ci.yml`) now owns every automated qualit
 | `lint` | every push + PR | Installs dependencies with pnpm, runs `pnpm lint` (Biome) and `pnpm typecheck` (TS strict mode) |
 | `test` | every push + PR (Node 20.x + 22.x) | Executes `pnpm test` and `pnpm run build` to catch regressions on both supported runtimes |
 | `mutation` | pull requests targeting `main` | Runs `pnpm test:mutation` (Stryker). HTML/JSON reports are uploaded even on failure for review |
-| `release` | push events on `main` (after lint+test pass) | Calls the Opencode-powered analyzer, bumps the semver via `pnpm version <x.y.z>`, publishes to npm, and creates a GitHub Release |
+| `staging-release-prep` | whenever a PR into `staging` merges | Runs the analyzer, bumps `package.json` / `pnpm-lock.yaml`, creates an annotated tag with release notes, and (for `hotfix` PRs) fast-forwards `main` |
+| `release` | push events on `main` whose head commit is `chore: release v*` | Builds/publishes the package using the annotated tag produced on `staging`, then creates the matching GitHub Release |
 
 ### Release Flow Recap
-1. A merge into `main` triggers the workflow.
-2. The analyzer (`scripts/detect-release-type.mjs`) gathers commits since the last tag, calls `opencode/gpt-5-nano`, and emits structured JSON (release type, reasoning, highlights, breaking changes, Markdown notes). This script now shells out to the OpenCode CLI, so the workflow installs `opencode` globally (`npm install -g opencode`) before invoking it.
-3. `pnpm version <nextVersion>` bumps `package.json` / `pnpm-lock.yaml` and creates the git tag expected by npm + GitHub Releases.
-4. The job pushes the commit + tag, runs `pnpm run build`, publishes to npm, and then uses `softprops/action-gh-release` so the GitHub release body matches the analyzer output.
+1. Feature branches merge into `staging`. That event triggers `staging-release-prep`, which runs the analyzer, commits `chore: release v*`, and creates an annotated tag containing the release notes. Hotfix PRs (label `hotfix`) automatically fast-forward `main` at the end of that workflow.
+2. For normal deployments, maintainers open a `staging → main` PR. The merge must be a fast-forward so the pre-tagged release commit lands on `main` unchanged.
+3. When the release commit hits `main`, the `release` job reads the version from `package.json`, loads the release notes from the `v*` tag annotation, builds the package, publishes to npm, and mirrors the tag contents into a GitHub Release.
+
+### Staging vs. Main Rules
+- **All feature work → staging**: open PRs from topic branches into `staging`. Every merge creates a new release commit/tag.
+- **Main only tracks deployments**: the only merges into `main` come from `staging` (or the hotfix auto-promotion). Keep them fast-forward so tags remain attached to the same commit IDs.
+- **Hotfix fast path**: add the `hotfix` label to the PR before merging into `staging`. The prep workflow will fast-forward `main` and trigger an immediate publish.
+- **One release per deployment**: avoid queuing multiple release commits on `staging` without merging to `main`; otherwise only the latest tag will be published when the deployment finally happens.
 
 ## Required Secrets
 
@@ -27,10 +33,10 @@ Automation token used for publishing. Create one from the npm web UI:
 2. Choose **Generate New Token → Automation**.
 3. Copy the token value and add it as the `NPM_TOKEN` repository secret.
 
-GitHub Actions writes the token into `~/.npmrc` before running `pnpm publish --access public`.
+GitHub Actions writes the token into `~/.npmrc` before running `pnpm publish --access public`. The `release` job is the only workflow that consumes this secret.
 
 ### `OPENCODE_API_KEY`
-API key for calling Opencode's Responses endpoint with the `opencode/gpt-5-nano` model. Generate a key with the OpenCode CLI:
+Used exclusively by `staging-release-prep` when it runs `scripts/detect-release-type.mjs` on the `staging` branch. Generate a key with the OpenCode CLI:
 ```bash
 # Create a long-lived key for CI usage
 opencode auth token create --label "ci-release" --scopes responses.create
@@ -84,11 +90,11 @@ cat release-analysis.json
 Environment variables (e.g., `RELEASE_BASE_REF`) behave exactly like they do in CI.
 
 ## Troubleshooting
-- **Analyzer falls back to patch:** the script logs the precise reason to stderr. Check that `OPENCODE_API_KEY` is valid, the model endpoint is reachable, and that the OpenCode CLI is installed/accessible (`opencode --version`).
+- **Analyzer falls back to patch (staging prep):** the script logs the precise reason to stderr. Check that `OPENCODE_API_KEY` is valid, the model endpoint is reachable, and that the OpenCode CLI is installed/accessible (`opencode --version`).
 - **npm publish fails (403):** confirm the `NPM_TOKEN` secret exists, has automation scope, and the account owns the `@openhax/codex` package.
 - **Mutation job is slow:** it intentionally runs only for PRs targeting `main`. Local developers can reproduce with `pnpm test:mutation` before pushing.
 
 ## References
-- Workflow: `.github/workflows/ci.yml`
+- Workflows: `.github/workflows/ci.yml`, `.github/workflows/staging-release-prep.yml`
 - Analyzer: `scripts/detect-release-type.mjs`
 - Lint config: `biome.json`
