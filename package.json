@@ -31,6 +31,7 @@
     "build": "tsc && cp lib/oauth-success.html dist/lib/",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
+    "cache:clear": "node -e \"const { join } = require('node:path'); const { homedir } = require('node:os'); const { existsSync, rmSync } = require('node:fs'); const cacheDir = join(homedir(), '.opencode', 'cache'); const files = ['codex-instructions.md','codex-instructions-meta.json','opencode-codex.txt','opencode-codex-meta.json']; if (!existsSync(cacheDir)) { console.log('No cache directory found at ' + cacheDir); process.exit(0); } let removed = 0; let skipped = 0; for (const file of files) { const filePath = join(cacheDir, file); if (existsSync(filePath)) { try { rmSync(filePath, { force: true }); removed++; console.log('Removed ' + filePath); } catch (error) { console.error('Failed to remove ' + filePath + ': ' + (error && error.message ? error.message : String(error))); process.exitCode = 1; } } else { skipped++; } } console.log('Cache clear complete: ' + removed + ' removed, ' + skipped + ' already missing.');\"",
     "sync:secrets": "node scripts/sync-github-secrets.mjs",
     "test": "vitest run",
     "test:watch": "vitest",

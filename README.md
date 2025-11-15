@@ -625,6 +625,22 @@ This plugin respects the same rate limits enforced by OpenAI's official Codex CL
 - **ChatGPT Plus or Pro subscription** (required)
 - **OpenCode** installed ([opencode.ai](https://opencode.ai))
 
+## Updating & Clearing Caches
+
+OpenCode caches plugins under `~/.cache/opencode` and stores Codex-specific assets (prompt-warm files, instruction caches, logs) under `~/.opencode`. When this plugin ships a new release, clear both locations so OpenCode reinstalls the latest bits and the warmed prompts align with the new version.
+
+1. **Remove the cached plugin copy (required for every upgrade):**
+   ```bash
+   (cd ~ && sed -i.bak '/"@openhax\/codex"/d' .cache/opencode/package.json && rm -rf .cache/opencode/node_modules/@openhax/codex)
+   ```
+   Then restart OpenCode (`opencode`) so it reinstalls `@openhax/codex`.
+2. **Reset warmed prompts & analyzer caches (optional but recommended when behavior drifts):**
+   ```bash
+   rm -rf ~/.opencode/cache/
+   rm -rf ~/.opencode/logs/codex-plugin/
+   ```
+   Removing `~/.opencode/cache` forces the plugin to refetch Codex instructions and prompt metadata; clearing the log directory removes old request captures that might contain stale secrets. See [docs/privacy.md](https://open-hax.github.io/codex/privacy) for the full list of files stored under `~/.opencode`.
+
 ## Troubleshooting
 
 **Common Issues:**
@@ -636,6 +652,7 @@ This plugin respects the same rate limits enforced by OpenAI's official Codex CL
 **Full troubleshooting guide**: [docs/troubleshooting.md](https://open-hax.github.io/codex/troubleshooting)
 
 ## Debug Mode
+
 
 Enable detailed logging:
 
