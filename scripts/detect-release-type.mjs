@@ -129,7 +129,7 @@ async function callOpencodeModel(systemPrompt, userPrompt) {
 	if (!apiKey) {
 		throw new Error("OPENCODE_API_KEY is not configured");
 	}
-	const url = process.env.OPENCODE_API_URL || "https://api.openai.com/v1/responses";
+	const url = process.env.OPENCODE_API_URL || "https://opencode.ai/zen/v1/responses";
 	const schema = {
 		name: "release_version",
 		schema: {
