@@ -132,9 +132,17 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Validate release secrets
+ 
+      - name: Install OpenCode CLI
         run: |
+          npm install -g opencode
+          NPM_PREFIX="$(npm config get prefix)"
+          echo "${NPM_PREFIX}/bin" >> "$GITHUB_PATH"
+          opencode --version
+ 
+       - name: Validate release secrets
+        run: |
+
           if [ -z "$NPM_TOKEN" ]; then
             echo "NPM_TOKEN secret is required to publish" >&2
             exit 1
@@ -150,10 +158,11 @@ jobs:
           node scripts/detect-release-type.mjs --output release-analysis.json
           echo "release_type=$(jq -r '.releaseType' release-analysis.json)" >> "$GITHUB_OUTPUT"
           echo "next_version=$(jq -r '.nextVersion' release-analysis.json)" >> "$GITHUB_OUTPUT"
+          NOTES_DELIM="NOTES_$(date +%s)_$RANDOM"
           {
-            echo "notes<<'EOF'"
+            echo "notes<<${NOTES_DELIM}"
             jq -r '.releaseNotes' release-analysis.json
-            echo "EOF"
+            echo "${NOTES_DELIM}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Remove analyzer scratch file

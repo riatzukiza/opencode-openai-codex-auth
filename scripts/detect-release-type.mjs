@@ -129,6 +129,11 @@ function runOpencodeAnalyzer(systemPrompt, userPrompt) {
 		});
 		return parseJsonFromCliOutput(output);
 	} catch (error) {
+		if (error?.code === "ENOENT") {
+			throw new Error(
+				"Opencode CLI not found in PATH. Install it (e.g., npm install -g opencode) before running the release analyzer.",
+			);
+		}
 		const stderr = error?.stderr?.toString?.()?.trim();
 		const stdout = error?.stdout?.toString?.()?.trim();
 		const details = [stderr, stdout].filter(Boolean).join(" | ");

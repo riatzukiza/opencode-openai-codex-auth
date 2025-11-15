@@ -13,7 +13,7 @@ Our single workflow (`.github/workflows/ci.yml`) now owns every automated qualit
 
 ### Release Flow Recap
 1. A merge into `main` triggers the workflow.
-2. The analyzer (`scripts/detect-release-type.mjs`) gathers commits since the last tag, calls `opencode/gpt-5-nano`, and emits structured JSON (release type, reasoning, highlights, breaking changes, Markdown notes).
+2. The analyzer (`scripts/detect-release-type.mjs`) gathers commits since the last tag, calls `opencode/gpt-5-nano`, and emits structured JSON (release type, reasoning, highlights, breaking changes, Markdown notes). This script now shells out to the OpenCode CLI, so the workflow installs `opencode` globally (`npm install -g opencode`) before invoking it.
 3. `pnpm version <nextVersion>` bumps `package.json` / `pnpm-lock.yaml` and creates the git tag expected by npm + GitHub Releases.
 4. The job pushes the commit + tag, runs `pnpm run build`, publishes to npm, and then uses `softprops/action-gh-release` so the GitHub release body matches the analyzer output.
 
@@ -84,7 +84,7 @@ cat release-analysis.json
 Environment variables (e.g., `RELEASE_BASE_REF`) behave exactly like they do in CI.
 
 ## Troubleshooting
-- **Analyzer falls back to patch:** the script logs the precise reason to stderr. Check that `OPENCODE_API_KEY` is valid and the model endpoint is reachable.
+- **Analyzer falls back to patch:** the script logs the precise reason to stderr. Check that `OPENCODE_API_KEY` is valid, the model endpoint is reachable, and that the OpenCode CLI is installed/accessible (`opencode --version`).
 - **npm publish fails (403):** confirm the `NPM_TOKEN` secret exists, has automation scope, and the account owns the `@openhax/codex` package.
 - **Mutation job is slow:** it intentionally runs only for PRs targeting `main`. Local developers can reproduce with `pnpm test:mutation` before pushing.
 
