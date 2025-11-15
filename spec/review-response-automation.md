@@ -37,7 +37,7 @@
   - Checkout PR head (fetch-depth 0).
   - Setup Node 22.
   - Install pnpm + dependencies if needed? (only Node + script).
-  - Install OpenCode CLI via official install script.
+  - Install OpenCode CLI via `npm install -g opencode` (and add the npm global bin dir to `PATH`).
   - Run context script; capture outputs.
   - Execute `opencode run --agent review-response --model opencode/big-pickle --file review-context.md "Follow the instructions in review-context.md"` with env `OPENCODE_API_KEY` and `GITHUB_TOKEN`.
   - If git diff exists, create branch `review/comment-${{ steps.context.outputs.comment_id }}` (append timestamp if collision), commit with message referencing comment + PR, push, and `gh pr create --base base_ref --head branch --title ... --body ...` (GH_TOKEN env). Ensure job gracefully exits if no changes.

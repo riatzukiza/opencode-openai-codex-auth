@@ -36,14 +36,14 @@ API key for calling Opencode's Responses endpoint with the `opencode/gpt-5-nano`
 opencode auth token create --label "ci-release" --scopes responses.create
 # Copy the token and store it as the OPENCODE_API_KEY secret
 ```
-If you run a self-hosted Opencode endpoint, also add `OPENCODE_API_URL` (optional) to override the default `https://api.openai.com/v1/responses` base URL.
+If you run a self-hosted Opencode endpoint, also add `OPENCODE_API_URL` (optional) to override the default `https://opencode.ai/zen/v1/responses` base URL.
 
 ### Optional overrides
 - `RELEASE_BASE_REF`: force the analyzer to diff from a specific tag/commit (useful when backporting release branches).
 
 ## Branch protection
 - `main` requires pull requests for all changes; direct pushes and force pushes are disabled.
-- Required status checks: `lint`, `test (node-version: 20.x)`, and `test (node-version: 22.x)` must pass before the merge button unlocks. (Type checking runs inside the `lint` job.)
+- Required status checks: `Lint & Typecheck`, `Test (20.x)`, and `Test (22.x)` must pass before the merge button unlocks. These names mirror the workflow job `name` fields, so keep them in sync whenever CI definitions change. (Type checking runs inside the `Lint & Typecheck` job.)
 - No human approvals are required right now—the PR gate exists for automated reviewers and CI visibility.
 - Branches must be up to date with `main` before merging because strict status checks are enabled.
 

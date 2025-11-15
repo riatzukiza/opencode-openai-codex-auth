@@ -3,7 +3,7 @@
 ## Summary
 - Expand `.github/workflows/ci.yml:1-59` so testing and linting jobs run on every push (any branch) and every PR, add a dedicated mutation-testing job for PRs to `main`, and gate a release job so it only executes after successful pushes to `main`.
 - Introduce a lint workflow powered by Biome (add `@biomejs/biome` + `"lint": "biome check ."` in `package.json:30-38` and a project-level `biome.json` config) so the GitHub Action can run `pnpm lint` deterministically.
-- Create an `opencode`-powered release analysis tool (`scripts/detect-release-type.mjs`) that summarizes commits since the last tag, calls `https://api.openai.com/v1/responses` with `model: "opencode/gpt-5-nano"`, and emits structured JSON describing breaking changes + release type so the workflow can pick `major|minor|patch` intelligently.
+- Create an `opencode`-powered release analysis tool (`scripts/detect-release-type.mjs`) that summarizes commits since the last tag, calls `https://opencode.ai/zen/v1/responses` with `model: "opencode/gpt-5-nano"`, and emits structured JSON describing breaking changes + release type so the workflow can pick `major|minor|patch` intelligently.
 - Build a release job that (1) runs the analyzer, (2) bumps the version via `pnpm version <next>` (letting Git create a tag), (3) publishes to npm using `NPM_TOKEN`, and (4) creates a GitHub Release whose notes embed the analyzer’s output.
 - Document CI secrets and npm token setup in a new `docs/development/ci.md`, covering how to set `NPM_TOKEN`, `OPENCODE_API_KEY`, and any optional overrides for the analyzer.
 
@@ -20,7 +20,7 @@
 - Create `biome.json` with project conventions for lint + formatting.
 - Author `scripts/detect-release-type.mjs` that:
   - Discovers the previous tag (fallback: root commit) and collects `git log --no-merges` plus `git diff --stat` summaries.
-  - Builds a structured prompt and calls `https://api.openai.com/v1/responses` with `model: "opencode/gpt-5-nano"` using `OPENCODE_API_KEY`.
+  - Builds a structured prompt and calls `https://opencode.ai/zen/v1/responses` with `model: "opencode/gpt-5-nano"` using `OPENCODE_API_KEY`.
   - Parses the assistant message (JSON block), falls back to `patch` if parsing fails, computes the next semver, and writes `{ releaseType, nextVersion, summary, breakingChanges }` to stdout/file.
 
 ### Phase 2 – Workflow Updates
