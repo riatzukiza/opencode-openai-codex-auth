@@ -106,8 +106,7 @@ jobs:
           else
             git commit -m "$COMMIT_MSG"
           fi
-          printf "%s
-" "${{ steps.analyze.outputs.notes }}" > release-notes.md
+          printf "%s\n" "${{ steps.analyze.outputs.notes }}" > release-notes.md
           git tag -a "v$NEXT_VERSION" -F release-notes.md
 
       - name: Push staging release commit and tag
