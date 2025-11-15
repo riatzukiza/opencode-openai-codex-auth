@@ -19,7 +19,7 @@ Our single workflow (`.github/workflows/ci.yml`) now owns every automated qualit
 
 ### Staging vs. Main Rules
 - **All feature work → staging**: open PRs from topic branches into `staging`. Every merge creates a new release commit/tag.
-- **Main only tracks deployments**: the only merges into `main` come from `staging` (or the hotfix auto-promotion). Keep them fast-forward so tags remain attached to the same commit IDs.
+- **Main only tracks deployments**: the only merges into `main` come from `staging` (or the hotfix auto-promotion). Keep them fast-forward so tags remain attached to the same commit IDs. A `main-merge-guard` workflow enforces this by failing any PR to `main` whose head branch is not `staging`.
 - **Hotfix fast path**: add the `hotfix` label to the PR before merging into `staging`. The prep workflow will fast-forward `main` and trigger an immediate publish.
 - **One release per deployment**: avoid queuing multiple release commits on `staging` without merging to `main`; otherwise only the latest tag will be published when the deployment finally happens.
 
