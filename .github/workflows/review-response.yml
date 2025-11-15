@@ -9,7 +9,7 @@ jobs:
     env:
       REVIEW_RESPONDER_WHITELIST: coderabbitai,riatzukiza
       OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-    if: contains(env.REVIEW_RESPONDER_WHITELIST, github.event.comment.user.login)
+    if: contains(env.REVIEW_RESPONDER_WHITELIST, github.event.comment.user.login) || github.event.comment.author_association == 'OWNER' || github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'COLLABORATOR'
     runs-on: ubuntu-latest
     permissions:
       contents: write

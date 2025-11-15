@@ -13,11 +13,11 @@ Issue #10 reports that `.github/workflows/review-response.yml` filters out bot c
 
 ## Plan
 1. Introduce a small script or inline step to check whether `github.event.comment.user.login` is in a `MAINTAINERS` list. Simplest approach: store a comma-separated list in an env var and use a shell condition in the job `if`.
-2. Update the job condition to call an expression (or set an output) that returns true when login matches `coderabbitai` or a maintainer.
+2. Update the job condition to call an expression (or set an output) that returns true when login matches `coderabbitai`, a maintainer, **or** when GitHub flags the author as a repo collaborator/owner/member via `github.event.comment.author_association`.
 3. Update `spec/review-response-bot-filter.md` with the new rule.
 4. (Optional) Document the maintainer list in `docs/`.
 
 ## Definition of Done
-- Workflow triggers for CodeRabbit comments and maintainer logins while skipping strangers.
+- Workflow triggers for CodeRabbit comments, maintainer logins, and GitHub users with `author_association` of OWNER/MEMBER/COLLABORATOR while skipping strangers.
 - Maintainer list is easy to update.
 - Spec updated; PR references issue #10.
