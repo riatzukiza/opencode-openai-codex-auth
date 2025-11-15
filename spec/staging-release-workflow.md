@@ -41,14 +41,14 @@ We want releases to flow through `staging` before reaching `main`:
   7. If the merged PR carried the `hotfix` label, set an output `hotfix=true`.
   8. Upload the analyzer notes as an artifact for the deploy workflow (optional).
 
-### 2. `hotfix-auto-merge.yml` (optional new workflow)
-- **Trigger**: `workflow_run` from `staging-bump.yml` when `hotfix=true`.
+### 2. `hotfix-auto-merge` (inlined fast-forward)
+- **Trigger**: same workflow, executed after the bump/tag step when `hotfix=true`.
 - **Steps**:
   1. Ensure `staging` is ahead of `main` by exactly one release commit.
   2. Fast-forward `main` to `staging` (`git fetch origin`, `git checkout main`, `git merge --ff-only origin/staging`).
   3. Push `main`.
   4. Optionally comment on the PR indicating an automatic release occurred.
-  - Alternative: create a PR `hotfix/<version>` → `main`, auto-approve & merge.
+  - Alternative: split this into a dedicated workflow if we ever need additional approvals.
 
 ### 3. Existing `release` job adjustments
 - Narrow trigger to `push` on `main` **only when** the commit message starts with `chore: release v` (use `if: startsWith(github.event.head_commit.message, 'chore: release v')`).
