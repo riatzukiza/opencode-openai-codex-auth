@@ -133,6 +133,7 @@ jobs:
  
       - name: Validate release secrets
         run: |
+
           if [ -z "$NPM_TOKEN" ]; then
             echo "NPM_TOKEN secret is required to publish" >&2
             exit 1
