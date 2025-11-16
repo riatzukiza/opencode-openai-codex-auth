@@ -9,8 +9,10 @@ import { refreshAccessToken } from "../auth/auth.js";
 import { logRequest, logError } from "../logger.js";
 import { transformRequestBody } from "./request-transformer.js";
 import { convertSseToJson, ensureContentType } from "./response-handler.js";
-import type { UserConfig, RequestBody, SessionContext } from "../types.js";
+import type { UserConfig, RequestBody, SessionContext, PluginConfig, InputItem } from "../types.js";
 import { SessionManager } from "../session/session-manager.js";
+import { detectCompactionCommand } from "../compaction/codex-compaction.js";
+import type { CompactionDecision } from "../compaction/compaction-executor.js";
 import {
 	PLUGIN_NAME,
 	HTTP_STATUS,
@@ -88,6 +90,17 @@ export function extractRequestUrl(input: Request | string | URL): string {
 	return input.url;
 }
 
+function cloneInput(items: InputItem[] | undefined): InputItem[] {
+	if (!Array.isArray(items) || items.length === 0) {
+		return [];
+	}
+	const globalClone = (globalThis as { structuredClone?: <T>(value: T) => T }).structuredClone;
+	if (typeof globalClone === "function") {
+		return items.map((item) => globalClone(item));
+	}
+	return items.map((item) => JSON.parse(JSON.stringify(item)) as InputItem);
+}
+
 /**
  * Rewrites OpenAI API URLs to Codex backend URLs
  * @param url - Original URL
@@ -113,13 +126,34 @@ export async function transformRequestForCodex(
 	userConfig: UserConfig,
 	codexMode = true,
 	sessionManager?: SessionManager,
-): Promise<{ body: RequestBody; updatedInit: RequestInit; sessionContext?: SessionContext } | undefined> {
+	pluginConfig?: PluginConfig,
+): Promise<
+	| {
+			body: RequestBody;
+			updatedInit: RequestInit;
+			sessionContext?: SessionContext;
+			compactionDecision?: CompactionDecision;
+	  }
+	| undefined
+> {
 	if (!init?.body) return undefined;
 
 	try {
 		const body = JSON.parse(init.body as string) as RequestBody;
 		const originalModel = body.model;
+		const originalInput = cloneInput(body.input);
+		const compactionEnabled = pluginConfig?.enableCodexCompaction !== false;
+		const compactionSettings = {
+			enabled: compactionEnabled,
+			autoLimitTokens: pluginConfig?.autoCompactTokenLimit,
+			autoMinMessages: pluginConfig?.autoCompactMinMessages ?? 8,
+		};
+		const manualCommand = compactionEnabled ? detectCompactionCommand(originalInput) : null;
+
 		const sessionContext = sessionManager?.getContext(body);
+		if (!manualCommand) {
+			sessionManager?.applyCompactedHistory?.(body, sessionContext);
+		}
 
 		// Log original request
 		logRequest(LOG_STAGES.BEFORE_TRANSFORM, {
@@ -134,33 +168,41 @@ export async function transformRequestForCodex(
 		});
 
 		// Transform request body
-		const transformedBody = await transformRequestBody(
+		const transformResult = await transformRequestBody(
 			body,
 			codexInstructions,
 			userConfig,
 			codexMode,
-			{ preserveIds: sessionContext?.preserveIds },
+			{
+				preserveIds: sessionContext?.preserveIds,
+				compaction: {
+					settings: compactionSettings,
+					commandText: manualCommand,
+					originalInput,
+				},
+			},
 		);
-		const appliedContext = sessionManager?.applyRequest(transformedBody, sessionContext) ?? sessionContext;
+		const appliedContext = sessionManager?.applyRequest(transformResult.body, sessionContext) ?? sessionContext;
 
 		// Log transformed request
 		logRequest(LOG_STAGES.AFTER_TRANSFORM, {
 			url,
 			originalModel,
-			normalizedModel: transformedBody.model,
-			hasTools: !!transformedBody.tools,
-			hasInput: !!transformedBody.input,
-			inputLength: transformedBody.input?.length,
-			reasoning: transformedBody.reasoning as unknown,
-			textVerbosity: transformedBody.text?.verbosity,
-			include: transformedBody.include,
-			body: transformedBody as unknown as Record<string, unknown>,
+			normalizedModel: transformResult.body.model,
+			hasTools: !!transformResult.body.tools,
+			hasInput: !!transformResult.body.input,
+			inputLength: transformResult.body.input?.length,
+			reasoning: transformResult.body.reasoning as unknown,
+			textVerbosity: transformResult.body.text?.verbosity,
+			include: transformResult.body.include,
+			body: transformResult.body as unknown as Record<string, unknown>,
 		});
 
 		return {
-			body: transformedBody,
-			updatedInit: { ...init, body: JSON.stringify(transformedBody) },
+			body: transformResult.body,
+			updatedInit: { ...init, body: JSON.stringify(transformResult.body) },
 			sessionContext: appliedContext,
+			compactionDecision: transformResult.compactionDecision,
 		};
 	} catch (e) {
 		logError(ERROR_MESSAGES.REQUEST_PARSE_ERROR, {

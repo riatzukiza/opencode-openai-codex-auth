@@ -16,6 +16,22 @@ export interface PluginConfig {
 	 * @default true
 	 */
 	enablePromptCaching?: boolean;
+
+	/**
+	 * Enable Codex-style compaction commands inside the plugin
+	 * @default true
+	 */
+	enableCodexCompaction?: boolean;
+
+	/**
+	 * Optional auto-compaction token limit (approximate tokens)
+	 */
+	autoCompactTokenLimit?: number;
+
+	/**
+	 * Minimum number of conversation messages before auto-compacting
+	 */
+	autoCompactMinMessages?: number;
 }
 
 /**
@@ -173,6 +189,8 @@ export interface SessionState {
 	lastUpdated: number;
 	lastCachedTokens?: number;
 	bridgeInjected?: boolean; // Track whether Codex-OpenCode bridge prompt was added
+	compactionBaseSystem?: InputItem[];
+	compactionSummaryItem?: InputItem;
 }
 
 /**

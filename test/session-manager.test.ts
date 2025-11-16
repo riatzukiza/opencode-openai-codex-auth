@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { SessionManager, SESSION_IDLE_TTL_MS, SESSION_MAX_ENTRIES } from '../lib/session/session-manager.js';
-import type { RequestBody, SessionContext } from '../lib/types.js';
+import type { RequestBody, SessionContext, InputItem } from '../lib/types.js';
 
 function createBody(conversationId: string, inputCount = 1): RequestBody {
 	return {
@@ -175,5 +175,28 @@ describe('SessionManager', () => {
 		const metrics = manager.getMetrics(SESSION_MAX_ENTRIES + 10);
 		expect(metrics.totalSessions).toBe(SESSION_MAX_ENTRIES);
 		expect(metrics.recentSessions.length).toBeLessThanOrEqual(SESSION_MAX_ENTRIES);
+	});
+
+	it('applies compacted history when summary stored', () => {
+		const manager = new SessionManager({ enabled: true });
+		const body = createBody('conv-compaction');
+		let context = manager.getContext(body) as SessionContext;
+		context = manager.applyRequest(body, context) as SessionContext;
+
+		const systemMessage: InputItem = { type: 'message', role: 'system', content: 'env' };
+		manager.applyCompactionSummary(context, {
+			baseSystem: [systemMessage],
+			summary: 'Auto-compaction summary',
+		});
+
+		const nextBody = createBody('conv-compaction');
+		nextBody.input = [{ type: 'message', role: 'user', content: 'new task' }];
+		manager.applyCompactedHistory(nextBody, context);
+
+		expect(nextBody.input).toHaveLength(3);
+		expect(nextBody.input?.[0].role).toBe('system');
+		expect(nextBody.input?.[1].role).toBe('user');
+		expect(nextBody.input?.[1].content).toContain('Auto-compaction summary');
+		expect(nextBody.input?.[2].content).toBe('new task');
 	});
 });

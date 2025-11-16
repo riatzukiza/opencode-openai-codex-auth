@@ -44,6 +44,19 @@ function computeHash(items: InputItem[]): string {
 		.digest("hex");
 }
 
+function extractLatestUserSlice(items: InputItem[] | undefined): InputItem[] {
+	if (!Array.isArray(items) || items.length === 0) {
+		return [];
+	}
+	for (let index = items.length - 1; index >= 0; index -= 1) {
+		const item = items[index];
+		if (item?.role === "user") {
+			return cloneInput(items.slice(index));
+		}
+	}
+	return [];
+}
+
 function sharesPrefix(previous: InputItem[], current: InputItem[]): boolean {
 	if (previous.length === 0) {
 		return true;
@@ -255,6 +268,38 @@ export class SessionManager {
 		state.lastUpdated = Date.now();
 
 		return context;
+	}
+
+	public applyCompactionSummary(
+		context: SessionContext | undefined,
+		payload: { baseSystem: InputItem[]; summary: string },
+	): void {
+		if (!context?.enabled) return;
+		const state = context.state;
+		state.compactionBaseSystem = cloneInput(payload.baseSystem);
+		state.compactionSummaryItem = cloneValue<InputItem>({
+			type: "message",
+			role: "user",
+			content: payload.summary,
+		});
+	}
+
+	public applyCompactedHistory(
+		body: RequestBody,
+		context: SessionContext | undefined,
+		opts?: { skip?: boolean },
+	): void {
+		if (!context?.enabled || opts?.skip) {
+			return;
+		}
+		const baseSystem = context.state.compactionBaseSystem;
+		const summary = context.state.compactionSummaryItem;
+		if (!baseSystem || !summary) {
+			return;
+		}
+		const tail = extractLatestUserSlice(body.input);
+		const merged = [...cloneInput(baseSystem), cloneValue(summary), ...tail];
+		body.input = merged;
 	}
 
 	public recordResponse(

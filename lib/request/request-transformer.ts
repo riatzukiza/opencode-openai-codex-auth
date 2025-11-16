@@ -3,6 +3,13 @@ import { TOOL_REMAP_MESSAGE } from "../prompts/codex.js";
 import { createHash, randomUUID } from "node:crypto";
 import { CODEX_OPENCODE_BRIDGE } from "../prompts/codex-opencode-bridge.js";
 import { getOpenCodeCodexPrompt } from "../prompts/opencode-codex.js";
+import {
+	approximateTokenCount,
+	buildCompactionPromptItems,
+	collectSystemMessages,
+	serializeConversation,
+} from "../compaction/codex-compaction.js";
+import type { CompactionDecision } from "../compaction/compaction-executor.js";
 import { 
 	generateInputHash, 
 	generateContentHash,
@@ -560,35 +567,101 @@ export async function filterOpenCodeSystemPrompts(
 
 	// Heuristic detector for OpenCode auto-compaction prompts that instruct
 	// saving/reading a conversation summary from a file path.
+	const compactionInstructionPatterns: RegExp[] = [
+		/(summary[ _-]?file)/i,
+		/(summary[ _-]?path)/i,
+		/summary\s+(?:has\s+been\s+)?saved\s+(?:to|at)/i,
+		/summary\s+(?:is\s+)?stored\s+(?:in|at|to)/i,
+		/summary\s+(?:is\s+)?available\s+(?:at|in)/i,
+		/write\s+(?:the\s+)?summary\s+(?:to|into)/i,
+		/save\s+(?:the\s+)?summary\s+(?:to|into)/i,
+		/open\s+(?:the\s+)?summary/i,
+		/read\s+(?:the\s+)?summary/i,
+		/cat\s+(?:the\s+)?summary/i,
+		/view\s+(?:the\s+)?summary/i,
+		/~\/\.opencode/i,
+		/\.opencode\/.*summary/i,
+	];
+
+	const getCompactionText = (it: InputItem): string => {
+		if (typeof it.content === "string") return it.content;
+		if (Array.isArray(it.content)) {
+			return it.content
+				.filter((c: any) => c && c.type === "input_text" && c.text)
+				.map((c: any) => c.text)
+				.join("\n");
+		}
+		return "";
+	};
+
+	const matchesCompactionInstruction = (value: string): boolean =>
+		compactionInstructionPatterns.some((pattern) => pattern.test(value));
+
+	const sanitizeOpenCodeCompactionPrompt = (item: InputItem): InputItem | null => {
+		const text = getCompactionText(item);
+		if (!text) return null;
+		const sanitizedText = text
+			.split(/\r?\n/)
+			.map((line) => line.trimEnd())
+			.filter((line) => {
+				const trimmed = line.trim();
+				if (!trimmed) {
+					return true;
+				}
+				return !matchesCompactionInstruction(trimmed);
+			})
+			.join("\n")
+			.replace(/\n{3,}/g, "\n\n")
+			.trim();
+		if (!sanitizedText) {
+			return null;
+		}
+		const originalMentionedCompaction = /\bauto[-\s]?compaction\b/i.test(text);
+		let finalText = sanitizedText;
+		if (originalMentionedCompaction && !/\bauto[-\s]?compaction\b/i.test(finalText)) {
+			finalText = `Auto-compaction summary\n\n${finalText}`;
+		}
+		return {
+			...item,
+			content: finalText,
+		};
+	};
+
 	const isOpenCodeCompactionPrompt = (item: InputItem): boolean => {
 		const isSystemRole = item.role === "developer" || item.role === "system";
 		if (!isSystemRole) return false;
-		const getText = (it: InputItem): string => {
-			if (typeof it.content === "string") return it.content;
-			if (Array.isArray(it.content)) {
-				return it.content
-					.filter((c: any) => c && c.type === "input_text" && c.text)
-					.map((c: any) => c.text)
-					.join("\n");
-			}
-			return "";
-		};
-		const text = getText(item).toLowerCase();
+		const text = getCompactionText(item);
 		if (!text) return false;
 		const hasCompaction = /\b(auto[-\s]?compaction|compaction|compact)\b/i.test(text);
 		const hasSummary = /\b(summary|summarize|summarise)\b/i.test(text);
-		const mentionsFile = /(summary[ _-]?file|summary[ _-]?path|write (the )?summary|save (the )?summary)/i.test(text);
-		return hasCompaction && hasSummary && mentionsFile;
+		return hasCompaction && hasSummary && matchesCompactionInstruction(text);
 	};
 
-	return input.filter((item) => {
+	const filteredInput: InputItem[] = [];
+	for (const item of input) {
 		// Keep user messages
-		if (item.role === "user") return true;
-		// Filter out OpenCode system and compaction prompts
-		if (isOpenCodeSystemPrompt(item, cachedPrompt)) return false;
-		if (isOpenCodeCompactionPrompt(item)) return false;
-		return true;
-	});
+		if (item.role === "user") {
+			filteredInput.push(item);
+			continue;
+		}
+
+		// Filter out OpenCode system prompts entirely
+		if (isOpenCodeSystemPrompt(item, cachedPrompt)) {
+			continue;
+		}
+
+		if (isOpenCodeCompactionPrompt(item)) {
+			const sanitized = sanitizeOpenCodeCompactionPrompt(item);
+			if (sanitized) {
+				filteredInput.push(sanitized);
+			}
+			continue;
+		}
+
+		filteredInput.push(item);
+	}
+
+	return filteredInput;
 }
 
 /**
@@ -715,6 +788,71 @@ export function addToolRemapMessage(
 	return [toolRemapMessage, ...input];
 }
 
+function maybeBuildCompactionPrompt(
+	originalInput: InputItem[],
+	commandText: string | null,
+	settings: { enabled: boolean; autoLimitTokens?: number; autoMinMessages?: number },
+): { items: InputItem[]; decision: CompactionDecision } | null {
+	if (!settings.enabled) {
+		return null;
+	}
+	const conversationSource = commandText
+		? removeLastUserMessage(originalInput)
+		: cloneConversationItems(originalInput);
+	const turnCount = countConversationTurns(conversationSource);
+	let trigger: "command" | "auto" | null = null;
+	let reason: string | undefined;
+	let approxTokens: number | undefined;
+
+	if (commandText) {
+		trigger = "command";
+	} else if (settings.autoLimitTokens && settings.autoLimitTokens > 0) {
+		approxTokens = approximateTokenCount(conversationSource);
+		const minMessages = settings.autoMinMessages ?? 8;
+		if (approxTokens >= settings.autoLimitTokens && turnCount >= minMessages) {
+			trigger = "auto";
+			reason = `~${approxTokens} tokens >= limit ${settings.autoLimitTokens}`;
+		}
+	}
+
+	if (!trigger) {
+		return null;
+	}
+
+	const serialization = serializeConversation(conversationSource);
+	const promptItems = buildCompactionPromptItems(serialization.transcript);
+
+	return {
+		items: promptItems,
+		decision: {
+			mode: trigger,
+			reason,
+			approxTokens,
+			preservedSystem: collectSystemMessages(originalInput),
+			serialization,
+		},
+	};
+}
+
+function cloneConversationItems(items: InputItem[]): InputItem[] {
+	return items.map((item) => cloneInputItem(item));
+}
+
+function removeLastUserMessage(items: InputItem[]): InputItem[] {
+	const cloned = cloneConversationItems(items);
+	for (let index = cloned.length - 1; index >= 0; index -= 1) {
+		if (cloned[index]?.role === "user") {
+			cloned.splice(index, 1);
+			break;
+		}
+	}
+	return cloned;
+}
+
+function countConversationTurns(items: InputItem[]): number {
+	return items.filter((item) => item.role === "user" || item.role === "assistant").length;
+}
+
 const PROMPT_CACHE_METADATA_KEYS = [
 	"conversation_id",
 	"conversationId",
@@ -813,26 +951,54 @@ function ensurePromptCacheKey(body: RequestBody): PromptCacheKeyResult {
  * - opencode sets textVerbosity="low" for gpt-5, but Codex CLI uses "medium"
  * - opencode excludes gpt-5-codex from reasoning configuration
  * - This plugin uses store=false (stateless), requiring encrypted reasoning content
- *
- * @param body - Original request body
- * @param codexInstructions - Codex system instructions
- * @param userConfig - User configuration from loader
- * @param codexMode - Enable CODEX_MODE (bridge prompt instead of tool remap) - defaults to true
- * @param options - Options including preserveIds flag
- * @param sessionContext - Optional session context for bridge tracking
- * @returns Transformed request body
  */
+interface TransformRequestOptions {
+	preserveIds?: boolean;
+	compaction?: {
+		settings: {
+			enabled: boolean;
+			autoLimitTokens?: number;
+			autoMinMessages?: number;
+		};
+		commandText: string | null;
+		originalInput: InputItem[];
+	};
+}
+
+interface TransformResult {
+	body: RequestBody;
+	compactionDecision?: CompactionDecision;
+}
+
 export async function transformRequestBody(
 	body: RequestBody,
 	codexInstructions: string,
 	userConfig: UserConfig = { global: {}, models: {} },
 	codexMode = true,
-	options: { preserveIds?: boolean } = {},
+	options: TransformRequestOptions = {},
 	sessionContext?: SessionContext,
-): Promise<RequestBody> {
+): Promise<TransformResult> {
 	const originalModel = body.model;
 	const normalizedModel = normalizeModel(body.model);
 	const preserveIds = options.preserveIds ?? false;
+
+	let compactionDecision: CompactionDecision | undefined;
+	const compactionOptions = options.compaction;
+	if (compactionOptions?.settings.enabled) {
+		const compactionBuild = maybeBuildCompactionPrompt(
+			compactionOptions.originalInput,
+			compactionOptions.commandText,
+			compactionOptions.settings,
+		);
+		if (compactionBuild) {
+			body.input = compactionBuild.items;
+			delete (body as any).tools;
+			delete (body as any).tool_choice;
+			delete (body as any).parallel_tool_calls;
+			compactionDecision = compactionBuild.decision;
+		}
+	}
+	const skipConversationTransforms = Boolean(compactionDecision);
 
 	// Get model-specific configuration using ORIGINAL model name (config key)
 	// This allows per-model options like "gpt-5-codex-low" to work correctly
@@ -878,7 +1044,11 @@ export async function transformRequestBody(
 
 	// Tool behavior parity with Codex CLI (normalize shapes)
 	let hasNormalizedTools = false;
-	if (body.tools) {
+	if (skipConversationTransforms) {
+		delete (body as any).tools;
+		delete (body as any).tool_choice;
+		delete (body as any).parallel_tool_calls;
+	} else if (body.tools) {
 		const normalizedTools = normalizeToolsForResponses(body.tools);
 		if (normalizedTools && normalizedTools.length > 0) {
 			(body as any).tools = normalizedTools;
@@ -889,7 +1059,6 @@ export async function transformRequestBody(
 			(body as any).parallel_tool_calls = !codexParallelDisabled;
 			hasNormalizedTools = true;
 		} else {
-			// Ensure empty objects don't count as tools and don't leak to backend
 			delete (body as any).tools;
 			delete (body as any).tool_choice;
 			delete (body as any).parallel_tool_calls;
@@ -897,7 +1066,7 @@ export async function transformRequestBody(
 	}
 
 	// Filter and transform input
-	if (body.input && Array.isArray(body.input)) {
+	if (body.input && Array.isArray(body.input) && !skipConversationTransforms) {
 		// Debug: Log original input message IDs before filtering
 		const originalIds = body.input
 			.filter((item) => item.id)
@@ -956,5 +1125,5 @@ export async function transformRequestBody(
 	body.max_output_tokens = undefined;
 	body.max_completion_tokens = undefined;
 
-	return body;
+	return { body, compactionDecision };
 }

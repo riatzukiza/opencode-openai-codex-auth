@@ -18,16 +18,16 @@ test/
 
 ```bash
 # Run all tests once
-npm test
+pnpm test
 
 # Watch mode (re-run on file changes)
-npm run test:watch
+pnpm run test:watch
 
 # Visual test UI
-npm run test:ui
+pnpm run test:ui
 
 # Generate coverage report
-npm run test:coverage
+pnpm run test:coverage
 ```
 
 ## Test Coverage

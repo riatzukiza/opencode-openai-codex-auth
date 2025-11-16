@@ -253,7 +253,7 @@ describe('Fetch Helpers Module', () => {
 		it('transforms request body and returns updated init', async () => {
 			const body = { model: 'gpt-5', tools: [], input: [{ type: 'message', role: 'user', content: 'hello' }] };
 			const transformed = { ...body, model: 'gpt-5-codex', include: ['reasoning.encrypted_content'] };
-			transformRequestBodyMock.mockResolvedValue(transformed);
+			transformRequestBodyMock.mockResolvedValue({ body: transformed });
 			const sessionContext = { sessionId: 'session-1', preserveIds: true, enabled: true };
 			const appliedContext = { ...sessionContext, isNew: false };
 			const sessionManager = {
@@ -261,6 +261,7 @@ describe('Fetch Helpers Module', () => {
 				applyRequest: vi.fn().mockReturnValue(appliedContext),
 			};
 
+			const pluginConfig = { enableCodexCompaction: false };
 			const result = await transformRequestForCodex(
 				{ body: JSON.stringify(body) },
 				'https://chatgpt.com/backend-api/codex/responses',
@@ -268,15 +269,15 @@ describe('Fetch Helpers Module', () => {
 				{ global: {}, models: {} },
 				true,
 				sessionManager as never,
+				pluginConfig as any,
 			);
 
-			expect(transformRequestBodyMock).toHaveBeenCalledWith(
-				body,
-				'instructions',
-				{ global: {}, models: {} },
-				true,
-				{ preserveIds: true },
-			);
+			expect(transformRequestBodyMock).toHaveBeenCalledTimes(1);
+			const [passedBody, passedInstructions, passedUserConfig, passedCodexMode, optionsArg] =
+				transformRequestBodyMock.mock.calls[0];
+
+			expect(Array.isArray(optionsArg?.compaction?.originalInput)).toBe(true);
+
 			expect(result?.body).toEqual(transformed);
 			expect(result?.updatedInit.body).toBe(JSON.stringify(transformed));
 		});

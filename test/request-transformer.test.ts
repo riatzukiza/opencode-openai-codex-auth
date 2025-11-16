@@ -12,6 +12,18 @@ import {
 } from '../lib/request/request-transformer.js';
 import type { RequestBody, UserConfig, InputItem } from '../lib/types.js';
 
+async function runTransform(
+	body: RequestBody,
+	codexInstructions: string,
+	userConfig?: UserConfig,
+	codexMode = true,
+	options?: Record<string, unknown>,
+	sessionContext?: any,
+) {
+	const result = await transformRequestBody(body, codexInstructions, userConfig, codexMode, options, sessionContext);
+	return result.body;
+}
+
 describe('normalizeModel', () => {
 	it('should normalize gpt-5', async () => {
 		expect(normalizeModel('gpt-5')).toBe('gpt-5');
@@ -578,10 +590,98 @@ describe('filterOpenCodeSystemPrompts', () => {
 		expect(result![1].role).toBe('user');
 	});
 
+	it('should preserve auto-compaction summaries but drop file instructions', async () => {
+		const input: InputItem[] = [
+			{
+				type: 'message',
+				role: 'developer',
+				content: [
+					{ type: 'input_text', text: 'Auto-compaction summary saved to ~/.opencode/summaries/session.md' },
+					{ type: 'input_text', text: '- Built caching layer and refreshed metrics.' },
+					{ type: 'input_text', text: 'Open the summary file for the full log.' },
+				],
+			},
+			{ type: 'message', role: 'user', content: 'hello' },
+		];
+		const result = await filterOpenCodeSystemPrompts(input);
+		expect(result).toHaveLength(2);
+		const summary = result![0];
+		expect(summary.role).toBe('developer');
+		expect(typeof summary.content).toBe('string');
+		const summaryText = summary.content as string;
+		expect(summaryText).toContain('Auto-compaction summary');
+		expect(summaryText).toContain('Built caching layer');
+		expect(summaryText).not.toContain('~/.opencode');
+		expect(summaryText).not.toContain('summary file');
+	});
+
+	it('should drop compaction prompts that only reference summary files', async () => {
+		const input: InputItem[] = [
+			{
+				type: 'message',
+				role: 'developer',
+				content: 'Auto-compaction triggered. Write the summary to summary_file.',
+			},
+			{ type: 'message', role: 'user', content: 'hello' },
+		];
+		const result = await filterOpenCodeSystemPrompts(input);
+		expect(result).toHaveLength(1);
+		expect(result![0].role).toBe('user');
+	});
+
 	it('should return undefined for undefined input', async () => {
 		expect(await filterOpenCodeSystemPrompts(undefined)).toBeUndefined();
 	});
 });
+
+describe('compaction integration', () => {
+		const instructions = 'Codex instructions';
+
+		it('rewrites input when manual codex-compact command is present', async () => {
+			const body: RequestBody = {
+				model: 'gpt-5',
+				input: [
+					{ type: 'message', role: 'developer', content: 'AGENTS' },
+					{ type: 'message', role: 'user', content: 'Do work' },
+					{ type: 'message', role: 'user', content: '/codex-compact' },
+				],
+			};
+			const original = body.input!.map((item) => JSON.parse(JSON.stringify(item)));
+			const result = await transformRequestBody(body, instructions, undefined, true, {
+				compaction: {
+					settings: { enabled: true, autoLimitTokens: undefined, autoMinMessages: 8 },
+					commandText: 'codex-compact',
+					originalInput: original,
+				},
+			});
+
+			expect(result.compactionDecision?.mode).toBe('command');
+			expect(result.body.input).toHaveLength(2);
+			expect(result.body.tools).toBeUndefined();
+		});
+
+		it('auto-compacts when token limit exceeded', async () => {
+			const longUser = 'lorem ipsum '.repeat(200);
+			const body: RequestBody = {
+				model: 'gpt-5',
+				input: [
+					{ type: 'message', role: 'user', content: longUser },
+					{ type: 'message', role: 'assistant', content: 'ack' },
+				],
+			};
+			const original = body.input!.map((item) => JSON.parse(JSON.stringify(item)));
+			const result = await transformRequestBody(body, instructions, undefined, true, {
+				compaction: {
+					settings: { enabled: true, autoLimitTokens: 10, autoMinMessages: 1 },
+					commandText: null,
+					originalInput: original,
+				},
+			});
+
+			expect(result.compactionDecision?.mode).toBe('auto');
+			expect(result.body.input).toHaveLength(2);
+		});
+	});
 
 describe('addCodexBridgeMessage', () => {
 	it('should prepend bridge message when tools present', async () => {
@@ -609,7 +709,7 @@ describe('addCodexBridgeMessage', () => {
 	});
 });
 
-describe('transformRequestBody', () => {
+describe('runTransform', () => {
 	const codexInstructions = 'Test Codex Instructions';
 
 	it('preserves existing prompt_cache_key passed by host (OpenCode)', async () => {
@@ -620,7 +720,7 @@ describe('transformRequestBody', () => {
 			// host-provided field is allowed by plugin
 			prompt_cache_key: 'ses_host_key_123',
 		};
-		const result: any = await transformRequestBody(body, codexInstructions);
+		const result: any = await runTransform(body, codexInstructions);
 		expect(result.prompt_cache_key).toBe('ses_host_key_123');
 	});
 
@@ -630,7 +730,7 @@ describe('transformRequestBody', () => {
 			input: [],
 			promptCacheKey: 'ses_camel_key_456',
 		};
-		const result: any = await transformRequestBody(body, codexInstructions);
+		const result: any = await runTransform(body, codexInstructions);
 		expect(result.prompt_cache_key).toBe('ses_camel_key_456');
 	});
 
@@ -640,7 +740,7 @@ describe('transformRequestBody', () => {
 			input: [],
 			metadata: { conversation_id: 'meta-conv-123' },
 		};
-		const result: any = await transformRequestBody(body, codexInstructions);
+		const result: any = await runTransform(body, codexInstructions);
 		expect(result.prompt_cache_key).toBe('meta-conv-123');
 	});
 
@@ -650,7 +750,7 @@ describe('transformRequestBody', () => {
 			input: [],
 			metadata: { conversation_id: 'meta-conv-123', forkId: 'branch-1' },
 		};
-		const result: any = await transformRequestBody(body, codexInstructions);
+		const result: any = await runTransform(body, codexInstructions);
 		expect(result.prompt_cache_key).toBe('meta-conv-123::fork::branch-1');
 	});
 
@@ -661,7 +761,7 @@ describe('transformRequestBody', () => {
 			metadata: { conversation_id: 'meta-conv-123' },
 			forkId: 'branch-2' as any,
 		} as any;
-		const result: any = await transformRequestBody(body, codexInstructions);
+		const result: any = await runTransform(body, codexInstructions);
 		expect(result.prompt_cache_key).toBe('meta-conv-123::fork::branch-2');
 	});
 
@@ -682,8 +782,8 @@ describe('transformRequestBody', () => {
 			text: { verbosity: 'high' } as any,
 		};
 
-		const result1: any = await transformRequestBody(body1, codexInstructions);
-		const result2: any = await transformRequestBody(body2, codexInstructions);
+		const result1: any = await runTransform(body1, codexInstructions);
+		const result2: any = await runTransform(body2, codexInstructions);
 
 		expect(result1.prompt_cache_key).toBe('meta-conv-789::fork::fork-x');
 		expect(result2.prompt_cache_key).toBe('meta-conv-789::fork::fork-x');
@@ -694,7 +794,7 @@ describe('transformRequestBody', () => {
 			model: 'gpt-5',
 			input: [],
 		};
-		const result: any = await transformRequestBody(body, codexInstructions);
+		const result: any = await runTransform(body, codexInstructions);
 		expect(typeof result.prompt_cache_key).toBe('string');
 		expect(result.prompt_cache_key).toMatch(/^cache_/);
 	});
@@ -704,7 +804,7 @@ describe('transformRequestBody', () => {
 			model: 'gpt-5',
 			input: [],
 		};
-		const result = await transformRequestBody(body, codexInstructions);
+		const result = await runTransform(body, codexInstructions);
 
 		expect(result.store).toBe(false);
 		expect(result.stream).toBe(true);
@@ -716,7 +816,7 @@ describe('transformRequestBody', () => {
 			model: 'gpt-5-mini',
 			input: [],
 		};
-		const result = await transformRequestBody(body, codexInstructions);
+		const result = await runTransform(body, codexInstructions);
 		expect(result.model).toBe('gpt-5');
 	});
 
@@ -725,7 +825,7 @@ describe('transformRequestBody', () => {
 			model: 'gpt-5',
 			input: [],
 		};
-		const result = await transformRequestBody(body, codexInstructions);
+		const result = await runTransform(body, codexInstructions);
 
 		expect(result.reasoning?.effort).toBe('medium');
 		expect(result.reasoning?.summary).toBe('auto');
@@ -743,7 +843,7 @@ describe('transformRequestBody', () => {
 			},
 			models: {},
 		};
-		const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
+		const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
 
 		expect(result.reasoning?.effort).toBe('high');
 		expect(result.reasoning?.summary).toBe('detailed');
@@ -754,7 +854,7 @@ describe('transformRequestBody', () => {
 			model: 'gpt-5',
 			input: [],
 		};
-		const result = await transformRequestBody(body, codexInstructions);
+		const result = await runTransform(body, codexInstructions);
 		expect(result.text?.verbosity).toBe('medium');
 	});
 
@@ -767,7 +867,7 @@ describe('transformRequestBody', () => {
 			global: { textVerbosity: 'low' },
 			models: {},
 		};
-		const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
+		const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
 		expect(result.text?.verbosity).toBe('low');
 	});
 
@@ -776,7 +876,7 @@ describe('transformRequestBody', () => {
 			model: 'gpt-5',
 			input: [],
 		};
-		const result = await transformRequestBody(body, codexInstructions);
+		const result = await runTransform(body, codexInstructions);
 		expect(result.include).toEqual(['reasoning.encrypted_content']);
 	});
 
@@ -789,7 +889,7 @@ describe('transformRequestBody', () => {
 			global: { include: ['custom_field', 'reasoning.encrypted_content'] },
 			models: {},
 		};
-		const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
+		const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
 		expect(result.include).toEqual(['custom_field', 'reasoning.encrypted_content']);
 	});
 
@@ -801,7 +901,7 @@ describe('transformRequestBody', () => {
 				{ type: 'message', role: 'user', content: 'new' },
 			],
 		};
-		const result = await transformRequestBody(body, codexInstructions);
+		const result = await runTransform(body, codexInstructions);
 
 		// All items kept, IDs removed
 		expect(result.input).toHaveLength(2);
@@ -819,7 +919,7 @@ describe('transformRequestBody', () => {
 				{ id: 'call_1', type: 'function_call', role: 'assistant' },
 			],
 		};
-		const result = await transformRequestBody(body, codexInstructions, undefined, true, { preserveIds: true });
+		const result = await runTransform(body, codexInstructions, undefined, true, { preserveIds: true });
 
 		expect(result.input).toHaveLength(2);
 		expect(result.input?.[0].id).toBe('msg_1');
@@ -833,7 +933,7 @@ describe('transformRequestBody', () => {
 			promptCacheKey: 'camelcase-key',
 			prompt_cache_key: 'snakecase-key',
 		};
-		const result = await transformRequestBody(body, codexInstructions);
+		const result = await runTransform(body, codexInstructions);
 
 		// Should prioritize snake_case over camelCase
 		expect(result.prompt_cache_key).toBe('snakecase-key');
@@ -845,7 +945,7 @@ describe('transformRequestBody', () => {
 			input: [{ type: 'message', role: 'user', content: 'hello' }],
 			tools: [{ name: 'test_tool' }],
 		};
-		const result = await transformRequestBody(body, codexInstructions);
+		const result = await runTransform(body, codexInstructions);
 		expect(result.input![0].role).toBe('developer');
 	});
 
@@ -854,7 +954,7 @@ describe('transformRequestBody', () => {
 			model: 'gpt-5',
 			input: [{ type: 'message', role: 'user', content: 'hello' }],
 		};
-		const result = await transformRequestBody(body, codexInstructions);
+		const result = await runTransform(body, codexInstructions);
 		expect(result.input![0].role).toBe('user');
 	});
 
@@ -865,7 +965,7 @@ describe('transformRequestBody', () => {
 			max_output_tokens: 1000,
 			max_completion_tokens: 2000,
 		};
-		const result = await transformRequestBody(body, codexInstructions);
+		const result = await runTransform(body, codexInstructions);
 		expect(result.max_output_tokens).toBeUndefined();
 		expect(result.max_completion_tokens).toBeUndefined();
 	});
@@ -879,7 +979,7 @@ describe('transformRequestBody', () => {
 			global: { reasoningEffort: 'minimal' },
 			models: {},
 		};
-		const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
+		const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
 		expect(result.reasoning?.effort).toBe('low');
 	});
 
@@ -892,7 +992,7 @@ describe('transformRequestBody', () => {
 			global: { reasoningEffort: 'minimal' },
 			models: {},
 		};
-		const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
+		const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
 		expect(result.reasoning?.effort).toBe('minimal');
 	});
 
@@ -901,7 +1001,7 @@ describe('transformRequestBody', () => {
 			model: 'gpt-5-nano',
 			input: [],
 		};
-		const result = await transformRequestBody(body, codexInstructions);
+		const result = await runTransform(body, codexInstructions);
 		expect(result.reasoning?.effort).toBe('minimal');
 	});
 
@@ -912,7 +1012,7 @@ describe('transformRequestBody', () => {
 				input: [{ type: 'message', role: 'user', content: 'hello' }],
 				tools: [{ name: 'test_tool' }],
 			};
-			const result = await transformRequestBody(body, codexInstructions, undefined, true);
+			const result = await runTransform(body, codexInstructions, undefined, true);
 
 			expect(result.input).toHaveLength(2);
 			expect(result.input![0].role).toBe('developer');
@@ -932,7 +1032,7 @@ describe('transformRequestBody', () => {
 				],
 				tools: [{ name: 'test_tool' }],
 			};
-			const result = await transformRequestBody(body, codexInstructions, undefined, true);
+			const result = await runTransform(body, codexInstructions, undefined, true);
 
 			// Should have bridge message + user message (OpenCode prompt filtered out)
 			expect(result.input).toHaveLength(2);
@@ -946,7 +1046,7 @@ describe('transformRequestBody', () => {
 				model: 'gpt-5',
 				input: [{ type: 'message', role: 'user', content: 'hello' }],
 			};
-			const result = await transformRequestBody(body, codexInstructions, undefined, true);
+			const result = await runTransform(body, codexInstructions, undefined, true);
 
 			expect(result.input).toHaveLength(1);
 			expect(result.input![0].role).toBe('user');
@@ -958,7 +1058,7 @@ describe('transformRequestBody', () => {
 				input: [{ type: 'message', role: 'user', content: 'hello' }],
 				tools: [{ name: 'test_tool' }],
 			};
-			const result = await transformRequestBody(body, codexInstructions, undefined, false);
+			const result = await runTransform(body, codexInstructions, undefined, false);
 
 			expect(result.input).toHaveLength(2);
 			expect(result.input![0].role).toBe('developer');
@@ -978,7 +1078,7 @@ describe('transformRequestBody', () => {
 				],
 				tools: [{ name: 'test_tool' }],
 			};
-			const result = await transformRequestBody(body, codexInstructions, undefined, false);
+			const result = await runTransform(body, codexInstructions, undefined, false);
 
 			// Should have tool remap + opencode prompt + user message
 			expect(result.input).toHaveLength(3);
@@ -995,7 +1095,7 @@ describe('transformRequestBody', () => {
 				tools: [{ name: 'test_tool' }],
 			};
 			// Not passing codexMode parameter - should default to true
-			const result = await transformRequestBody(body, codexInstructions);
+			const result = await runTransform(body, codexInstructions);
 
 			// Should use bridge message (codexMode=true by default)
 			expect(result.input![0].role).toBe('developer');
@@ -1016,7 +1116,7 @@ describe('transformRequestBody', () => {
 					models: {}
 				};
 
-				const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
+				const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
 
 				expect(result.model).toBe('gpt-5-codex');  // Not changed
 				expect(result.reasoning?.effort).toBe('high');  // From global
@@ -1029,7 +1129,7 @@ describe('transformRequestBody', () => {
 					input: []
 				};
 
-				const result = await transformRequestBody(body, codexInstructions);
+				const result = await runTransform(body, codexInstructions);
 
 				expect(result.model).toBe('gpt-5');  // Normalized
 				expect(result.reasoning?.effort).toBe('minimal');  // Lightweight default
@@ -1055,7 +1155,7 @@ describe('transformRequestBody', () => {
 					input: []
 				};
 
-				const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
+				const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
 
 				expect(result.model).toBe('gpt-5-codex');  // Normalized
 				expect(result.reasoning?.effort).toBe('low');  // From per-model
@@ -1068,7 +1168,7 @@ describe('transformRequestBody', () => {
 					input: []
 				};
 
-				const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
+				const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
 
 				expect(result.model).toBe('gpt-5-codex');  // Normalized
 				expect(result.reasoning?.effort).toBe('high');  // From per-model
@@ -1081,7 +1181,7 @@ describe('transformRequestBody', () => {
 					input: []
 				};
 
-				const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
+				const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
 
 				expect(result.model).toBe('gpt-5-codex');  // Not changed
 				expect(result.reasoning?.effort).toBe('medium');  // From global (no per-model)
@@ -1104,7 +1204,7 @@ describe('transformRequestBody', () => {
 					input: []
 				};
 
-				const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
+				const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
 
 				expect(result.model).toBe('gpt-5-codex');  // Normalized
 				expect(result.reasoning?.effort).toBe('low');  // From per-model (old format)
@@ -1128,7 +1228,7 @@ describe('transformRequestBody', () => {
 					input: []
 				};
 
-				const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
+				const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
 
 				expect(result.reasoning?.effort).toBe('low');  // Per-model
 			});
@@ -1139,7 +1239,7 @@ describe('transformRequestBody', () => {
 					input: []
 				};
 
-				const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
+				const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
 
 				expect(result.reasoning?.effort).toBe('medium');  // Global
 			});
@@ -1157,7 +1257,7 @@ describe('transformRequestBody', () => {
 					]
 				};
 
-				const result = await transformRequestBody(body, codexInstructions);
+				const result = await runTransform(body, codexInstructions);
 
 				// All items kept, ALL IDs removed
 				expect(result.input).toHaveLength(4);
@@ -1191,7 +1291,7 @@ describe('transformRequestBody', () => {
 					tools: [{ name: 'edit' }]
 				};
 
-				const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
+				const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
 
 				// Model normalized
 				expect(result.model).toBe('gpt-5-codex');
@@ -1219,7 +1319,7 @@ describe('transformRequestBody', () => {
 				model: 'gpt-5',
 				input: [],
 			};
-			const result = await transformRequestBody(body, codexInstructions);
+			const result = await runTransform(body, codexInstructions);
 			expect(result.input).toEqual([]);
 		});
 
@@ -1228,7 +1328,7 @@ describe('transformRequestBody', () => {
 				model: 'gpt-5',
 				input: null as any,
 			};
-			const result = await transformRequestBody(body, codexInstructions);
+			const result = await runTransform(body, codexInstructions);
 			expect(result.input).toBeNull();
 		});
 
@@ -1237,7 +1337,7 @@ describe('transformRequestBody', () => {
 				model: 'gpt-5',
 				input: undefined as any,
 			};
-			const result = await transformRequestBody(body, codexInstructions);
+			const result = await runTransform(body, codexInstructions);
 			expect(result.input).toBeUndefined();
 		});
 
@@ -1251,7 +1351,7 @@ describe('transformRequestBody', () => {
 					{ not: 'a valid item' } as any,
 				],
 			};
-			const result = await transformRequestBody(body, codexInstructions);
+			const result = await runTransform(body, codexInstructions);
 			expect(result.input).toHaveLength(4);
 		});
 
@@ -1272,7 +1372,7 @@ describe('transformRequestBody', () => {
 					},
 				],
 			};
-			const result = await transformRequestBody(body, codexInstructions);
+			const result = await runTransform(body, codexInstructions);
 			expect(result.input).toHaveLength(1);
 			expect(Array.isArray(result.input![0].content)).toBe(true);
 		});
@@ -1282,7 +1382,7 @@ describe('transformRequestBody', () => {
 				model: 'very-long-model-name-with-gpt-5-codex-and-extra-stuff',
 				input: [],
 			};
-			const result = await transformRequestBody(body, codexInstructions);
+			const result = await runTransform(body, codexInstructions);
 			expect(result.model).toBe('gpt-5-codex');
 		});
 
@@ -1291,7 +1391,7 @@ describe('transformRequestBody', () => {
 				model: 'gpt-5-codex@v1.0#beta',
 				input: [],
 			};
-			const result = await transformRequestBody(body, codexInstructions);
+			const result = await runTransform(body, codexInstructions);
 			expect(result.model).toBe('gpt-5-codex');
 		});
 
@@ -1300,7 +1400,7 @@ describe('transformRequestBody', () => {
 			model: '',
 			input: [],
 		};
-		const result = await transformRequestBody(body, codexInstructions);
+		const result = await runTransform(body, codexInstructions);
 		expect(result.model).toBe('gpt-5.1');
 	});
 
@@ -1314,7 +1414,7 @@ describe('transformRequestBody', () => {
 					summary: null as any,
 				} as any,
 			};
-			const result = await transformRequestBody(body, codexInstructions);
+			const result = await runTransform(body, codexInstructions);
 			// Should override with defaults
 			expect(result.reasoning?.effort).toBe('medium');
 			expect(result.reasoning?.summary).toBe('auto');
@@ -1328,7 +1428,7 @@ describe('transformRequestBody', () => {
 					verbosity: 'invalid' as any,
 				} as any,
 			};
-			const result = await transformRequestBody(body, codexInstructions);
+			const result = await runTransform(body, codexInstructions);
 			// Should override with defaults
 			expect(result.text?.verbosity).toBe('medium');
 		});
@@ -1339,7 +1439,7 @@ describe('transformRequestBody', () => {
 				input: [],
 				include: ['invalid', 'field', null as any, undefined as any],
 			};
-			const result = await transformRequestBody(body, codexInstructions);
+			const result = await runTransform(body, codexInstructions);
 			// Should override with defaults
 			expect(result.include).toEqual(['reasoning.encrypted_content']);
 		});
@@ -1355,7 +1455,7 @@ describe('transformRequestBody', () => {
 				applyRequest: () => null,
 			} as any;
 
-			const result = await transformRequestBody(
+			const result = await runTransform(
 				body, 
 				codexInstructions, 
 				undefined, 
@@ -1379,7 +1479,7 @@ describe('transformRequestBody', () => {
 					'not an object' as any,
 				],
 			};
-			const result = await transformRequestBody(body, codexInstructions);
+			const result = await runTransform(body, codexInstructions);
 			// Should still add bridge message since tools array exists
 			expect(result.input).toHaveLength(2);
 			expect(result.input![0].role).toBe('developer');
@@ -1391,7 +1491,7 @@ describe('transformRequestBody', () => {
 				input: [{ type: 'message', role: 'user', content: 'test' }],
 				tools: [],
 			};
-			const result = await transformRequestBody(body, codexInstructions);
+			const result = await runTransform(body, codexInstructions);
 			// Should not add bridge message for empty tools array
 			expect(result.input).toHaveLength(1);
 			expect(result.input![0].role).toBe('user');
@@ -1407,14 +1507,14 @@ describe('transformRequestBody', () => {
 				nested: { id: 'value' },
 			},
 		};
-		const result1 = await transformRequestBody(body, codexInstructions);
+		const result1 = await runTransform(body, codexInstructions);
 		const firstKey = result1.prompt_cache_key;
 		// Should generate fallback cache key
 		expect(typeof firstKey).toBe('string');
 		expect(firstKey).toMatch(/^cache_/);
 
 		// Second transform of the same body should reuse the existing key
-		const result2 = await transformRequestBody(body, codexInstructions);
+		const result2 = await runTransform(body, codexInstructions);
 		expect(result2.prompt_cache_key).toBe(firstKey);
 	});
 
@@ -1427,7 +1527,7 @@ describe('transformRequestBody', () => {
 					{ type: 'message', role: 'user', content: longContent },
 				],
 			};
-			const result = await transformRequestBody(body, codexInstructions);
+			const result = await runTransform(body, codexInstructions);
 			expect(result.input![0].content).toBe(longContent);
 		});
 
@@ -1439,7 +1539,7 @@ describe('transformRequestBody', () => {
 					{ type: 'message', role: 'user', content: unicodeContent },
 				],
 			};
-			const result = await transformRequestBody(body, codexInstructions);
+			const result = await runTransform(body, codexInstructions);
 			expect(result.input![0].content).toBe(unicodeContent);
 		});
 	});

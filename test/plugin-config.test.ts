@@ -48,7 +48,12 @@ describe('Plugin Configuration', () => {
 
 			const config = loadPluginConfig();
 
-			expect(config).toEqual({ codexMode: true, enablePromptCaching: true });
+			expect(config).toEqual({
+				codexMode: true,
+				enablePromptCaching: true,
+				enableCodexCompaction: true,
+				autoCompactMinMessages: 8,
+			});
 			expect(mockExistsSync).toHaveBeenCalledWith(
 				path.join(os.homedir(), '.opencode', 'openhax-codex-config.json')
 			);
@@ -60,7 +65,12 @@ describe('Plugin Configuration', () => {
 
 			const config = loadPluginConfig();
 
-			expect(config).toEqual({ codexMode: false, enablePromptCaching: true });
+			expect(config).toEqual({
+				codexMode: false,
+				enablePromptCaching: true,
+				enableCodexCompaction: true,
+				autoCompactMinMessages: 8,
+			});
 		});
 
 		it('should merge user config with defaults', () => {
@@ -69,7 +79,12 @@ describe('Plugin Configuration', () => {
 
 			const config = loadPluginConfig();
 
-			expect(config).toEqual({ codexMode: true, enablePromptCaching: true });
+			expect(config).toEqual({
+				codexMode: true,
+				enablePromptCaching: true,
+				enableCodexCompaction: true,
+				autoCompactMinMessages: 8,
+			});
 		});
 
 		it('should handle invalid JSON gracefully', () => {
@@ -79,7 +94,33 @@ describe('Plugin Configuration', () => {
 			const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 			const config = loadPluginConfig();
 
-			expect(config).toEqual({ codexMode: true, enablePromptCaching: true });
+			expect(config).toEqual({
+				codexMode: true,
+				enablePromptCaching: true,
+				enableCodexCompaction: true,
+				autoCompactMinMessages: 8,
+			});
+			consoleSpy.mockRestore();
+		});
+
+		it('should handle file read errors gracefully', () => {
+			mockExistsSync.mockReturnValue(true);
+			mockReadFileSync.mockImplementation(() => {
+				throw new Error('test error');
+			});
+
+			const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			const config = loadPluginConfig();
+
+			expect(config).toEqual({
+				codexMode: true,
+				enablePromptCaching: true,
+				enableCodexCompaction: true,
+				autoCompactMinMessages: 8,
+			});
+			consoleSpy.mockRestore();
+		});
+
 			expect(consoleSpy).toHaveBeenCalled();
 			consoleSpy.mockRestore();
 		});

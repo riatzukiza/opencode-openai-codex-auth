@@ -84,6 +84,12 @@ describe('createCodexFetcher', () => {
 		codexMode: true,
 		sessionManager,
 		codexInstructions: 'instructions',
+		pluginConfig: {
+			codexMode: true,
+			enablePromptCaching: true,
+			enableCodexCompaction: true,
+			autoCompactMinMessages: 8,
+		},
 	});
 
 	it('performs the Codex fetch flow end-to-end', async () => {
@@ -105,6 +111,12 @@ describe('createCodexFetcher', () => {
 			{ global: {}, models: {} },
 			true,
 			sessionManager,
+			{
+				codexMode: true,
+				enablePromptCaching: true,
+				enableCodexCompaction: true,
+				autoCompactMinMessages: 8,
+			},
 		);
 		expect(maybeHandleCodexCommandMock).toHaveBeenCalled();
 		expect(fetchMock).toHaveBeenCalled();

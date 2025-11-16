@@ -2,6 +2,17 @@ import { describe, it, expect } from 'vitest';
 import type { RequestBody, UserConfig } from '../lib/types.js';
 import { transformRequestBody } from '../lib/request/request-transformer.js';
 
+async function runTransform(
+	body: RequestBody,
+	instructions: string,
+	userConfig?: UserConfig,
+	codexMode = true,
+	options?: any,
+) {
+	const result = await transformRequestBody(body, instructions, userConfig, codexMode, options);
+	return result.body;
+}
+
 const codexInstructions = 'Test Codex Instructions';
 
 describe('transformRequestBody - tools normalization', () => {
@@ -12,7 +23,7 @@ describe('transformRequestBody - tools normalization', () => {
 			tools: ['shell', 'apply_patch', 'my_tool'],
 		} as any;
 
-		const result: any = await transformRequestBody(body, codexInstructions);
+		const result: any = await runTransform(body, codexInstructions);
 
 		const tools = result.tools as any[];
 		expect(Array.isArray(tools)).toBe(true);
@@ -66,7 +77,7 @@ describe('transformRequestBody - tools normalization', () => {
 			],
 		} as any;
 
-		const result: any = await transformRequestBody(body, codexInstructions);
+		const result: any = await runTransform(body, codexInstructions);
 		const tools = result.tools as any[];
 
 		expect(tools.map((t) => t.type)).toEqual([
@@ -128,7 +139,7 @@ describe('transformRequestBody - tools normalization', () => {
 			} as any,
 		} as any;
 
-		const result: any = await transformRequestBody(body, codexInstructions, userConfig, true, {
+		const result: any = await runTransform(body, codexInstructions, userConfig, true, {
 			preserveIds: false,
 		});
 
@@ -163,7 +174,7 @@ describe('transformRequestBody - tools normalization', () => {
 			} as any,
 		} as any;
 
-		const result: any = await transformRequestBody(body, codexInstructions);
+		const result: any = await runTransform(body, codexInstructions);
 
 		// All entries were disabled, so tools and related fields should be removed
 		expect(result.tools).toBeUndefined();

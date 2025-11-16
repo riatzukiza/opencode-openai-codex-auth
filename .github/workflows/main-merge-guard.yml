@@ -1,6 +1,7 @@
 name: Main Merge Guard
 
 on:
+  workflow_call:
   pull_request:
     branches:
       - main

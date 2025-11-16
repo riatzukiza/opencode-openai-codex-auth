@@ -12,6 +12,8 @@ const CONFIG_PATH = getOpenCodePath("openhax-codex-config.json");
 const DEFAULT_CONFIG: PluginConfig = {
 	codexMode: true,
 	enablePromptCaching: true,
+	enableCodexCompaction: true,
+	autoCompactMinMessages: 8,
 };
 
 /**
