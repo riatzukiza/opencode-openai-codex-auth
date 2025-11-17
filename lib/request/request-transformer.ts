@@ -864,12 +864,27 @@ const PROMPT_CACHE_METADATA_KEYS = [
 	"chatId",
 ];
 
+const PROMPT_CACHE_FORK_KEYS = [
+	"forkId",
+	"fork_id",
+	"branchId",
+	"branch_id",
+	"parentConversationId",
+	"parent_conversation_id",
+];
+
 type PromptCacheKeySource = "existing" | "metadata" | "generated";
 
 interface PromptCacheKeyResult {
 	key: string;
 	source: PromptCacheKeySource;
 	sourceKey?: string;
+	forkSourceKey?: string;
+	hintKeys?: string[];
+	unusableKeys?: string[];
+	forkHintKeys?: string[];
+	forkUnusableKeys?: string[];
+	fallbackHash?: string;
 }
 
 function extractString(value: unknown): string | undefined {
@@ -880,38 +895,96 @@ function extractString(value: unknown): string | undefined {
 	return trimmed.length > 0 ? trimmed : undefined;
 }
 
-function derivePromptCacheKeyFromBody(body: RequestBody): { value: string; sourceKey: string } | undefined {
+function normalizeCacheKeyBase(base: string): string {
+	const trimmed = base.trim();
+	if (!trimmed) {
+		return `cache_${randomUUID()}`;
+	}
+	const sanitized = trimmed.replace(/\s+/g, "-");
+	return sanitized.startsWith("cache_") ? sanitized : `cache_${sanitized}`;
+}
+
+function normalizeForkSuffix(forkId: string): string {
+	const trimmed = forkId.trim();
+	if (!trimmed) return "fork";
+	return trimmed.replace(/\s+/g, "-");
+}
+
+function derivePromptCacheKeyFromBody(body: RequestBody): {
+	base?: string;
+	sourceKey?: string;
+	hintKeys: string[];
+	unusableKeys: string[];
+	forkId?: string;
+	forkSourceKey?: string;
+	forkHintKeys: string[];
+	forkUnusableKeys: string[];
+} {
 	const metadata = body.metadata as Record<string, unknown> | undefined;
 	const root = body as Record<string, unknown>;
 
-	const getForkIdentifier = (): string | undefined => {
-		// Prefer metadata over root, and support both camelCase and snake_case
-		return (
-			extractString(metadata?.forkId) ||
-			extractString(metadata?.fork_id) ||
-			extractString(metadata?.branchId) ||
-			extractString(metadata?.branch_id) ||
-			extractString(root.forkId) ||
-			extractString(root.fork_id) ||
-			extractString(root.branchId) ||
-			extractString(root.branch_id)
-		);
-	};
-
-	const forkId = getForkIdentifier();
+	const hintKeys: string[] = [];
+	const unusableKeys: string[] = [];
+	let base: string | undefined;
+	let sourceKey: string | undefined;
 
 	for (const key of PROMPT_CACHE_METADATA_KEYS) {
-		const base = extractString(metadata?.[key]) ?? extractString(root[key]);
-		if (base) {
-			const value = forkId ? `${base}::fork::${forkId}` : base;
-			return { value, sourceKey: key };
+		const raw = metadata?.[key] ?? root[key];
+		if (raw !== undefined) {
+			hintKeys.push(key);
+		}
+		const value = extractString(raw);
+		if (value) {
+			base = value;
+			sourceKey = key;
+			break;
+		}
+		if (raw !== undefined) {
+			unusableKeys.push(key);
 		}
 	}
-	return undefined;
+
+	const forkHintKeys: string[] = [];
+	const forkUnusableKeys: string[] = [];
+	let forkId: string | undefined;
+	let forkSourceKey: string | undefined;
+
+	for (const key of PROMPT_CACHE_FORK_KEYS) {
+		const raw = metadata?.[key] ?? root[key];
+		if (raw !== undefined) {
+			forkHintKeys.push(key);
+		}
+		const value = extractString(raw);
+		if (value) {
+			forkId = value;
+			forkSourceKey = key;
+			break;
+		}
+		if (raw !== undefined) {
+			forkUnusableKeys.push(key);
+		}
+	}
+
+	return {
+		base,
+		sourceKey,
+		hintKeys,
+		unusableKeys,
+		forkId,
+		forkSourceKey,
+		forkHintKeys,
+		forkUnusableKeys,
+	};
 }
 
-function generatePromptCacheKey(): string {
-	return `cache_${randomUUID()}`;
+function computeFallbackHashForBody(body: RequestBody): string {
+	const inputSlice = Array.isArray(body.input) ? body.input.slice(0, 3) : undefined;
+	const seed = stableStringify({
+		model: typeof body.model === "string" ? body.model : undefined,
+		metadata: body.metadata,
+		input: inputSlice,
+	});
+	return createHash("sha1").update(seed).digest("hex").slice(0, 12);
 }
 
 function ensurePromptCacheKey(body: RequestBody): PromptCacheKeyResult {
@@ -931,17 +1004,35 @@ function ensurePromptCacheKey(body: RequestBody): PromptCacheKeyResult {
 	}
 
 	const derived = derivePromptCacheKeyFromBody(body);
-	if (derived) {
-		const sanitized = extractString(derived.value) ?? generatePromptCacheKey();
-		body.prompt_cache_key = sanitized;
+	if (derived.base) {
+		const baseKey = normalizeCacheKeyBase(derived.base);
+		const suffix = derived.forkId ? `-fork-${normalizeForkSuffix(derived.forkId)}` : "";
+		const finalKey = `${baseKey}${suffix}`;
+		body.prompt_cache_key = finalKey;
 		// Don't set camelCase field for derived keys - only snake_case for Codex
-		return { key: sanitized, source: "metadata", sourceKey: derived.sourceKey };
+		return {
+			key: finalKey,
+			source: "metadata",
+			sourceKey: derived.sourceKey,
+			forkSourceKey: derived.forkSourceKey,
+			hintKeys: derived.hintKeys,
+			forkHintKeys: derived.forkHintKeys,
+		};
 	}
 
-	const generated = generatePromptCacheKey();
+	const fallbackHash = computeFallbackHashForBody(body);
+	const generated = `cache_${fallbackHash}`;
 	body.prompt_cache_key = generated;
 	// Don't set camelCase field for generated keys - only snake_case for Codex
-	return { key: generated, source: "generated" };
+	return {
+		key: generated,
+		source: "generated",
+		hintKeys: derived.hintKeys,
+		unusableKeys: derived.unusableKeys,
+		forkHintKeys: derived.forkHintKeys,
+		forkUnusableKeys: derived.forkUnusableKeys,
+		fallbackHash,
+	};
 }
 
 /**
@@ -1035,11 +1126,27 @@ export async function transformRequestBody(
 		logDebug("Prompt cache key missing; derived from metadata", {
 			promptCacheKey: cacheKeyResult.key,
 			sourceKey: cacheKeyResult.sourceKey,
+			forkSourceKey: cacheKeyResult.forkSourceKey,
+			forkHintKeys: cacheKeyResult.forkHintKeys,
 		});
 	} else if (cacheKeyResult.source === "generated") {
-		logWarn("Prompt cache key missing; generated fallback cache key", {
-			promptCacheKey: cacheKeyResult.key,
-		});
+		const hasHints = Boolean(
+			(cacheKeyResult.hintKeys && cacheKeyResult.hintKeys.length > 0) ||
+			(cacheKeyResult.forkHintKeys && cacheKeyResult.forkHintKeys.length > 0),
+		);
+		logWarn(
+			hasHints
+				? "Prompt cache key hints detected but unusable; generated fallback cache key"
+				: "Prompt cache key missing; generated fallback cache key",
+			{
+				promptCacheKey: cacheKeyResult.key,
+				fallbackHash: cacheKeyResult.fallbackHash,
+				hintKeys: cacheKeyResult.hintKeys,
+				unusableKeys: cacheKeyResult.unusableKeys,
+				forkHintKeys: cacheKeyResult.forkHintKeys,
+				forkUnusableKeys: cacheKeyResult.forkUnusableKeys,
+			},
+		);
 	}
 
 	// Tool behavior parity with Codex CLI (normalize shapes)

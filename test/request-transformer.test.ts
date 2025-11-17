@@ -741,7 +741,7 @@ describe('runTransform', () => {
 			metadata: { conversation_id: 'meta-conv-123' },
 		};
 		const result: any = await runTransform(body, codexInstructions);
-		expect(result.prompt_cache_key).toBe('meta-conv-123');
+		expect(result.prompt_cache_key).toBe('cache_meta-conv-123');
 	});
 
 	it('derives fork-aware prompt_cache_key when fork id is present in metadata', async () => {
@@ -751,7 +751,7 @@ describe('runTransform', () => {
 			metadata: { conversation_id: 'meta-conv-123', forkId: 'branch-1' },
 		};
 		const result: any = await runTransform(body, codexInstructions);
-		expect(result.prompt_cache_key).toBe('meta-conv-123::fork::branch-1');
+		expect(result.prompt_cache_key).toBe('cache_meta-conv-123-fork-branch-1');
 	});
 
 	it('derives fork-aware prompt_cache_key when fork id is present in root', async () => {
@@ -762,7 +762,7 @@ describe('runTransform', () => {
 			forkId: 'branch-2' as any,
 		} as any;
 		const result: any = await runTransform(body, codexInstructions);
-		expect(result.prompt_cache_key).toBe('meta-conv-123::fork::branch-2');
+		expect(result.prompt_cache_key).toBe('cache_meta-conv-123-fork-branch-2');
 	});
 
 	it('reuses the same prompt_cache_key across non-structural overrides', async () => {
@@ -785,18 +785,22 @@ describe('runTransform', () => {
 		const result1: any = await runTransform(body1, codexInstructions);
 		const result2: any = await runTransform(body2, codexInstructions);
 
-		expect(result1.prompt_cache_key).toBe('meta-conv-789::fork::fork-x');
-		expect(result2.prompt_cache_key).toBe('meta-conv-789::fork::fork-x');
+		expect(result1.prompt_cache_key).toBe('cache_meta-conv-789-fork-fork-x');
+		expect(result2.prompt_cache_key).toBe('cache_meta-conv-789-fork-fork-x');
 	});
 
-	it('generates fallback prompt_cache_key when no identifiers exist', async () => {
+
+
+	it('generates deterministic fallback prompt_cache_key when no identifiers exist', async () => {
 		const body: RequestBody = {
 			model: 'gpt-5',
 			input: [],
 		};
-		const result: any = await runTransform(body, codexInstructions);
-		expect(typeof result.prompt_cache_key).toBe('string');
-		expect(result.prompt_cache_key).toMatch(/^cache_/);
+		const result1: any = await runTransform(body, codexInstructions);
+		const result2: any = await runTransform(body, codexInstructions);
+		expect(typeof result1.prompt_cache_key).toBe('string');
+		expect(result1.prompt_cache_key).toMatch(/^cache_[a-f0-9]{12}$/);
+		expect(result2.prompt_cache_key).toBe(result1.prompt_cache_key);
 	});
 
 	it('should set required Codex fields', async () => {
