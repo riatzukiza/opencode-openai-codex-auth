@@ -17,6 +17,13 @@ import {
 	getCachedBridgeDecision, 
 	cacheBridgeDecision 
 } from "../cache/prompt-fingerprinting.js";
+import { deepClone, cloneInputItems } from "../utils/clone.js";
+import { 
+	extractTextFromItem, 
+	isSystemMessage,
+	isUserMessage 
+} from "../utils/input-item-utils.js";
+import { CONVERSATION_CONFIG } from "../constants.js";
 import type {
 	ConfigOptions,
 	InputItem,
@@ -26,9 +33,7 @@ import type {
 	UserConfig,
 } from "../types.js";
 
-function cloneInputItem<T extends Record<string, unknown>>(item: T): T {
-	return JSON.parse(JSON.stringify(item)) as T;
-}
+// Clone utilities now imported from ../utils/clone.ts
 
 function stableStringify(value: unknown): string {
 	if (value === null || typeof value !== "object") {
@@ -63,8 +68,7 @@ export interface ConversationMemory {
 	usage: Map<string, number>;
 }
 
-const CONVERSATION_ENTRY_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
-const CONVERSATION_MAX_ENTRIES = 1000;
+// CONVERSATION_ENTRY_TTL_MS and CONVERSATION_MAX_ENTRIES now imported from ../constants.ts as CONVERSATION_CONFIG
 
 function decrementUsage(memory: ConversationMemory, hash: string): void {
 	const current = memory.usage.get(hash) ?? 0;
@@ -84,73 +88,7 @@ function incrementUsage(memory: ConversationMemory, hash: string, payload: Input
 	memory.usage.set(hash, current + 1);
 }
 
-function storeConversationEntry(
-	memory: ConversationMemory,
-	id: string,
-	item: InputItem,
-	callId: string | undefined,
-	timestamp: number,
-): void {
-	const sanitized = cloneInputItem(item);
-	const hash = computePayloadHash(sanitized);
-	const existing = memory.entries.get(id);
-
-	if (existing && existing.hash === hash) {
-		existing.lastUsed = timestamp;
-		if (callId && !existing.callId) {
-			existing.callId = callId;
-		}
-		return;
-	}
-
-	if (existing) {
-		decrementUsage(memory, existing.hash);
-	}
-
-	incrementUsage(memory, hash, sanitized);
-	memory.entries.set(id, { hash, callId, lastUsed: timestamp });
-}
-
-function removeConversationEntry(memory: ConversationMemory, id: string): void {
-	const existing = memory.entries.get(id);
-	if (!existing) return;
-	memory.entries.delete(id);
-	decrementUsage(memory, existing.hash);
-}
-
-function pruneConversationMemory(
-	memory: ConversationMemory,
-	timestamp: number,
-	protectedIds: Set<string>,
-): void {
-	for (const [id, entry] of memory.entries.entries()) {
-		if (timestamp - entry.lastUsed > CONVERSATION_ENTRY_TTL_MS && !protectedIds.has(id)) {
-			removeConversationEntry(memory, id);
-		}
-	}
-
-	if (memory.entries.size <= CONVERSATION_MAX_ENTRIES) {
-		return;
-	}
-
-	const candidates = Array.from(memory.entries.entries())
-		.filter(([id]) => !protectedIds.has(id))
-		.sort((a, b) => a[1].lastUsed - b[1].lastUsed);
-
-	for (const [id] of candidates) {
-		if (memory.entries.size <= CONVERSATION_MAX_ENTRIES) break;
-		removeConversationEntry(memory, id);
-	}
-
-	if (memory.entries.size > CONVERSATION_MAX_ENTRIES) {
-		const fallback = Array.from(memory.entries.entries())
-			.sort((a, b) => a[1].lastUsed - b[1].lastUsed);
-		for (const [id] of fallback) {
-			if (memory.entries.size <= CONVERSATION_MAX_ENTRIES) break;
-			removeConversationEntry(memory, id);
-		}
-	}
-}
+// Removed unused conversation memory functions - dead code eliminated
 /**
  * Normalize incoming tools into the exact JSON shape the Codex CLI emits.
  * Handles strings, CLI-style objects, AI SDK nested objects, and boolean maps.
@@ -507,20 +445,9 @@ export function isOpenCodeSystemPrompt(
 	const isSystemRole = item.role === "developer" || item.role === "system";
 	if (!isSystemRole) return false;
 
-	const getContentText = (item: InputItem): string => {
-		if (typeof item.content === "string") {
-			return item.content;
-		}
-		if (Array.isArray(item.content)) {
-			return item.content
-				.filter((c) => c.type === "input_text" && c.text)
-				.map((c) => c.text)
-				.join("\n");
-		}
-		return "";
-	};
+	// extractTextFromItem now imported from ../utils/input-item-utils.ts
 
-	const contentText = getContentText(item);
+	const contentText = extractTextFromItem(item);
 	if (!contentText) return false;
 
 	// Primary check: Compare against cached OpenCode prompt
@@ -583,22 +510,13 @@ export async function filterOpenCodeSystemPrompts(
 		/\.opencode\/.*summary/i,
 	];
 
-	const getCompactionText = (it: InputItem): string => {
-		if (typeof it.content === "string") return it.content;
-		if (Array.isArray(it.content)) {
-			return it.content
-				.filter((c: any) => c && c.type === "input_text" && c.text)
-				.map((c: any) => c.text)
-				.join("\n");
-		}
-		return "";
-	};
+	// getCompactionText now uses extractTextFromItem from ../utils/input-item-utils.ts
 
 	const matchesCompactionInstruction = (value: string): boolean =>
 		compactionInstructionPatterns.some((pattern) => pattern.test(value));
 
 	const sanitizeOpenCodeCompactionPrompt = (item: InputItem): InputItem | null => {
-		const text = getCompactionText(item);
+		const text = extractTextFromItem(item);
 		if (!text) return null;
 		const sanitizedText = text
 			.split(/\r?\n/)
@@ -630,7 +548,7 @@ export async function filterOpenCodeSystemPrompts(
 	const isOpenCodeCompactionPrompt = (item: InputItem): boolean => {
 		const isSystemRole = item.role === "developer" || item.role === "system";
 		if (!isSystemRole) return false;
-		const text = getCompactionText(item);
+		const text = extractTextFromItem(item);
 		if (!text) return false;
 		const hasCompaction = /\b(auto[-\s]?compaction|compaction|compact)\b/i.test(text);
 		const hasSummary = /\b(summary|summarize|summarise)\b/i.test(text);
@@ -798,7 +716,7 @@ function maybeBuildCompactionPrompt(
 	}
 	const conversationSource = commandText
 		? removeLastUserMessage(originalInput)
-		: cloneConversationItems(originalInput);
+		: cloneInputItems(originalInput);
 	const turnCount = countConversationTurns(conversationSource);
 	let trigger: "command" | "auto" | null = null;
 	let reason: string | undefined;
@@ -834,12 +752,10 @@ function maybeBuildCompactionPrompt(
 	};
 }
 
-function cloneConversationItems(items: InputItem[]): InputItem[] {
-	return items.map((item) => cloneInputItem(item));
-}
+// cloneConversationItems now imported from ../utils/clone.ts as cloneInputItems
 
 function removeLastUserMessage(items: InputItem[]): InputItem[] {
-	const cloned = cloneConversationItems(items);
+	const cloned = cloneInputItems(items);
 	for (let index = cloned.length - 1; index >= 0; index -= 1) {
 		if (cloned[index]?.role === "user") {
 			cloned.splice(index, 1);

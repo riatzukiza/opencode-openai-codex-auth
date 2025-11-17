@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { loadPluginConfig, getCodexMode } from '../lib/config.js';
 import type { PluginConfig } from '../lib/types.js';
+import * as logger from '../lib/logger.js';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
@@ -109,7 +110,7 @@ describe('Plugin Configuration', () => {
 				throw new Error('test error');
 			});
 
-			const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			const logWarnSpy = vi.spyOn(logger, 'logWarn').mockImplementation(() => {});
 			const config = loadPluginConfig();
 
 			expect(config).toEqual({
@@ -118,25 +119,27 @@ describe('Plugin Configuration', () => {
 				enableCodexCompaction: true,
 				autoCompactMinMessages: 8,
 			});
-			consoleSpy.mockRestore();
+			expect(logWarnSpy).toHaveBeenCalled();
+			logWarnSpy.mockRestore();
 		});
 
-			expect(consoleSpy).toHaveBeenCalled();
-			consoleSpy.mockRestore();
-		});
-
-		it('should handle file read errors gracefully', () => {
+		it('should handle permission errors gracefully', () => {
 			mockExistsSync.mockReturnValue(true);
 			mockReadFileSync.mockImplementation(() => {
 				throw new Error('Permission denied');
 			});
 
-			const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			const logWarnSpy = vi.spyOn(logger, 'logWarn').mockImplementation(() => {});
 			const config = loadPluginConfig();
 
-			expect(config).toEqual({ codexMode: true, enablePromptCaching: true });
-			expect(consoleSpy).toHaveBeenCalled();
-			consoleSpy.mockRestore();
+			expect(config).toEqual({
+				codexMode: true,
+				enablePromptCaching: true,
+				enableCodexCompaction: true,
+				autoCompactMinMessages: 8,
+			});
+			expect(logWarnSpy).toHaveBeenCalled();
+			logWarnSpy.mockRestore();
 		});
 	});
 

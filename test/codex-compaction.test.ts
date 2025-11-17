@@ -6,6 +6,7 @@ import {
 	collectSystemMessages,
 	createSummaryMessage,
 	approximateTokenCount,
+	extractTailAfterSummary,
 } from '../lib/compaction/codex-compaction.js';
 import type { InputItem } from '../lib/types.js';
 
@@ -63,5 +64,36 @@ describe('codex compaction helpers', () => {
 			{ type: 'message', role: 'user', content: 'a'.repeat(200) },
 		];
 		expect(approximateTokenCount(items)).toBeGreaterThan(40);
+	});
+
+	it('returns zero tokens when there is no content', () => {
+		expect(approximateTokenCount(undefined)).toBe(0);
+		expect(approximateTokenCount([])).toBe(0);
+	});
+
+	it('ignores user messages without compaction commands', () => {
+		const input: InputItem[] = [
+			{ type: 'message', role: 'user', content: 'just chatting' },
+			{ type: 'message', role: 'assistant', content: 'reply' },
+		];
+		expect(detectCompactionCommand(input)).toBeNull();
+	});
+
+	it('extracts tail after the latest user summary message', () => {
+		const items: InputItem[] = [
+			{ type: 'message', role: 'user', content: 'review summary' },
+			{ type: 'message', role: 'assistant', content: 'analysis' },
+			{ type: 'message', role: 'user', content: 'follow-up' },
+		];
+		const tail = extractTailAfterSummary(items);
+		expect(tail).toHaveLength(1);
+		expect(tail[0].role).toBe('user');
+	});
+
+	it('returns empty tail when no user summary exists', () => {
+		const input: InputItem[] = [
+			{ type: 'message', role: 'assistant', content: 'analysis' },
+		];
+		expect(extractTailAfterSummary(input)).toEqual([]);
 	});
 });

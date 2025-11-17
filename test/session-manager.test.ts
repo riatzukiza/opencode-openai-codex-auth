@@ -1,13 +1,23 @@
 import { describe, it, expect } from 'vitest';
-import { SessionManager, SESSION_IDLE_TTL_MS, SESSION_MAX_ENTRIES } from '../lib/session/session-manager.js';
+import { SessionManager } from '../lib/session/session-manager.js';
+import { SESSION_CONFIG } from '../lib/constants.js';
 import type { RequestBody, SessionContext, InputItem } from '../lib/types.js';
 
-function createBody(conversationId: string, inputCount = 1): RequestBody {
+interface BodyOptions {
+	forkId?: string;
+}
+
+function createBody(conversationId: string, inputCount = 1, options: BodyOptions = {}): RequestBody {
+	const metadata: Record<string, unknown> = {
+		conversation_id: conversationId,
+	};
+	if (options.forkId) {
+		metadata.forkId = options.forkId;
+	}
+
 	return {
 		model: 'gpt-5',
-		metadata: {
-			conversation_id: conversationId,
-		},
+		metadata,
 		input: Array.from({ length: inputCount }, (_, index) => ({
 			type: 'message',
 			role: 'user',
@@ -148,13 +158,73 @@ describe('SessionManager', () => {
 		expect(secondContext.state.promptCacheKey).toBe(firstContext.state.promptCacheKey);
 	});
 
+	it('creates fork-specific sessions with derived cache keys', () => {
+		const manager = new SessionManager({ enabled: true });
+		const firstAlpha = createBody('conv-fork', 1, { forkId: 'alpha' });
+		let alphaContext = manager.getContext(firstAlpha) as SessionContext;
+		expect(alphaContext.isNew).toBe(true);
+		alphaContext = manager.applyRequest(firstAlpha, alphaContext) as SessionContext;
+		expect(alphaContext.state.promptCacheKey).toBe('conv-fork::fork::alpha');
+
+		const repeatAlpha = createBody('conv-fork', 2, { forkId: 'alpha' });
+		let repeatedContext = manager.getContext(repeatAlpha) as SessionContext;
+		expect(repeatedContext.isNew).toBe(false);
+		repeatedContext = manager.applyRequest(repeatAlpha, repeatedContext) as SessionContext;
+		expect(repeatAlpha.prompt_cache_key).toBe('conv-fork::fork::alpha');
+
+		const betaBody = createBody('conv-fork', 1, { forkId: 'beta' });
+		let betaContext = manager.getContext(betaBody) as SessionContext;
+		expect(betaContext.isNew).toBe(true);
+		expect(betaContext.state.promptCacheKey).toBe('conv-fork::fork::beta');
+	});
+
+	it('scopes compaction summaries per fork session', () => {
+		const manager = new SessionManager({ enabled: true });
+		const alphaBody = createBody('conv-fork-summary', 1, { forkId: 'alpha' });
+		let alphaContext = manager.getContext(alphaBody) as SessionContext;
+		alphaContext = manager.applyRequest(alphaBody, alphaContext) as SessionContext;
+
+		const systemMessage: InputItem = { type: 'message', role: 'system', content: 'env vars' };
+		manager.applyCompactionSummary(alphaContext, {
+			baseSystem: [systemMessage],
+			summary: 'Alpha summary',
+		});
+
+		const alphaNext = createBody('conv-fork-summary', 1, { forkId: 'alpha' });
+		alphaNext.input = [{ type: 'message', role: 'user', content: 'alpha task' }];
+		manager.applyCompactedHistory(alphaNext, alphaContext);
+		expect(alphaNext.input).toHaveLength(3);
+		expect(alphaNext.input?.[1].content).toContain('Alpha summary');
+
+		const betaBody = createBody('conv-fork-summary', 1, { forkId: 'beta' });
+		let betaContext = manager.getContext(betaBody) as SessionContext;
+		betaContext = manager.applyRequest(betaBody, betaContext) as SessionContext;
+
+		const betaNext = createBody('conv-fork-summary', 1, { forkId: 'beta' });
+		betaNext.input = [{ type: 'message', role: 'user', content: 'beta task' }];
+		manager.applyCompactedHistory(betaNext, betaContext);
+		expect(betaNext.input).toHaveLength(1);
+
+		manager.applyCompactionSummary(betaContext, {
+			baseSystem: [],
+			summary: 'Beta summary',
+		});
+
+		const betaFollowUp = createBody('conv-fork-summary', 1, { forkId: 'beta' });
+		betaFollowUp.input = [{ type: 'message', role: 'user', content: 'beta follow-up' }];
+		manager.applyCompactedHistory(betaFollowUp, betaContext);
+		expect(betaFollowUp.input).toHaveLength(2);
+		expect(betaFollowUp.input?.[0].content).toContain('Beta summary');
+		expect(betaFollowUp.input?.[1].content).toBe('beta follow-up');
+	});
+
 	it('evicts sessions that exceed idle TTL', () => {
 		const manager = new SessionManager({ enabled: true });
 		const body = createBody('conv-expire');
 		let context = manager.getContext(body) as SessionContext;
 		context = manager.applyRequest(body, context) as SessionContext;
 
-		context.state.lastUpdated = Date.now() - SESSION_IDLE_TTL_MS - 1000;
+		context.state.lastUpdated = Date.now() - SESSION_CONFIG.IDLE_TTL_MS - 1000;
 		manager.pruneIdleSessions(Date.now());
 
 		const metrics = manager.getMetrics();
@@ -164,7 +234,7 @@ describe('SessionManager', () => {
 	it('caps total sessions to the configured maximum', () => {
 		const manager = new SessionManager({ enabled: true });
 
-		const totalSessions = SESSION_MAX_ENTRIES + 5;
+		const totalSessions = SESSION_CONFIG.MAX_ENTRIES + 5;
 		for (let index = 0; index < totalSessions; index += 1) {
 			const body = createBody(`conv-cap-${index}`);
 			let context = manager.getContext(body) as SessionContext;
@@ -172,9 +242,9 @@ describe('SessionManager', () => {
 			context.state.lastUpdated -= index; // ensure ordering
 		}
 
-		const metrics = manager.getMetrics(SESSION_MAX_ENTRIES + 10);
-		expect(metrics.totalSessions).toBe(SESSION_MAX_ENTRIES);
-		expect(metrics.recentSessions.length).toBeLessThanOrEqual(SESSION_MAX_ENTRIES);
+		const metrics = manager.getMetrics(SESSION_CONFIG.MAX_ENTRIES + 10);
+		expect(metrics.totalSessions).toBe(SESSION_CONFIG.MAX_ENTRIES);
+		expect(metrics.recentSessions.length).toBeLessThanOrEqual(SESSION_CONFIG.MAX_ENTRIES);
 	});
 
 	it('applies compacted history when summary stored', () => {

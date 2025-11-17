@@ -14,7 +14,6 @@ import { SessionManager } from "../session/session-manager.js";
 import { detectCompactionCommand } from "../compaction/codex-compaction.js";
 import type { CompactionDecision } from "../compaction/compaction-executor.js";
 import {
-	PLUGIN_NAME,
 	HTTP_STATUS,
 	OPENAI_HEADERS,
 	OPENAI_HEADER_VALUES,

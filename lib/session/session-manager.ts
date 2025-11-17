@@ -1,5 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { logDebug, logWarn } from "../logger.js";
+import { deepClone, cloneInputItems } from "../utils/clone.js";
+import { isUserMessage } from "../utils/input-item-utils.js";
+import { SESSION_CONFIG } from "../constants.js";
 import type {
 	CodexResponsePayload,
 	InputItem,
@@ -7,9 +10,6 @@ import type {
 	SessionContext,
 	SessionState,
 } from "../types.js";
-
-export const SESSION_IDLE_TTL_MS = 30 * 60 * 1000; // 30 minutes
-export const SESSION_MAX_ENTRIES = 100;
 
 export interface SessionManagerOptions {
 	enabled: boolean;
@@ -19,24 +19,7 @@ export interface SessionManagerOptions {
 	forceStore?: boolean;
 }
 
-type CloneFn = <T>(value: T) => T;
-
-function getCloneFn(): CloneFn {
-	const globalClone = (globalThis as unknown as { structuredClone?: CloneFn }).structuredClone;
-	if (typeof globalClone === "function") {
-		return globalClone;
-	}
-	return <T>(value: T) => JSON.parse(JSON.stringify(value)) as T;
-}
-
-const cloneValue = getCloneFn();
-
-function cloneInput(items: InputItem[] | undefined): InputItem[] {
-	if (!Array.isArray(items) || items.length === 0) {
-		return [];
-	}
-	return items.map((item) => cloneValue(item));
-}
+// Clone utilities now imported from ../utils/clone.ts
 
 function computeHash(items: InputItem[]): string {
 	return createHash("sha1")
@@ -50,8 +33,8 @@ function extractLatestUserSlice(items: InputItem[] | undefined): InputItem[] {
 	}
 	for (let index = items.length - 1; index >= 0; index -= 1) {
 		const item = items[index];
-		if (item?.role === "user") {
-			return cloneInput(items.slice(index));
+		if (item && isUserMessage(item)) {
+			return cloneInputItems(items.slice(index));
 		}
 	}
 	return [];
@@ -109,6 +92,47 @@ function extractConversationId(body: RequestBody): string | undefined {
 	return undefined;
 }
 
+function extractForkIdentifier(body: RequestBody): string | undefined {
+	const metadata = body.metadata as Record<string, unknown> | undefined;
+	const bodyAny = body as Record<string, unknown>;
+	const forkKeys = ["forkId", "fork_id", "branchId", "branch_id"];
+	const normalize = (value: unknown): string | undefined => {
+		if (typeof value !== "string") {
+			return undefined;
+		}
+		const trimmed = value.trim();
+		return trimmed.length > 0 ? trimmed : undefined;
+	};
+
+	for (const key of forkKeys) {
+		const fromMetadata = normalize(metadata?.[key]);
+		if (fromMetadata) {
+			return fromMetadata;
+		}
+		const fromBody = normalize(bodyAny[key]);
+		if (fromBody) {
+			return fromBody;
+		}
+	}
+
+	return undefined;
+}
+
+function buildSessionKey(conversationId: string, forkId: string | undefined): string {
+	if (!forkId) {
+		return conversationId;
+	}
+	return `${conversationId}::fork::${forkId}`;
+}
+
+function buildPromptCacheKey(conversationId: string, forkId: string | undefined): string {
+	const sanitized = sanitizeCacheKey(conversationId);
+	if (!forkId) {
+		return sanitized;
+	}
+	return `${sanitized}::fork::${forkId}`;
+}
+
 export interface SessionMetricsSnapshot {
 	enabled: boolean;
 	totalSessions: number;
@@ -137,6 +161,7 @@ export class SessionManager {
 		this.pruneSessions();
 
 		const conversationId = extractConversationId(body);
+		const forkId = extractForkIdentifier(body);
 		if (!conversationId) {
 			// Fall back to host-provided prompt_cache_key if no metadata ID is available
 			const hostCacheKey = (body as any).prompt_cache_key || (body as any).promptCacheKey;
@@ -175,10 +200,13 @@ export class SessionManager {
 			return undefined;
 		}
 
-		const existing = this.sessions.get(conversationId);
+		const sessionKey = buildSessionKey(conversationId, forkId);
+		const promptCacheKey = buildPromptCacheKey(conversationId, forkId);
+
+		const existing = this.sessions.get(sessionKey);
 		if (existing) {
 			return {
-				sessionId: conversationId,
+				sessionId: sessionKey,
 				enabled: true,
 				preserveIds: true,
 				isNew: false,
@@ -187,19 +215,19 @@ export class SessionManager {
 		}
 
 		const state: SessionState = {
-			id: conversationId,
-			promptCacheKey: sanitizeCacheKey(conversationId),
+			id: sessionKey,
+			promptCacheKey,
 			store: this.options.forceStore ?? false,
 			lastInput: [],
 			lastPrefixHash: null,
 			lastUpdated: Date.now(),
 		};
 
-		this.sessions.set(conversationId, state);
+		this.sessions.set(sessionKey, state);
 		this.pruneSessions();
 
 		return {
-			sessionId: conversationId,
+			sessionId: sessionKey,
 			enabled: true,
 			preserveIds: true,
 			isNew: true,
@@ -221,7 +249,7 @@ export class SessionManager {
 			body.store = true;
 		}
 
-		const input = cloneInput(body.input);
+		const input = cloneInputItems(body.input || []);
 		const inputHash = computeHash(input);
 
 		if (state.lastInput.length === 0) {
@@ -276,8 +304,8 @@ export class SessionManager {
 	): void {
 		if (!context?.enabled) return;
 		const state = context.state;
-		state.compactionBaseSystem = cloneInput(payload.baseSystem);
-		state.compactionSummaryItem = cloneValue<InputItem>({
+		state.compactionBaseSystem = cloneInputItems(payload.baseSystem);
+		state.compactionSummaryItem = deepClone<InputItem>({
 			type: "message",
 			role: "user",
 			content: payload.summary,
@@ -298,7 +326,7 @@ export class SessionManager {
 			return;
 		}
 		const tail = extractLatestUserSlice(body.input);
-		const merged = [...cloneInput(baseSystem), cloneValue(summary), ...tail];
+		const merged = [...cloneInputItems(baseSystem), deepClone(summary), ...tail];
 		body.input = merged;
 	}
 
@@ -355,13 +383,13 @@ export class SessionManager {
 		}
 
 		for (const [sessionId, state] of this.sessions.entries()) {
-			if (now - state.lastUpdated > SESSION_IDLE_TTL_MS) {
+			if (now - state.lastUpdated > SESSION_CONFIG.IDLE_TTL_MS) {
 				this.sessions.delete(sessionId);
 				logDebug("SessionManager: evicted idle session", { sessionId });
 			}
 		}
 
-		if (this.sessions.size <= SESSION_MAX_ENTRIES) {
+		if (this.sessions.size <= SESSION_CONFIG.MAX_ENTRIES) {
 			return;
 		}
 
@@ -370,7 +398,7 @@ export class SessionManager {
 		);
 
 		for (const victim of victims) {
-			if (this.sessions.size <= SESSION_MAX_ENTRIES) {
+		if (this.sessions.size <= SESSION_CONFIG.MAX_ENTRIES) {
 				break;
 			}
 			if (!this.sessions.has(victim.id)) {

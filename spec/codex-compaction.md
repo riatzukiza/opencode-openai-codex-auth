@@ -2,6 +2,7 @@
 
 ## References
 - Issue: #5 "Feature: Codex-style conversation compaction and auto-compaction in plugin"
+- Existing PRs: none as of 2025-11-16 (confirmed via `gh pr list`)
 - Upstream reference: `openai/codex` (`codex-rs/core/src/compact.rs` and `templates/compact/*.md`)
 
 ## Current State

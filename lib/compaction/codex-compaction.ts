@@ -1,16 +1,10 @@
 import type { InputItem } from "../types.js";
 import { CODEX_COMPACTION_PROMPT, CODEX_SUMMARY_PREFIX } from "../prompts/codex-compaction.js";
+import { deepClone } from "../utils/clone.js";
+import { isUserMessage } from "../utils/input-item-utils.js";
 
 const DEFAULT_TRANSCRIPT_CHAR_LIMIT = 12_000;
 const COMMAND_TRIGGERS = ["codex-compact", "compact", "codexcompact", "compactnow"];
-
-const cloneValue = (() => {
-	const globalClone = (globalThis as { structuredClone?: <T>(value: T) => T }).structuredClone;
-	if (typeof globalClone === "function") {
-		return <T>(value: T) => globalClone(value);
-	}
-	return <T>(value: T) => JSON.parse(JSON.stringify(value)) as T;
-})();
 
 export interface ConversationSerialization {
 	transcript: string;
@@ -108,7 +102,7 @@ export function collectSystemMessages(items: InputItem[] | undefined): InputItem
 	if (!Array.isArray(items)) return [];
 	return items
 		.filter((item) => item && (item.role === "system" || item.role === "developer"))
-		.map((item) => cloneValue(item));
+		.map((item) => deepClone(item));
 }
 
 export function createSummaryMessage(summaryText: string): InputItem {
@@ -173,5 +167,5 @@ function formatEntry(role: string, text: string): string {
 }
 
 function cloneRange(range: InputItem[]): InputItem[] {
-	return range.map((item) => cloneValue(item));
+	return range.map((item) => deepClone(item));
 }
