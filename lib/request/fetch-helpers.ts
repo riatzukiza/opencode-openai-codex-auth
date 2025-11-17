@@ -3,24 +3,23 @@
  * These functions break down the complex fetch logic into manageable, testable units
  */
 
-import type { Auth } from "@opencode-ai/sdk";
-import type { OpencodeClient } from "@opencode-ai/sdk";
+import type { Auth, OpencodeClient } from "@opencode-ai/sdk";
 import { refreshAccessToken } from "../auth/auth.js";
-import { logRequest, logError } from "../logger.js";
-import { transformRequestBody } from "./request-transformer.js";
-import { convertSseToJson, ensureContentType } from "./response-handler.js";
-import type { UserConfig, RequestBody, SessionContext, PluginConfig, InputItem } from "../types.js";
-import { SessionManager } from "../session/session-manager.js";
 import { detectCompactionCommand } from "../compaction/codex-compaction.js";
 import type { CompactionDecision } from "../compaction/compaction-executor.js";
 import {
-	HTTP_STATUS,
-	OPENAI_HEADERS,
-	OPENAI_HEADER_VALUES,
-	URL_PATHS,
 	ERROR_MESSAGES,
+	HTTP_STATUS,
 	LOG_STAGES,
+	OPENAI_HEADER_VALUES,
+	OPENAI_HEADERS,
+	URL_PATHS,
 } from "../constants.js";
+import { logError, logRequest } from "../logger.js";
+import type { SessionManager } from "../session/session-manager.js";
+import type { InputItem, PluginConfig, RequestBody, SessionContext, UserConfig } from "../types.js";
+import { transformRequestBody } from "./request-transformer.js";
+import { convertSseToJson, ensureContentType } from "./response-handler.js";
 
 /**
  * Determines if the current auth token needs to be refreshed
@@ -40,9 +39,7 @@ export function shouldRefreshToken(auth: Auth): boolean {
 export async function refreshAndUpdateToken(
 	currentAuth: Auth,
 	client: OpencodeClient,
-): Promise<
-	{ success: true; auth: Auth } | { success: false; response: Response }
-> {
+): Promise<{ success: true; auth: Auth } | { success: false; response: Response }> {
 	const refreshToken = currentAuth.type === "oauth" ? currentAuth.refresh : "";
 	const refreshResult = await refreshAccessToken(refreshToken);
 
@@ -50,10 +47,9 @@ export async function refreshAndUpdateToken(
 		logError(ERROR_MESSAGES.TOKEN_REFRESH_FAILED);
 		return {
 			success: false,
-			response: new Response(
-				JSON.stringify({ error: "Token refresh failed" }),
-				{ status: HTTP_STATUS.UNAUTHORIZED },
-			),
+			response: new Response(JSON.stringify({ error: "Token refresh failed" }), {
+				status: HTTP_STATUS.UNAUTHORIZED,
+			}),
 		};
 	}
 
@@ -150,7 +146,7 @@ export async function transformRequestForCodex(
 		const manualCommand = compactionEnabled ? detectCompactionCommand(originalInput) : null;
 
 		const sessionContext = sessionManager?.getContext(body);
-		if (!manualCommand) {
+		if (compactionEnabled && !manualCommand) {
 			sessionManager?.applyCompactedHistory?.(body, sessionContext);
 		}
 
@@ -167,21 +163,16 @@ export async function transformRequestForCodex(
 		});
 
 		// Transform request body
-		const transformResult = await transformRequestBody(
-			body,
-			codexInstructions,
-			userConfig,
-			codexMode,
-			{
-				preserveIds: sessionContext?.preserveIds,
-				compaction: {
-					settings: compactionSettings,
-					commandText: manualCommand,
-					originalInput,
-				},
+		const transformResult = await transformRequestBody(body, codexInstructions, userConfig, codexMode, {
+			preserveIds: sessionContext?.preserveIds,
+			compaction: {
+				settings: compactionSettings,
+				commandText: manualCommand,
+				originalInput,
 			},
-		);
-		const appliedContext = sessionManager?.applyRequest(transformResult.body, sessionContext) ?? sessionContext;
+		});
+		const appliedContext =
+			sessionManager?.applyRequest(transformResult.body, sessionContext) ?? sessionContext;
 
 		// Log transformed request
 		logRequest(LOG_STAGES.AFTER_TRANSFORM, {
@@ -289,10 +280,11 @@ export async function handleErrorResponse(response: Response): Promise<Response>
 			message = err.message ?? friendly_message;
 		} else {
 			// Preserve original error message for non-usage-limit errors
-			message = err.message
-				?? parsed?.error?.message
-				?? (typeof parsed === "string" ? parsed : undefined)
-				?? `Request failed with status ${response.status}.`;
+			message =
+				err.message ??
+				parsed?.error?.message ??
+				(typeof parsed === "string" ? parsed : undefined) ??
+				`Request failed with status ${response.status}.`;
 		}
 
 		const enhanced = {
@@ -333,10 +325,7 @@ export async function handleErrorResponse(response: Response): Promise<Response>
  * @param hasTools - Whether the request included tools
  * @returns Processed response (SSE→JSON for non-tool, stream for tool requests)
  */
-export async function handleSuccessResponse(
-	response: Response,
-	hasTools: boolean,
-): Promise<Response> {
+export async function handleSuccessResponse(response: Response, hasTools: boolean): Promise<Response> {
 	const responseHeaders = ensureContentType(response.headers);
 
 	// For non-tool requests (compact/summarize), convert streaming SSE to JSON

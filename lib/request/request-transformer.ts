@@ -1,8 +1,11 @@
-import { logDebug, logWarn } from "../logger.js";
-import { TOOL_REMAP_MESSAGE } from "../prompts/codex.js";
 import { createHash, randomUUID } from "node:crypto";
-import { CODEX_OPENCODE_BRIDGE } from "../prompts/codex-opencode-bridge.js";
-import { getOpenCodeCodexPrompt } from "../prompts/opencode-codex.js";
+import {
+	cacheBridgeDecision,
+	generateContentHash,
+	generateInputHash,
+	getCachedBridgeDecision,
+	hasBridgePromptInConversation,
+} from "../cache/prompt-fingerprinting.js";
 import {
 	approximateTokenCount,
 	buildCompactionPromptItems,
@@ -10,20 +13,10 @@ import {
 	serializeConversation,
 } from "../compaction/codex-compaction.js";
 import type { CompactionDecision } from "../compaction/compaction-executor.js";
-import { 
-	generateInputHash, 
-	generateContentHash,
-	hasBridgePromptInConversation, 
-	getCachedBridgeDecision, 
-	cacheBridgeDecision 
-} from "../cache/prompt-fingerprinting.js";
-import { deepClone, cloneInputItems } from "../utils/clone.js";
-import { 
-	extractTextFromItem, 
-	isSystemMessage,
-	isUserMessage 
-} from "../utils/input-item-utils.js";
-import { CONVERSATION_CONFIG } from "../constants.js";
+import { logDebug, logWarn } from "../logger.js";
+import { TOOL_REMAP_MESSAGE } from "../prompts/codex.js";
+import { CODEX_OPENCODE_BRIDGE } from "../prompts/codex-opencode-bridge.js";
+import { getOpenCodeCodexPrompt } from "../prompts/opencode-codex.js";
 import type {
 	ConfigOptions,
 	InputItem,
@@ -32,6 +25,8 @@ import type {
 	SessionContext,
 	UserConfig,
 } from "../types.js";
+import { cloneInputItems } from "../utils/clone.js";
+import { extractTextFromItem } from "../utils/input-item-utils.js";
 
 // Clone utilities now imported from ../utils/clone.ts
 
@@ -51,7 +46,7 @@ function stableStringify(value: unknown): string {
 	return `{${entries.join(",")}}`;
 }
 
-function computePayloadHash(item: InputItem): string {
+function _computePayloadHash(item: InputItem): string {
 	const canonical = stableStringify(item);
 	return createHash("sha1").update(canonical).digest("hex");
 }
@@ -70,7 +65,7 @@ export interface ConversationMemory {
 
 // CONVERSATION_ENTRY_TTL_MS and CONVERSATION_MAX_ENTRIES now imported from ../constants.ts as CONVERSATION_CONFIG
 
-function decrementUsage(memory: ConversationMemory, hash: string): void {
+function _decrementUsage(memory: ConversationMemory, hash: string): void {
 	const current = memory.usage.get(hash) ?? 0;
 	if (current <= 1) {
 		memory.usage.delete(hash);
@@ -80,7 +75,7 @@ function decrementUsage(memory: ConversationMemory, hash: string): void {
 	}
 }
 
-function incrementUsage(memory: ConversationMemory, hash: string, payload: InputItem): void {
+function _incrementUsage(memory: ConversationMemory, hash: string, payload: InputItem): void {
 	const current = memory.usage.get(hash) ?? 0;
 	if (current === 0) {
 		memory.payloads.set(hash, payload);
@@ -112,21 +107,13 @@ function normalizeToolsForResponses(tools: unknown): any[] | undefined {
 		return typeof value === "string" && (value === "shell" || value === "apply_patch");
 	};
 
-	const makeFunctionTool = (
-		name: unknown,
-		description?: unknown,
-		parameters?: unknown,
-		strict?: unknown,
-	) => {
+	const makeFunctionTool = (name: unknown, description?: unknown, parameters?: unknown, strict?: unknown) => {
 		if (typeof name !== "string" || !name.trim()) return undefined;
 		const tool: Record<string, unknown> = {
 			type: "function",
 			name,
 			strict: typeof strict === "boolean" ? strict : false,
-			parameters:
-				parameters && typeof parameters === "object"
-					? parameters
-					: defaultFunctionParameters,
+			parameters: parameters && typeof parameters === "object" ? parameters : defaultFunctionParameters,
 		};
 		if (typeof description === "string" && description.trim()) {
 			tool.description = description;
@@ -134,19 +121,12 @@ function normalizeToolsForResponses(tools: unknown): any[] | undefined {
 		return tool;
 	};
 
-	const makeFreeformTool = (
-		name: unknown,
-		description?: unknown,
-		format?: unknown,
-	) => {
+	const makeFreeformTool = (name: unknown, description?: unknown, format?: unknown) => {
 		if (typeof name !== "string" || !name.trim()) return undefined;
 		const tool: Record<string, unknown> = {
 			type: "custom",
 			name,
-			format:
-				format && typeof format === "object"
-					? format
-					: defaultFreeformFormat,
+			format: format && typeof format === "object" ? format : defaultFreeformFormat,
 		};
 		if (typeof description === "string" && description.trim()) {
 			tool.description = description;
@@ -201,12 +181,7 @@ function normalizeToolsForResponses(tools: unknown): any[] | undefined {
 			return makeFunctionTool(obj.name, obj.description, obj.parameters, obj.strict);
 		}
 		if (nestedFn?.name) {
-			return makeFunctionTool(
-				nestedFn.name,
-				nestedFn.description,
-				nestedFn.parameters,
-				nestedFn.strict,
-			);
+			return makeFunctionTool(nestedFn.name, nestedFn.description, nestedFn.parameters, nestedFn.strict);
 		}
 		return undefined;
 	};
@@ -225,12 +200,7 @@ function normalizeToolsForResponses(tools: unknown): any[] | undefined {
 					if (record.type === "custom") {
 						return makeFreeformTool(name, record.description, record.format);
 					}
-					return makeFunctionTool(
-						name,
-						record.description,
-						record.parameters,
-						record.strict,
-					);
+					return makeFunctionTool(name, record.description, record.parameters, record.strict);
 				}
 				if (value === true) {
 					return makeFunctionTool(name);
@@ -243,7 +213,6 @@ function normalizeToolsForResponses(tools: unknown): any[] | undefined {
 	return undefined;
 }
 
-
 /**
  * Normalize model name to Codex-supported variants
  * @param model - Original model name
@@ -254,7 +223,7 @@ export function normalizeModel(model: string | undefined): string {
 	if (!model) return fallback;
 
 	const lowered = model.toLowerCase();
-	const sanitized = lowered.replace(/\./g, "-").replace(/[\s_\/]+/g, "-");
+	const sanitized = lowered.replace(/\./g, "-").replace(/[\s_/]+/g, "-");
 
 	const contains = (needle: string) => sanitized.includes(needle);
 	const hasGpt51 = contains("gpt-5-1") || sanitized.includes("gpt51");
@@ -438,10 +407,7 @@ export function filterInput(
  * @param cachedPrompt - Cached OpenCode codex.txt content
  * @returns True if this is the OpenCode system prompt
  */
-export function isOpenCodeSystemPrompt(
-	item: InputItem,
-	cachedPrompt: string | null,
-): boolean {
+export function isOpenCodeSystemPrompt(item: InputItem, cachedPrompt: string | null): boolean {
 	const isSystemRole = item.role === "developer" || item.role === "system";
 	if (!isSystemRole) return false;
 
@@ -590,7 +556,7 @@ export async function filterOpenCodeSystemPrompts(
  */
 function analyzeBridgeRequirement(
 	input: InputItem[] | undefined,
-	hasTools: boolean
+	hasTools: boolean,
 ): { needsBridge: boolean; reason: string; toolCount: number } {
 	if (!hasTools || !Array.isArray(input)) {
 		return { needsBridge: false, reason: "no_tools_or_input", toolCount: 0 };
@@ -600,11 +566,11 @@ function analyzeBridgeRequirement(
 	// This maintains backward compatibility with existing tests
 	// Future optimization can make this more sophisticated
 	const toolCount = 1; // Simple heuristic
-	
-	return { 
-		needsBridge: true, 
+
+	return {
+		needsBridge: true,
 		reason: "tools_present",
-		toolCount 
+		toolCount,
 	};
 }
 
@@ -625,22 +591,31 @@ export function addCodexBridgeMessage(
 
 	// Generate input hash for caching
 	const inputHash = generateInputHash(input);
-	
+
 	// Analyze bridge requirement
 	const analysis = analyzeBridgeRequirement(input, hasTools);
-	
+
 	// Check session-level bridge injection flag first
 	if (sessionContext?.state.bridgeInjected) {
 		logDebug("Bridge prompt already injected in session, skipping injection");
 		return input;
 	}
-	
+
 	// Check cache first
 	const cachedDecision = getCachedBridgeDecision(inputHash, analysis.toolCount);
 	if (cachedDecision) {
-		logDebug(`Using cached bridge decision: ${cachedDecision.hash === generateContentHash("add") ? "add" : "skip"}`);
-		return cachedDecision.hash === generateContentHash("add") 
-			? [{ type: "message", role: "developer", content: [{ type: "input_text", text: CODEX_OPENCODE_BRIDGE }] }, ...input]
+		logDebug(
+			`Using cached bridge decision: ${cachedDecision.hash === generateContentHash("add") ? "add" : "skip"}`,
+		);
+		return cachedDecision.hash === generateContentHash("add")
+			? [
+					{
+						type: "message",
+						role: "developer",
+						content: [{ type: "input_text", text: CODEX_OPENCODE_BRIDGE }],
+					},
+					...input,
+				]
 			: input;
 	}
 
@@ -894,13 +869,18 @@ function derivePromptCacheKeyFromBody(body: RequestBody): {
 }
 
 function computeFallbackHashForBody(body: RequestBody): string {
-	const inputSlice = Array.isArray(body.input) ? body.input.slice(0, 3) : undefined;
-	const seed = stableStringify({
-		model: typeof body.model === "string" ? body.model : undefined,
-		metadata: body.metadata,
-		input: inputSlice,
-	});
-	return createHash("sha1").update(seed).digest("hex").slice(0, 12);
+	try {
+		const inputSlice = Array.isArray(body.input) ? body.input.slice(0, 3) : undefined;
+		const seed = stableStringify({
+			model: typeof body.model === "string" ? body.model : undefined,
+			metadata: body.metadata,
+			input: inputSlice,
+		});
+		return createHash("sha1").update(seed).digest("hex").slice(0, 12);
+	} catch {
+		const model = typeof body.model === "string" ? body.model : "unknown";
+		return createHash("sha1").update(model).digest("hex").slice(0, 12);
+	}
 }
 
 function ensurePromptCacheKey(body: RequestBody): PromptCacheKeyResult {
@@ -908,7 +888,7 @@ function ensurePromptCacheKey(body: RequestBody): PromptCacheKeyResult {
 	const existingSnake = extractString(hostBody.prompt_cache_key);
 	const existingCamel = extractString(hostBody.promptCacheKey);
 	const existing = existingSnake || existingCamel;
-	
+
 	if (existing) {
 		// Codex backend expects snake_case, so always set prompt_cache_key
 		// Preserve the camelCase field for OpenCode if it was provided
@@ -1013,13 +993,10 @@ export async function transformRequestBody(
 	const modelConfig = getModelConfig(lookupModel, userConfig);
 
 	// Debug: Log which config was resolved
-	logDebug(
-		`Model config lookup: "${lookupModel}" → normalized to "${normalizedModel}" for API`,
-		{
-			hasModelSpecificConfig: !!userConfig.models?.[lookupModel],
-			resolvedConfig: modelConfig,
-		},
-	);
+	logDebug(`Model config lookup: "${lookupModel}" → normalized to "${normalizedModel}" for API`, {
+		hasModelSpecificConfig: !!userConfig.models?.[lookupModel],
+		resolvedConfig: modelConfig,
+	});
 
 	// Normalize model name for API call
 	body.model = normalizedModel;
@@ -1048,7 +1025,7 @@ export async function transformRequestBody(
 	} else if (cacheKeyResult.source === "generated") {
 		const hasHints = Boolean(
 			(cacheKeyResult.hintKeys && cacheKeyResult.hintKeys.length > 0) ||
-			(cacheKeyResult.forkHintKeys && cacheKeyResult.forkHintKeys.length > 0),
+				(cacheKeyResult.forkHintKeys && cacheKeyResult.forkHintKeys.length > 0),
 		);
 		logWarn(
 			hasHints
@@ -1077,8 +1054,7 @@ export async function transformRequestBody(
 			(body as any).tools = normalizedTools;
 			(body as any).tool_choice = "auto";
 			const modelName = (body.model || "").toLowerCase();
-			const codexParallelDisabled =
-				modelName.includes("gpt-5-codex") || modelName.includes("gpt-5.1-codex");
+			const codexParallelDisabled = modelName.includes("gpt-5-codex") || modelName.includes("gpt-5.1-codex");
 			(body as any).parallel_tool_calls = !codexParallelDisabled;
 			hasNormalizedTools = true;
 		} else {
@@ -1091,21 +1067,16 @@ export async function transformRequestBody(
 	// Filter and transform input
 	if (body.input && Array.isArray(body.input) && !skipConversationTransforms) {
 		// Debug: Log original input message IDs before filtering
-		const originalIds = body.input
-			.filter((item) => item.id)
-			.map((item) => item.id);
+		const originalIds = body.input.filter((item) => item.id).map((item) => item.id);
 		if (originalIds.length > 0) {
-			logDebug(
-				`Filtering ${originalIds.length} message IDs from input:`,
-				originalIds,
-			);
+			logDebug(`Filtering ${originalIds.length} message IDs from input:`, originalIds);
 		}
 
 		body.input = filterInput(body.input, { preserveIds });
 
 		// Debug: Verify all IDs were removed
 		if (!preserveIds) {
-			const remainingIds = (body.input || []).filter(item => item.id).map(item => item.id);
+			const remainingIds = (body.input || []).filter((item) => item.id).map((item) => item.id);
 			if (remainingIds.length > 0) {
 				logWarn(`WARNING: ${remainingIds.length} IDs still present after filtering:`, remainingIds);
 			} else if (originalIds.length > 0) {
