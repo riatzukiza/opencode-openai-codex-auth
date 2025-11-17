@@ -1,6 +1,6 @@
 /**
  * Clone Utilities
- * 
+ *
  * Centralized deep cloning functionality to eliminate code duplication
  * Uses structuredClone when available for performance, falls back to JSON methods
  */

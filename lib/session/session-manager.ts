@@ -1,15 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
-import { logDebug, logWarn } from "../logger.js";
-import { deepClone, cloneInputItems } from "../utils/clone.js";
-import { isUserMessage } from "../utils/input-item-utils.js";
 import { SESSION_CONFIG } from "../constants.js";
-import type {
-	CodexResponsePayload,
-	InputItem,
-	RequestBody,
-	SessionContext,
-	SessionState,
-} from "../types.js";
+import { logDebug, logWarn } from "../logger.js";
+import type { CodexResponsePayload, InputItem, RequestBody, SessionContext, SessionState } from "../types.js";
+import { cloneInputItems, deepClone } from "../utils/clone.js";
+import { isUserMessage } from "../utils/input-item-utils.js";
 
 export interface SessionManagerOptions {
 	enabled: boolean;
@@ -22,9 +16,7 @@ export interface SessionManagerOptions {
 // Clone utilities now imported from ../utils/clone.ts
 
 function computeHash(items: InputItem[]): string {
-	return createHash("sha1")
-		.update(JSON.stringify(items))
-		.digest("hex");
+	return createHash("sha1").update(JSON.stringify(items)).digest("hex");
 }
 
 function extractLatestUserSlice(items: InputItem[] | undefined): InputItem[] {
@@ -235,10 +227,7 @@ export class SessionManager {
 		};
 	}
 
-	public applyRequest(
-		body: RequestBody,
-		context: SessionContext | undefined,
-	): SessionContext | undefined {
+	public applyRequest(body: RequestBody, context: SessionContext | undefined): SessionContext | undefined {
 		if (!context?.enabled) {
 			return context;
 		}
@@ -393,12 +382,10 @@ export class SessionManager {
 			return;
 		}
 
-		const victims = Array.from(this.sessions.values()).sort(
-			(a, b) => a.lastUpdated - b.lastUpdated,
-		);
+		const victims = Array.from(this.sessions.values()).sort((a, b) => a.lastUpdated - b.lastUpdated);
 
 		for (const victim of victims) {
-		if (this.sessions.size <= SESSION_CONFIG.MAX_ENTRIES) {
+			if (this.sessions.size <= SESSION_CONFIG.MAX_ENTRIES) {
 				break;
 			}
 			if (!this.sessions.has(victim.id)) {

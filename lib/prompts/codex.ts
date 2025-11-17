@@ -1,12 +1,17 @@
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
-import type { GitHubRelease, CacheMetadata } from "../types.js";
-import { codexInstructionsCache, getCodexCacheKey } from "../cache/session-cache.js";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { recordCacheHit, recordCacheMiss } from "../cache/cache-metrics.js";
+import { codexInstructionsCache, getCodexCacheKey } from "../cache/session-cache.js";
 import { logError } from "../logger.js";
-import { getOpenCodePath, safeWriteFile, safeReadFile, fileExistsAndNotEmpty } from "../utils/file-system-utils.js";
+import type { CacheMetadata, GitHubRelease } from "../types.js";
 import { CACHE_FILES, CACHE_TTL_MS } from "../utils/cache-config.js";
+import {
+	fileExistsAndNotEmpty,
+	getOpenCodePath,
+	safeReadFile,
+	safeWriteFile,
+} from "../utils/file-system-utils.js";
 
 // Codex instructions constants
 const GITHUB_API_RELEASES = "https://api.github.com/repos/openai/codex/releases/latest";
@@ -44,10 +49,10 @@ async function getLatestReleaseTag(): Promise<string> {
 export async function getCodexInstructions(): Promise<string> {
 	const sessionEntry = codexInstructionsCache.get("latest");
 	if (sessionEntry) {
-		recordCacheHit('codexInstructions');
+		recordCacheHit("codexInstructions");
 		return sessionEntry.data;
 	}
-	recordCacheMiss('codexInstructions');
+	recordCacheMiss("codexInstructions");
 
 	let cachedETag: string | null = null;
 	let cachedTag: string | null = null;
@@ -55,7 +60,7 @@ export async function getCodexInstructions(): Promise<string> {
 
 	const cacheMetaPath = getOpenCodePath("cache", CACHE_FILES.CODEX_INSTRUCTIONS_META);
 	const cacheFilePath = getOpenCodePath("cache", CACHE_FILES.CODEX_INSTRUCTIONS);
-	
+
 	const cachedMetaContent = safeReadFile(cacheMetaPath);
 	if (cachedMetaContent) {
 		const metadata = JSON.parse(cachedMetaContent) as CacheMetadata;
@@ -73,7 +78,7 @@ export async function getCodexInstructions(): Promise<string> {
 
 	const cacheFileExists = fileExistsAndNotEmpty(cacheFilePath);
 	const isCacheFresh = Boolean(
-		cachedTimestamp && (Date.now() - cachedTimestamp) < CACHE_TTL_MS && cacheFileExists,
+		cachedTimestamp && Date.now() - cachedTimestamp < CACHE_TTL_MS && cacheFileExists,
 	);
 
 	if (isCacheFresh) {
@@ -138,7 +143,7 @@ export async function getCodexInstructions(): Promise<string> {
 		if (cacheFileExists) {
 			logError("Using cached instructions due to fetch failure");
 			const fileContent = safeReadFile(cacheFilePath) || "";
-		cacheSessionEntry(fileContent, cachedETag || undefined, cachedTag || undefined);
+			cacheSessionEntry(fileContent, cachedETag || undefined, cachedTag || undefined);
 			return fileContent;
 		}
 

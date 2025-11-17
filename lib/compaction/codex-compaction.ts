@@ -1,7 +1,6 @@
-import type { InputItem } from "../types.js";
 import { CODEX_COMPACTION_PROMPT, CODEX_SUMMARY_PREFIX } from "../prompts/codex-compaction.js";
+import type { InputItem } from "../types.js";
 import { deepClone } from "../utils/clone.js";
-import { isUserMessage } from "../utils/input-item-utils.js";
 
 const DEFAULT_TRANSCRIPT_CHAR_LIMIT = 12_000;
 const COMMAND_TRIGGERS = ["codex-compact", "compact", "codexcompact", "compactnow"];
@@ -44,7 +43,7 @@ export function detectCompactionCommand(input: InputItem[] | undefined): string 
 		const content = extractTextFromItem(item).trim();
 		if (!content) continue;
 		const normalized = normalizeCommandTrigger(content);
-		if (COMMAND_TRIGGERS.some((trigger) => normalized === trigger || normalized.startsWith(trigger + " "))) {
+		if (COMMAND_TRIGGERS.some((trigger) => normalized === trigger || normalized.startsWith(`${trigger} `))) {
 			return normalized;
 		}
 		break;

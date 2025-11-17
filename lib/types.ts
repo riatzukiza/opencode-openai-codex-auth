@@ -1,4 +1,4 @@
-import type { Auth, Provider, Model } from "@opencode-ai/sdk";
+import type { Auth, Model, Provider } from "@opencode-ai/sdk";
 
 /**
  * Plugin configuration from ~/.opencode/openhax-codex-config.json
@@ -151,10 +151,10 @@ export interface RequestBody {
 	instructions?: string;
 	input?: InputItem[];
 	tools?: unknown;
-    /** OpenAI Responses API tool selection policy */
-    tool_choice?: string | { type?: string };
-    /** Whether the model may call tools in parallel during a single turn */
-    parallel_tool_calls?: boolean;
+	/** OpenAI Responses API tool selection policy */
+	tool_choice?: string | { type?: string };
+	/** Whether the model may call tools in parallel during a single turn */
+	parallel_tool_calls?: boolean;
 	reasoning?: Partial<ReasoningConfig>;
 	text?: {
 		verbosity?: "low" | "medium" | "high";

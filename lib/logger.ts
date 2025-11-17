@@ -1,9 +1,8 @@
-import type { OpencodeClient } from "@opencode-ai/sdk";
-import { writeFileSync, existsSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { homedir } from "node:os";
+import type { OpencodeClient } from "@opencode-ai/sdk";
 import { PLUGIN_NAME } from "./constants.js";
-import { getOpenCodePath, ensureDirectory } from "./utils/file-system-utils.js";
+import { ensureDirectory, getOpenCodePath } from "./utils/file-system-utils.js";
 
 export const LOGGING_ENABLED = process.env.ENABLE_PLUGIN_REQUEST_LOGGING === "1";
 const DEBUG_ENABLED = process.env.DEBUG_CODEX_PLUGIN === "1" || LOGGING_ENABLED;

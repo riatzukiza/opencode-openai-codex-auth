@@ -1,5 +1,5 @@
-import type { SessionContext, InputItem } from "../types.js";
 import type { SessionManager } from "../session/session-manager.js";
+import type { InputItem, SessionContext } from "../types.js";
 import { createSummaryMessage } from "./codex-compaction.js";
 
 export interface CompactionDecision {
@@ -31,13 +31,12 @@ export async function finalizeCompactionResponse({
 	const payload = JSON.parse(text) as any;
 	const summaryText = extractFirstAssistantText(payload) ?? "(no summary provided)";
 	const summaryMessage = createSummaryMessage(summaryText);
-	const summaryContent = typeof summaryMessage.content === "string"
-		? summaryMessage.content
-		: '';
+	const summaryContent = typeof summaryMessage.content === "string" ? summaryMessage.content : "";
 
-	const metaNote = decision.mode === "auto"
-		? `Auto compaction triggered (${decision.reason ?? "context limit"}). Review the summary below, then resend your last instruction.\n\n`
-		: "";
+	const metaNote =
+		decision.mode === "auto"
+			? `Auto compaction triggered (${decision.reason ?? "context limit"}). Review the summary below, then resend your last instruction.\n\n`
+			: "";
 	const finalText = `${metaNote}${summaryContent}`.trim();
 
 	rewriteAssistantOutput(payload, finalText);

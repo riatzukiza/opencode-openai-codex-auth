@@ -1,11 +1,11 @@
 import type { PluginInput } from "@opencode-ai/plugin";
 import type { Auth } from "@opencode-ai/sdk";
+import { maybeHandleCodexCommand } from "../commands/codex-metrics.js";
+import { finalizeCompactionResponse } from "../compaction/compaction-executor.js";
 import { LOG_STAGES } from "../constants.js";
 import { logRequest } from "../logger.js";
-import { maybeHandleCodexCommand } from "../commands/codex-metrics.js";
 import { recordSessionResponseFromHandledResponse } from "../session/response-recorder.js";
 import type { SessionManager } from "../session/session-manager.js";
-import { finalizeCompactionResponse } from "../compaction/compaction-executor.js";
 import type { PluginConfig, UserConfig } from "../types.js";
 import {
 	createCodexHeaders,
@@ -30,7 +30,16 @@ export type CodexFetcherDeps = {
 };
 
 export function createCodexFetcher(deps: CodexFetcherDeps) {
-	const { getAuth, client, accountId, userConfig, codexMode, sessionManager, codexInstructions, pluginConfig } = deps;
+	const {
+		getAuth,
+		client,
+		accountId,
+		userConfig,
+		codexMode,
+		sessionManager,
+		codexInstructions,
+		pluginConfig,
+	} = deps;
 
 	return async function codexFetch(input: Request | string | URL, init?: RequestInit): Promise<Response> {
 		const currentAuth = await getAuth();
