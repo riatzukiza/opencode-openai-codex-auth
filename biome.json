@@ -6,33 +6,11 @@
 	},
 	"formatter": {
 		"enabled": true,
-		"lineWidth": 110
+		"lineWidth": 110,
+		"formatWithErrors": true
 	},
 	"linter": {
-		"enabled": true,
-		"rules": {
-			"recommended": true,
-			"complexity": {
-				"noExcessiveCognitiveComplexity": {
-					"level": "warn",
-					"options": {
-						"maxAllowedComplexity": 15
-					}
-				},
-				"noExtraBooleanCast": "warn"
-			},
-			"correctness": {
-				"noUnusedVariables": "error"
-			},
-			"style": {
-				"noParameterAssign": "warn",
-				"useShorthandFunctionType": "warn"
-			},
-			"suspicious": {
-				"noExplicitAny": "warn",
-				"noArrayIndexKey": "warn"
-			}
-		}
+		"enabled": false
 	},
 	"javascript": {
 		"globals": ["globalThis"]

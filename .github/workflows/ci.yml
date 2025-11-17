@@ -28,11 +28,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run lint
+      - name: Run lint (ESLint + Prettier check)
         run: pnpm lint
-
-      - name: Run typecheck
+ 
+       - name: Run typecheck
         run: pnpm typecheck
+
 
   test:
     name: Test
