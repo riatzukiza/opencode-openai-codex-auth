@@ -1,3 +1,4 @@
+import { PLUGIN_NAME } from "../constants.js";
 import { LOGGING_ENABLED, logError, logRequest } from "../logger.js";
 import type { SSEEventData } from "../types.js";
 
@@ -35,7 +36,7 @@ function parseSseStream(sseText: string): unknown | null {
  */
 export async function convertSseToJson(response: Response, headers: Headers): Promise<Response> {
 	if (!response.body) {
-		throw new Error("[openhax/codex] Response has no body");
+		throw new Error(`${PLUGIN_NAME} Response has no body`);
 	}
 	const reader = response.body.getReader();
 	const decoder = new TextDecoder();
