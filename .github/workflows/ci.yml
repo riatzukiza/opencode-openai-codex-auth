@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches:
-      - '**'
+      - "**"
   pull_request:
 
 jobs:
@@ -30,10 +30,9 @@ jobs:
 
       - name: Run lint (ESLint + Prettier check)
         run: pnpm lint
- 
-       - name: Run typecheck
-        run: pnpm typecheck
 
+      - name: Run typecheck
+        run: pnpm typecheck
 
   test:
     name: Test
@@ -132,19 +131,19 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
- 
+
       - name: Validate release secrets
         run: |
           if [ -z "$NPM_TOKEN" ]; then
             echo "NPM_TOKEN secret is required to publish" >&2
             exit 1
           fi
- 
+
       - name: Configure npm auth
 
         run: |
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
- 
+
       - name: Read release metadata
         id: release_meta
         run: |
@@ -166,19 +165,18 @@ jobs:
             cat "$NOTES_FILE"
             echo "${NOTES_DELIM}"
           } >> "$GITHUB_OUTPUT"
- 
+
       - name: Build package
         run: pnpm run build
- 
+
       - name: Publish to npm
         env:
           NODE_AUTH_TOKEN: ${{ env.NPM_TOKEN }}
         run: pnpm publish --access public
- 
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.release_meta.outputs.version }}
           name: Release ${{ steps.release_meta.outputs.version }}
           body: ${{ steps.release_meta.outputs.notes }}
-
