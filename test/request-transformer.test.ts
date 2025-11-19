@@ -62,6 +62,13 @@ describe('normalizeModel', () => {
 		expect(normalizeModel('openai/codex-mini-latest')).toBe('gpt-5.1-codex-mini');
 	});
 
+	it('should normalize codex max variants to gpt-5.1-codex-max', async () => {
+		expect(normalizeModel('gpt-5.1-codex-max')).toBe('gpt-5.1-codex-max');
+		expect(normalizeModel('gpt51-codex-max')).toBe('gpt-5.1-codex-max');
+		expect(normalizeModel('gpt-5-codex-max')).toBe('gpt-5.1-codex-max');
+		expect(normalizeModel('codex-max')).toBe('gpt-5.1-codex-max');
+	});
+
 	it('should normalize gpt-5.1 general presets to gpt-5.1', async () => {
 		expect(normalizeModel('gpt-5.1')).toBe('gpt-5.1');
 		expect(normalizeModel('gpt-5.1-medium')).toBe('gpt-5.1');
@@ -121,6 +128,32 @@ describe('getReasoningConfig (gpt-5.1)', () => {
 	it('downgrades none to minimal on legacy gpt-5 models', async () => {
 		const result = getReasoningConfig('gpt-5', { reasoningEffort: 'none' });
 		expect(result.effort).toBe('minimal');
+	});
+});
+
+describe('getReasoningConfig (gpt-5.1-codex-max)', () => {
+	it('defaults to medium and allows xhigh effort', async () => {
+		const defaults = getReasoningConfig('gpt-5.1-codex-max', {});
+		expect(defaults.effort).toBe('medium');
+
+		const xhigh = getReasoningConfig('gpt-5.1-codex-max', { reasoningEffort: 'xhigh' });
+		expect(xhigh.effort).toBe('xhigh');
+	});
+
+	it('downgrades minimal or none to low for codex max', async () => {
+		const minimal = getReasoningConfig('gpt-5.1-codex-max', { reasoningEffort: 'minimal' });
+		expect(minimal.effort).toBe('low');
+
+		const none = getReasoningConfig('gpt-5.1-codex-max', { reasoningEffort: 'none' });
+		expect(none.effort).toBe('low');
+	});
+
+	it('downgrades xhigh to high on other models', async () => {
+		const codex = getReasoningConfig('gpt-5.1-codex', { reasoningEffort: 'xhigh' });
+		expect(codex.effort).toBe('high');
+
+		const general = getReasoningConfig('gpt-5', { reasoningEffort: 'xhigh' });
+		expect(general.effort).toBe('high');
 	});
 });
 
@@ -747,6 +780,36 @@ describe('transformRequestBody', () => {
 
 		expect(result.reasoning?.effort).toBe('high');
 		expect(result.reasoning?.summary).toBe('detailed');
+	});
+
+	it('should keep xhigh reasoning effort for gpt-5.1-codex-max', async () => {
+		const body: RequestBody = {
+			model: 'gpt-5.1-codex-max',
+			input: [],
+		};
+		const userConfig: UserConfig = {
+			global: {
+				reasoningEffort: 'xhigh',
+			},
+			models: {},
+		};
+		const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
+		expect(result.reasoning?.effort).toBe('xhigh');
+	});
+
+	it('should downgrade xhigh reasoning for non-codex-max models', async () => {
+		const body: RequestBody = {
+			model: 'gpt-5.1-codex',
+			input: [],
+		};
+		const userConfig: UserConfig = {
+			global: {
+				reasoningEffort: 'xhigh',
+			},
+			models: {},
+		};
+		const result = await transformRequestBody(body, codexInstructions, userConfig, true, { preserveIds: false });
+		expect(result.reasoning?.effort).toBe('high');
 	});
 
 	it('should apply default text verbosity', async () => {
