@@ -193,13 +193,13 @@ The plugin logs ID filtering for debugging:
 
 ```typescript
 // Before filtering
-console.log(`[openai-codex-plugin] Filtering ${originalIds.length} message IDs from input:`, originalIds);
+console.log(`[openhax/codex] Filtering ${originalIds.length} message IDs from input:`, originalIds);
 
 // After filtering
-console.log(`[openai-codex-plugin] Successfully removed all ${originalIds.length} message IDs`);
+console.log(`[openhax/codex] Successfully removed all ${originalIds.length} message IDs`);
 
 // Or warning if IDs remain
-console.warn(`[openai-codex-plugin] WARNING: ${remainingIds.length} IDs still present after filtering:`, remainingIds);
+console.warn(`[openhax/codex] WARNING: ${remainingIds.length} IDs still present after filtering:`, remainingIds);
 ```
 
 **Source**: `lib/request/request-transformer.ts:287-301`

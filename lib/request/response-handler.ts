@@ -35,7 +35,7 @@ function parseSseStream(sseText: string): unknown | null {
  */
 export async function convertSseToJson(response: Response, headers: Headers): Promise<Response> {
 	if (!response.body) {
-		throw new Error("[openai-codex-plugin] Response has no body");
+		throw new Error("[openhax/codex] Response has no body");
 	}
 	const reader = response.body.getReader();
 	const decoder = new TextDecoder();

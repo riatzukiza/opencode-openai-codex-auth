@@ -205,7 +205,7 @@ describe("Auth Module", () => {
 			const result = await exchangeAuthorizationCode("code", "verifier");
 			expect(result).toEqual({ type: "failed" });
 			expect(console.error).toHaveBeenCalledWith(
-				'[openai-codex-plugin] Authorization code exchange failed {"status":400,"body":"bad request"}',
+				'[openhax/codex] Authorization code exchange failed {"status":400,"body":"bad request"}',
 				"",
 			);
 		});
@@ -219,7 +219,7 @@ describe("Auth Module", () => {
 			fetchMock.mockResolvedValueOnce(badRes);
 			await exchangeAuthorizationCode("code", "verifier");
 			expect(console.error).toHaveBeenCalledWith(
-				'[openai-codex-plugin] Authorization code exchange failed {"status":500,"body":""}',
+				'[openhax/codex] Authorization code exchange failed {"status":500,"body":""}',
 				"",
 			);
 		});
@@ -232,7 +232,7 @@ describe("Auth Module", () => {
 			const result = await exchangeAuthorizationCode("code", "verifier");
 			expect(result).toEqual({ type: "failed" });
 			expect(console.error).toHaveBeenCalledWith(
-				'[openai-codex-plugin] Token response missing fields {"access_token":"only-access"}',
+				'[openhax/codex] Token response missing fields {"access_token":"only-access"}',
 				"",
 			);
 		});
@@ -274,7 +274,7 @@ describe("Auth Module", () => {
 			const result = await refreshAccessToken("refresh-token");
 			expect(result).toEqual({ type: "failed" });
 			expect(console.error).toHaveBeenCalledWith(
-				'[openai-codex-plugin] Token refresh failed {"status":401,"body":"denied"}',
+				'[openhax/codex] Token refresh failed {"status":401,"body":"denied"}',
 				"",
 			);
 		});
@@ -284,7 +284,7 @@ describe("Auth Module", () => {
 			const result = await refreshAccessToken("refresh-token");
 			expect(result).toEqual({ type: "failed" });
 			expect(console.error).toHaveBeenCalledWith(
-				'[openai-codex-plugin] Token refresh error {"error":"network down"}',
+				'[openhax/codex] Token refresh error {"error":"network down"}',
 				"",
 			);
 		});
@@ -298,7 +298,7 @@ describe("Auth Module", () => {
 			fetchMock.mockResolvedValueOnce(badRes);
 			await refreshAccessToken("refresh-token");
 			expect(console.error).toHaveBeenCalledWith(
-				'[openai-codex-plugin] Token refresh failed {"status":403,"body":""}',
+				'[openhax/codex] Token refresh failed {"status":403,"body":""}',
 				"",
 			);
 		});
@@ -310,7 +310,7 @@ describe("Auth Module", () => {
 			const result = await refreshAccessToken("refresh-token");
 			expect(result).toEqual({ type: "failed" });
 			expect(console.error).toHaveBeenCalledWith(
-				'[openai-codex-plugin] Token refresh response missing fields {"access_token":"only"}',
+				'[openhax/codex] Token refresh response missing fields {"access_token":"only"}',
 				"",
 			);
 		});

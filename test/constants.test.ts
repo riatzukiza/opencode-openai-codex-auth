@@ -16,7 +16,7 @@ import {
 
 describe("General constants", () => {
 	it("exposes the codex plugin identity", () => {
-		expect(PLUGIN_NAME).toBe("openai-codex-plugin");
+		expect(PLUGIN_NAME).toBe("openhax/codex");
 		expect(PROVIDER_ID).toBe("openai");
 	});
 
