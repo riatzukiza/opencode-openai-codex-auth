@@ -1,19 +1,30 @@
 import type { OpencodeClient } from "@opencode-ai/sdk";
-import { writeFileSync, existsSync } from "node:fs";
+import { writeFileSync, appendFileSync } from "node:fs";
 import { join } from "node:path";
-import { homedir } from "node:os";
 import { PLUGIN_NAME } from "./constants.js";
 import { getOpenCodePath, ensureDirectory } from "./utils/file-system-utils.js";
 
 export const LOGGING_ENABLED = process.env.ENABLE_PLUGIN_REQUEST_LOGGING === "1";
-const DEBUG_ENABLED = process.env.DEBUG_CODEX_PLUGIN === "1" || LOGGING_ENABLED;
+const DEBUG_FLAG_ENABLED = process.env.DEBUG_CODEX_PLUGIN === "1";
+const DEBUG_ENABLED = DEBUG_FLAG_ENABLED || LOGGING_ENABLED;
+const CONSOLE_LOGGING_ENABLED = LOGGING_ENABLED || DEBUG_FLAG_ENABLED;
 const LOG_DIR = getOpenCodePath("logs", "codex-plugin");
+const ROLLING_LOG_FILE = join(LOG_DIR, "codex-plugin.log");
 
 type LogLevel = "debug" | "info" | "warn" | "error";
+
 
 type LoggerOptions = {
 	client?: OpencodeClient;
 	directory?: string;
+};
+
+type RollingLogEntry = {
+	timestamp: string;
+	service: string;
+	level: LogLevel;
+	message: string;
+	extra?: Record<string, unknown>;
 };
 
 let requestCounter = 0;
@@ -45,7 +56,6 @@ export function configureLogger(options: LoggerOptions = {}): void {
 }
 
 export function logRequest(stage: string, data: Record<string, unknown>): void {
-	if (!LOGGING_ENABLED) return;
 	const payload = {
 		timestamp: new Date().toISOString(),
 		requestId: ++requestCounter,
@@ -64,7 +74,6 @@ export function logRequest(stage: string, data: Record<string, unknown>): void {
 }
 
 export function logDebug(message: string, data?: unknown): void {
-	if (!DEBUG_ENABLED) return;
 	emit("debug", message, normalizeExtra(data));
 }
 
@@ -81,25 +90,35 @@ export function logError(message: string, data?: unknown): void {
 }
 
 function emit(level: LogLevel, message: string, extra?: Record<string, unknown>): void {
-	const payload = {
+	const sanitizedExtra = sanitizeExtra(extra);
+	const entry: RollingLogEntry = {
+		timestamp: new Date().toISOString(),
 		service: PLUGIN_NAME,
 		level,
 		message,
-		extra: sanitizeExtra(extra),
+		extra: sanitizedExtra,
 	};
+	appendRollingLog(entry);
+
 	if (loggerClient?.app) {
 		void loggerClient.app
 			.log({
-				body: payload,
+				body: entry,
 				query: projectDirectory ? { directory: projectDirectory } : undefined,
 			})
-			.catch((error) => fallback(level, message, payload.extra, error));
-		return;
+			.catch((error) =>
+				logToConsole("warn", "Failed to forward log entry", {
+					error: error instanceof Error ? error.message : String(error),
+				}),
+			);
 	}
-	fallback(level, message, payload.extra);
+
+	logToConsole(level, message, sanitizedExtra);
 }
 
-function fallback(level: LogLevel, message: string, extra?: Record<string, unknown>, error?: unknown): void {
+function logToConsole(level: LogLevel, message: string, extra?: Record<string, unknown>, error?: unknown): void {
+	const shouldLog = CONSOLE_LOGGING_ENABLED || level === "warn" || level === "error";
+	if (!shouldLog) return;
 	const prefix = `[${PLUGIN_NAME}] ${message}`;
 	const details = extra ? `${prefix} ${JSON.stringify(extra)}` : prefix;
 	if (level === "error") {
@@ -144,5 +163,16 @@ function persistRequestStage(stage: string, payload: Record<string, unknown>): s
 			error: err instanceof Error ? err.message : String(err),
 		});
 		return undefined;
+	}
+}
+
+function appendRollingLog(entry: RollingLogEntry): void {
+	try {
+		ensureLogDir();
+		appendFileSync(ROLLING_LOG_FILE, `${JSON.stringify(entry)}\n`, "utf8");
+	} catch (err) {
+		logToConsole("warn", "Failed to write rolling log", {
+			error: err instanceof Error ? err.message : String(err),
+		});
 	}
 }
