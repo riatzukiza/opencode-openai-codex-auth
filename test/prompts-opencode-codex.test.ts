@@ -1,5 +1,5 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { openCodePromptCache } from "../lib/cache/session-cache.js";
 
 const files = new Map<string, string>();
@@ -10,11 +10,28 @@ const homedirMock = vi.fn(() => "/mock-home");
 const fetchMock = vi.fn();
 const recordCacheHitMock = vi.fn();
 const recordCacheMissMock = vi.fn();
+const existsSync = vi.fn(() => false);
+const appendFileSync = vi.fn();
+const writeFileSync = vi.fn();
+const mkdirSync = vi.fn();
 
 vi.mock("node:fs/promises", () => ({
 	mkdir: mkdirMock,
 	readFile: readFileMock,
 	writeFile: writeFileMock,
+}));
+
+vi.mock("node:fs", () => ({
+	default: {
+		existsSync,
+		appendFileSync,
+		writeFileSync,
+		mkdirSync,
+	},
+	existsSync,
+	appendFileSync,
+	writeFileSync,
+	mkdirSync,
 }));
 
 vi.mock("node:os", () => ({
@@ -50,6 +67,10 @@ describe("OpenCode Codex Prompt Fetcher", () => {
 		fetchMock.mockClear();
 		recordCacheHitMock.mockClear();
 		recordCacheMissMock.mockClear();
+		existsSync.mockReset();
+		appendFileSync.mockReset();
+		writeFileSync.mockReset();
+		mkdirSync.mockReset();
 		openCodePromptCache.clear();
 		vi.stubGlobal("fetch", fetchMock);
 	});
@@ -107,10 +128,10 @@ describe("OpenCode Codex Prompt Fetcher", () => {
 
 			expect(contentFileCall).toBeTruthy();
 			expect(metaFileCall).toBeTruthy();
-			expect(contentFileCall?.[1]).toBe("fresh-content");
-			expect(contentFileCall?.[2]).toBe("utf-8");
-			expect(metaFileCall?.[2]).toBe("utf-8");
-			expect(metaFileCall?.[1]).toContain("new-etag");
+			expect(contentFileCall![1]).toBe("fresh-content");
+			expect(contentFileCall![2]).toBe("utf-8");
+			expect(metaFileCall![2]).toBe("utf-8");
+			expect(metaFileCall![1]).toContain("new-etag");
 		});
 
 		it("uses file cache when within TTL period", async () => {

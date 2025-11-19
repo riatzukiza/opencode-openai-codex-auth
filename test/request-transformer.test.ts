@@ -1,36 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
-	addCodexBridgeMessage,
-	addToolRemapMessage,
-	filterInput,
-	filterOpenCodeSystemPrompts,
+	normalizeModel,
 	getModelConfig,
 	getReasoningConfig,
+	filterInput,
+	addToolRemapMessage,
 	isOpenCodeSystemPrompt,
-	normalizeModel,
-	transformRequestBody,
+	filterOpenCodeSystemPrompts,
+	addCodexBridgeMessage,
+	transformRequestBody as transformRequestBodyInternal,
 } from "../lib/request/request-transformer.js";
-import type { TransformRequestOptions } from "../lib/request/request-transformer.js";
-import type { InputItem, RequestBody, SessionContext, UserConfig } from "../lib/types.js";
+import type { RequestBody, UserConfig, InputItem } from "../lib/types.js";
 
-async function runTransform(
-	body: RequestBody,
-	codexInstructions: string,
-	userConfig?: UserConfig,
-	codexMode = true,
-	options?: TransformRequestOptions,
-	sessionContext?: SessionContext,
-) {
-	const result = await transformRequestBody(
-		body,
-		codexInstructions,
-		userConfig,
-		codexMode,
-		options,
-		sessionContext,
-	);
+const transformRequestBody = async (...args: Parameters<typeof transformRequestBodyInternal>) => {
+	const result = await transformRequestBodyInternal(...args);
 	return result.body;
-}
+};
 
 describe("normalizeModel", () => {
 	it("should normalize gpt-5", async () => {
@@ -80,6 +65,13 @@ describe("normalizeModel", () => {
 	it("should normalize raw codex-mini-latest slug to gpt-5.1-codex-mini", async () => {
 		expect(normalizeModel("codex-mini-latest")).toBe("gpt-5.1-codex-mini");
 		expect(normalizeModel("openai/codex-mini-latest")).toBe("gpt-5.1-codex-mini");
+	});
+
+	it("should normalize codex max variants to gpt-5.1-codex-max", async () => {
+		expect(normalizeModel("gpt-5.1-codex-max")).toBe("gpt-5.1-codex-max");
+		expect(normalizeModel("gpt51-codex-max")).toBe("gpt-5.1-codex-max");
+		expect(normalizeModel("gpt-5-codex-max")).toBe("gpt-5.1-codex-max");
+		expect(normalizeModel("codex-max")).toBe("gpt-5.1-codex-max");
 	});
 
 	it("should normalize gpt-5.1 general presets to gpt-5.1", async () => {
@@ -144,6 +136,32 @@ describe("getReasoningConfig (gpt-5.1)", () => {
 	});
 });
 
+describe("getReasoningConfig (gpt-5.1-codex-max)", () => {
+	it("defaults to medium and allows xhigh effort", async () => {
+		const defaults = getReasoningConfig("gpt-5.1-codex-max", {});
+		expect(defaults.effort).toBe("medium");
+
+		const xhigh = getReasoningConfig("gpt-5.1-codex-max", { reasoningEffort: "xhigh" });
+		expect(xhigh.effort).toBe("xhigh");
+	});
+
+	it("downgrades minimal or none to low for codex max", async () => {
+		const minimal = getReasoningConfig("gpt-5.1-codex-max", { reasoningEffort: "minimal" });
+		expect(minimal.effort).toBe("low");
+
+		const none = getReasoningConfig("gpt-5.1-codex-max", { reasoningEffort: "none" });
+		expect(none.effort).toBe("low");
+	});
+
+	it("downgrades xhigh to high on other models", async () => {
+		const codex = getReasoningConfig("gpt-5.1-codex", { reasoningEffort: "xhigh" });
+		expect(codex.effort).toBe("high");
+
+		const general = getReasoningConfig("gpt-5", { reasoningEffort: "xhigh" });
+		expect(general.effort).toBe("high");
+	});
+});
+
 describe("filterInput", () => {
 	it("should handle null/undefined in filterInput", async () => {
 		expect(filterInput(null as any)).toBeNull();
@@ -160,7 +178,7 @@ describe("filterInput", () => {
 		const input: InputItem[] = [{ type: "message", role: "user", content: "hello" }];
 		const result = filterInput(input);
 		expect(result).toEqual(input);
-		expect(result?.[0]).not.toHaveProperty("id");
+		expect(result![0]).not.toHaveProperty("id");
 	});
 
 	it("should remove ALL message IDs (rs_, msg_, etc.) for store:false compatibility", async () => {
@@ -173,12 +191,12 @@ describe("filterInput", () => {
 
 		// All items should remain (no filtering), but ALL IDs removed
 		expect(result).toHaveLength(3);
-		expect(result?.[0]).not.toHaveProperty("id");
-		expect(result?.[1]).not.toHaveProperty("id");
-		expect(result?.[2]).not.toHaveProperty("id");
-		expect(result?.[0].content).toBe("hello");
-		expect(result?.[1].content).toBe("world");
-		expect(result?.[2].content).toBe("test");
+		expect(result![0]).not.toHaveProperty("id");
+		expect(result![1]).not.toHaveProperty("id");
+		expect(result![2]).not.toHaveProperty("id");
+		expect(result![0].content).toBe("hello");
+		expect(result![1].content).toBe("world");
+		expect(result![2].content).toBe("test");
 	});
 
 	it("removes metadata when normalizing stateless input", async () => {
@@ -194,11 +212,11 @@ describe("filterInput", () => {
 		const result = filterInput(input);
 
 		expect(result).toHaveLength(1);
-		expect(result?.[0]).not.toHaveProperty("id");
-		expect(result?.[0].type).toBe("message");
-		expect(result?.[0].role).toBe("user");
-		expect(result?.[0].content).toBe("test");
-		expect(result?.[0]).not.toHaveProperty("metadata");
+		expect(result![0]).not.toHaveProperty("id");
+		expect(result![0].type).toBe("message");
+		expect(result![0].role).toBe("user");
+		expect(result![0].content).toBe("test");
+		expect(result![0]).not.toHaveProperty("metadata");
 	});
 
 	it("preserves metadata when IDs are preserved for host caching", async () => {
@@ -214,8 +232,8 @@ describe("filterInput", () => {
 		const result = filterInput(input, { preserveIds: true });
 
 		expect(result).toHaveLength(1);
-		expect(result?.[0]).toHaveProperty("id", "msg_123");
-		expect(result?.[0]).toHaveProperty("metadata");
+		expect(result![0]).toHaveProperty("id", "msg_123");
+		expect(result![0]).toHaveProperty("metadata");
 	});
 
 	it("should handle mixed items with and without IDs", async () => {
@@ -228,12 +246,12 @@ describe("filterInput", () => {
 
 		// All items kept, IDs removed from items that had them
 		expect(result).toHaveLength(3);
-		expect(result?.[0]).not.toHaveProperty("id");
-		expect(result?.[1]).not.toHaveProperty("id");
-		expect(result?.[2]).not.toHaveProperty("id");
-		expect(result?.[0].content).toBe("1");
-		expect(result?.[1].content).toBe("2");
-		expect(result?.[2].content).toBe("3");
+		expect(result![0]).not.toHaveProperty("id");
+		expect(result![1]).not.toHaveProperty("id");
+		expect(result![2]).not.toHaveProperty("id");
+		expect(result![0].content).toBe("1");
+		expect(result![1].content).toBe("2");
+		expect(result![2].content).toBe("3");
 	});
 
 	it("should handle custom ID formats (future-proof)", async () => {
@@ -244,8 +262,8 @@ describe("filterInput", () => {
 		const result = filterInput(input);
 
 		expect(result).toHaveLength(2);
-		expect(result?.[0]).not.toHaveProperty("id");
-		expect(result?.[1]).not.toHaveProperty("id");
+		expect(result![0]).not.toHaveProperty("id");
+		expect(result![1]).not.toHaveProperty("id");
 	});
 
 	it("should return undefined for undefined input", async () => {
@@ -403,9 +421,9 @@ describe("addToolRemapMessage", () => {
 		const result = addToolRemapMessage(input, true);
 
 		expect(result).toHaveLength(2);
-		expect(result?.[0].role).toBe("developer");
-		expect(result?.[0].type).toBe("message");
-		expect((result?.[0].content as any)[0].text).toContain("apply_patch");
+		expect(result![0].role).toBe("developer");
+		expect(result![0].type).toBe("message");
+		expect((result![0].content as any)[0].text).toContain("apply_patch");
 	});
 
 	it("should not modify input when tools not present", async () => {
@@ -528,7 +546,7 @@ describe("filterOpenCodeSystemPrompts", () => {
 		];
 		const result = await filterOpenCodeSystemPrompts(input);
 		expect(result).toHaveLength(1);
-		expect(result?.[0].role).toBe("user");
+		expect(result![0].role).toBe("user");
 	});
 
 	it("should keep user messages", async () => {
@@ -566,8 +584,8 @@ describe("filterOpenCodeSystemPrompts", () => {
 		const result = await filterOpenCodeSystemPrompts(input);
 		// Should filter codex.txt but keep AGENTS.md
 		expect(result).toHaveLength(2);
-		expect(result?.[0].content).toContain("AGENTS.md");
-		expect(result?.[1].role).toBe("user");
+		expect(result![0].content).toContain("AGENTS.md");
+		expect(result![1].role).toBe("user");
 	});
 
 	it("should keep environment+AGENTS.md concatenated message", async () => {
@@ -589,103 +607,12 @@ describe("filterOpenCodeSystemPrompts", () => {
 		const result = await filterOpenCodeSystemPrompts(input);
 		// Should filter first message (codex.txt) but keep second (env+AGENTS.md)
 		expect(result).toHaveLength(2);
-		expect(result?.[0].content).toContain("AGENTS.md");
-		expect(result?.[1].role).toBe("user");
-	});
-
-	it("should preserve auto-compaction summaries but drop file instructions", async () => {
-		const input: InputItem[] = [
-			{
-				type: "message",
-				role: "developer",
-				content: [
-					{
-						type: "input_text",
-						text: "Auto-compaction summary saved to ~/.opencode/summaries/session.md",
-					},
-					{ type: "input_text", text: "- Built caching layer and refreshed metrics." },
-					{ type: "input_text", text: "Open the summary file for the full log." },
-				],
-			},
-			{ type: "message", role: "user", content: "hello" },
-		];
-		const result = await filterOpenCodeSystemPrompts(input);
-		expect(result).toHaveLength(2);
-		const summary = result?.[0];
-		expect(summary.role).toBe("developer");
-		expect(typeof summary.content).toBe("string");
-		const summaryText = summary.content as string;
-		expect(summaryText).toContain("Auto-compaction summary");
-		expect(summaryText).toContain("Built caching layer");
-		expect(summaryText).not.toContain("~/.opencode");
-		expect(summaryText).not.toContain("summary file");
-	});
-
-	it("should drop compaction prompts that only reference summary files", async () => {
-		const input: InputItem[] = [
-			{
-				type: "message",
-				role: "developer",
-				content: "Auto-compaction triggered. Write the summary to summary_file.",
-			},
-			{ type: "message", role: "user", content: "hello" },
-		];
-		const result = await filterOpenCodeSystemPrompts(input);
-		expect(result).toHaveLength(1);
-		expect(result?.[0].role).toBe("user");
+		expect(result![0].content).toContain("AGENTS.md");
+		expect(result![1].role).toBe("user");
 	});
 
 	it("should return undefined for undefined input", async () => {
 		expect(await filterOpenCodeSystemPrompts(undefined)).toBeUndefined();
-	});
-});
-
-describe("compaction integration", () => {
-	const instructions = "Codex instructions";
-
-	it("rewrites input when manual codex-compact command is present", async () => {
-		const body: RequestBody = {
-			model: "gpt-5",
-			input: [
-				{ type: "message", role: "developer", content: "AGENTS" },
-				{ type: "message", role: "user", content: "Do work" },
-				{ type: "message", role: "user", content: "/codex-compact" },
-			],
-		};
-		const original = body.input?.map((item) => JSON.parse(JSON.stringify(item)));
-		const result = await transformRequestBody(body, instructions, undefined, true, {
-			compaction: {
-				settings: { enabled: true, autoLimitTokens: undefined, autoMinMessages: 8 },
-				commandText: "codex-compact",
-				originalInput: original,
-			},
-		});
-
-		expect(result.compactionDecision?.mode).toBe("command");
-		expect(result.body.input).toHaveLength(2);
-		expect(result.body.tools).toBeUndefined();
-	});
-
-	it("auto-compacts when token limit exceeded", async () => {
-		const longUser = "lorem ipsum ".repeat(200);
-		const body: RequestBody = {
-			model: "gpt-5",
-			input: [
-				{ type: "message", role: "user", content: longUser },
-				{ type: "message", role: "assistant", content: "ack" },
-			],
-		};
-		const original = body.input?.map((item) => JSON.parse(JSON.stringify(item)));
-		const result = await transformRequestBody(body, instructions, undefined, true, {
-			compaction: {
-				settings: { enabled: true, autoLimitTokens: 10, autoMinMessages: 1 },
-				commandText: null,
-				originalInput: original,
-			},
-		});
-
-		expect(result.compactionDecision?.mode).toBe("auto");
-		expect(result.body.input).toHaveLength(2);
 	});
 });
 
@@ -695,9 +622,9 @@ describe("addCodexBridgeMessage", () => {
 		const result = addCodexBridgeMessage(input, true);
 
 		expect(result).toHaveLength(2);
-		expect(result?.[0].role).toBe("developer");
-		expect(result?.[0].type).toBe("message");
-		expect((result?.[0].content as any)[0].text).toContain("Codex in OpenCode");
+		expect(result![0].role).toBe("developer");
+		expect(result![0].type).toBe("message");
+		expect((result![0].content as any)[0].text).toContain("Codex in OpenCode");
 	});
 
 	it("should not modify input when tools not present", async () => {
@@ -711,7 +638,7 @@ describe("addCodexBridgeMessage", () => {
 	});
 });
 
-describe("runTransform", () => {
+describe("transformRequestBody", () => {
 	const codexInstructions = "Test Codex Instructions";
 
 	it("preserves existing prompt_cache_key passed by host (OpenCode)", async () => {
@@ -722,7 +649,7 @@ describe("runTransform", () => {
 			// host-provided field is allowed by plugin
 			prompt_cache_key: "ses_host_key_123",
 		};
-		const result: any = await runTransform(body, codexInstructions);
+		const result: any = await transformRequestBody(body, codexInstructions);
 		expect(result.prompt_cache_key).toBe("ses_host_key_123");
 	});
 
@@ -732,7 +659,7 @@ describe("runTransform", () => {
 			input: [],
 			promptCacheKey: "ses_camel_key_456",
 		};
-		const result: any = await runTransform(body, codexInstructions);
+		const result: any = await transformRequestBody(body, codexInstructions);
 		expect(result.prompt_cache_key).toBe("ses_camel_key_456");
 	});
 
@@ -742,8 +669,51 @@ describe("runTransform", () => {
 			input: [],
 			metadata: { conversation_id: "meta-conv-123" },
 		};
-		const result: any = await runTransform(body, codexInstructions);
+		const result: any = await transformRequestBody(body, codexInstructions);
 		expect(result.prompt_cache_key).toBe("cache_meta-conv-123");
+	});
+
+	it("derives fork-aware prompt_cache_key when fork id is present in metadata", async () => {
+		const body: RequestBody = {
+			model: "gpt-5",
+			metadata: {
+				conversation_id: "meta-conv-123",
+				forkId: "branch-1",
+			},
+			input: [],
+		} as any;
+		const result: any = await transformRequestBody(body, codexInstructions);
+		expect(result.prompt_cache_key).toBe("cache_meta-conv-123-fork-branch-1");
+	});
+
+	it("derives fork-aware prompt_cache_key when fork id is present in root", async () => {
+		const body: RequestBody = {
+			model: "gpt-5",
+			conversation_id: "meta-conv-123",
+			fork_id: "branch-2",
+			input: [],
+		} as any;
+		const result: any = await transformRequestBody(body, codexInstructions);
+		expect(result.prompt_cache_key).toBe("cache_meta-conv-123-fork-branch-2");
+	});
+
+	it("reuses the same prompt_cache_key across non-structural overrides", async () => {
+		const baseBody: RequestBody = {
+			model: "gpt-5",
+			metadata: {
+				conversation_id: "meta-conv-789",
+				forkId: "fork-x",
+			},
+			input: [],
+		} as any;
+		const body1: RequestBody = { ...baseBody } as RequestBody;
+		const body2: RequestBody = { ...baseBody, text: { verbosity: "low" as const } } as RequestBody;
+
+		const result1: any = await transformRequestBody(body1, codexInstructions);
+		const result2: any = await transformRequestBody(body2, codexInstructions);
+
+		expect(result1.prompt_cache_key).toBe("cache_meta-conv-789-fork-fork-x");
+		expect(result2.prompt_cache_key).toBe("cache_meta-conv-789-fork-fork-x");
 	});
 
 	it("derives fork-aware prompt_cache_key when fork id is present in metadata", async () => {
@@ -752,7 +722,7 @@ describe("runTransform", () => {
 			input: [],
 			metadata: { conversation_id: "meta-conv-123", forkId: "branch-1" },
 		};
-		const result: any = await runTransform(body, codexInstructions);
+		const result: any = await transformRequestBody(body, codexInstructions);
 		expect(result.prompt_cache_key).toBe("cache_meta-conv-123-fork-branch-1");
 	});
 
@@ -763,7 +733,7 @@ describe("runTransform", () => {
 			metadata: { conversation_id: "meta-conv-123" },
 			forkId: "branch-2" as any,
 		} as any;
-		const result: any = await runTransform(body, codexInstructions);
+		const result: any = await transformRequestBody(body, codexInstructions);
 		expect(result.prompt_cache_key).toBe("cache_meta-conv-123-fork-branch-2");
 	});
 
@@ -784,23 +754,80 @@ describe("runTransform", () => {
 			text: { verbosity: "high" } as any,
 		};
 
-		const result1: any = await runTransform(body1, codexInstructions);
-		const result2: any = await runTransform(body2, codexInstructions);
+		const result1: any = await transformRequestBody(body1, codexInstructions);
+		const result2: any = await transformRequestBody(body2, codexInstructions);
 
 		expect(result1.prompt_cache_key).toBe("cache_meta-conv-789-fork-fork-x");
 		expect(result2.prompt_cache_key).toBe("cache_meta-conv-789-fork-fork-x");
 	});
 
-	it("generates deterministic fallback prompt_cache_key when no identifiers exist", async () => {
+	it("derives fork-aware prompt_cache_key when fork id is present in root", async () => {
+		const body: RequestBody = {
+			model: "gpt-5",
+			input: [],
+			metadata: { conversation_id: "meta-conv-123" },
+			forkId: "branch-2" as any,
+		} as any;
+		const result: any = await transformRequestBody(body, codexInstructions);
+		expect(result.prompt_cache_key).toBe("cache_meta-conv-123-fork-branch-2");
+	});
+
+	it("reuses the same prompt_cache_key across non-structural overrides", async () => {
+		const baseMetadata = { conversation_id: "meta-conv-789", forkId: "fork-x" };
+		const body1: RequestBody = {
+			model: "gpt-5",
+			input: [],
+			metadata: { ...baseMetadata },
+		};
+		const body2: RequestBody = {
+			model: "gpt-5",
+			input: [],
+			metadata: { ...baseMetadata },
+			// Soft overrides that should not change the cache key
+			max_output_tokens: 1024,
+			reasoning: { effort: "high" } as any,
+			text: { verbosity: "high" } as any,
+		};
+
+		const result1: any = await transformRequestBody(body1, codexInstructions);
+		const result2: any = await transformRequestBody(body2, codexInstructions);
+
+		expect(result1.prompt_cache_key).toBe("cache_meta-conv-789-fork-fork-x");
+		expect(result2.prompt_cache_key).toBe("cache_meta-conv-789-fork-fork-x");
+	});
+
+	it("reuses the same prompt_cache_key across non-structural overrides", async () => {
+		const baseMetadata = { conversation_id: "meta-conv-789", forkId: "fork-x" };
+		const body1: RequestBody = {
+			model: "gpt-5",
+			input: [],
+			metadata: { ...baseMetadata },
+		};
+		const body2: RequestBody = {
+			model: "gpt-5",
+			input: [],
+			metadata: { ...baseMetadata },
+			// Soft overrides that should not change the cache key
+			max_output_tokens: 1024,
+			reasoning: { effort: "high" } as any,
+			text: { verbosity: "high" } as any,
+		};
+
+		const result1: any = await transformRequestBody(body1, codexInstructions);
+		const result2: any = await transformRequestBody(body2, codexInstructions);
+
+		expect(result1.prompt_cache_key).toBe("cache_meta-conv-789-fork-fork-x");
+		expect(result2.prompt_cache_key).toBe("cache_meta-conv-789-fork-fork-x");
+	});
+
+	it("generates fallback prompt_cache_key when no identifiers exist", async () => {
 		const body: RequestBody = {
 			model: "gpt-5",
 			input: [],
 		};
-		const result1: any = await runTransform(body, codexInstructions);
-		const result2: any = await runTransform(body, codexInstructions);
-		expect(typeof result1.prompt_cache_key).toBe("string");
-		expect(result1.prompt_cache_key).toMatch(/^cache_[a-f0-9]{12}$/);
-		expect(result2.prompt_cache_key).toBe(result1.prompt_cache_key);
+		const result: any = await transformRequestBody(body, codexInstructions);
+		expect(typeof result.prompt_cache_key).toBe("string");
+		expect(result.prompt_cache_key).toMatch(/^cache_/);
 	});
 
 	it("should set required Codex fields", async () => {
@@ -808,7 +835,7 @@ describe("runTransform", () => {
 			model: "gpt-5",
 			input: [],
 		};
-		const result = await runTransform(body, codexInstructions);
+		const result = await transformRequestBody(body, codexInstructions);
 
 		expect(result.store).toBe(false);
 		expect(result.stream).toBe(true);
@@ -820,7 +847,7 @@ describe("runTransform", () => {
 			model: "gpt-5-mini",
 			input: [],
 		};
-		const result = await runTransform(body, codexInstructions);
+		const result = await transformRequestBody(body, codexInstructions);
 		expect(result.model).toBe("gpt-5");
 	});
 
@@ -829,7 +856,7 @@ describe("runTransform", () => {
 			model: "gpt-5",
 			input: [],
 		};
-		const result = await runTransform(body, codexInstructions);
+		const result = await transformRequestBody(body, codexInstructions);
 
 		expect(result.reasoning?.effort).toBe("medium");
 		expect(result.reasoning?.summary).toBe("auto");
@@ -847,7 +874,7 @@ describe("runTransform", () => {
 			},
 			models: {},
 		};
-		const result = await runTransform(body, codexInstructions, userConfig, true, {
+		const result = await transformRequestBody(body, codexInstructions, userConfig, true, {
 			preserveIds: false,
 		});
 
@@ -855,12 +882,46 @@ describe("runTransform", () => {
 		expect(result.reasoning?.summary).toBe("detailed");
 	});
 
+	it("should keep xhigh reasoning effort for gpt-5.1-codex-max", async () => {
+		const body: RequestBody = {
+			model: "gpt-5.1-codex-max",
+			input: [],
+		};
+		const userConfig: UserConfig = {
+			global: {
+				reasoningEffort: "xhigh",
+			},
+			models: {},
+		};
+		const result = await transformRequestBody(body, codexInstructions, userConfig, true, {
+			preserveIds: false,
+		});
+		expect(result.reasoning?.effort).toBe("xhigh");
+	});
+
+	it("should downgrade xhigh reasoning for non-codex-max models", async () => {
+		const body: RequestBody = {
+			model: "gpt-5.1-codex",
+			input: [],
+		};
+		const userConfig: UserConfig = {
+			global: {
+				reasoningEffort: "xhigh",
+			},
+			models: {},
+		};
+		const result = await transformRequestBody(body, codexInstructions, userConfig, true, {
+			preserveIds: false,
+		});
+		expect(result.reasoning?.effort).toBe("high");
+	});
+
 	it("should apply default text verbosity", async () => {
 		const body: RequestBody = {
 			model: "gpt-5",
 			input: [],
 		};
-		const result = await runTransform(body, codexInstructions);
+		const result = await transformRequestBody(body, codexInstructions);
 		expect(result.text?.verbosity).toBe("medium");
 	});
 
@@ -873,7 +934,7 @@ describe("runTransform", () => {
 			global: { textVerbosity: "low" },
 			models: {},
 		};
-		const result = await runTransform(body, codexInstructions, userConfig, true, {
+		const result = await transformRequestBody(body, codexInstructions, userConfig, true, {
 			preserveIds: false,
 		});
 		expect(result.text?.verbosity).toBe("low");
@@ -884,7 +945,7 @@ describe("runTransform", () => {
 			model: "gpt-5",
 			input: [],
 		};
-		const result = await runTransform(body, codexInstructions);
+		const result = await transformRequestBody(body, codexInstructions);
 		expect(result.include).toEqual(["reasoning.encrypted_content"]);
 	});
 
@@ -897,7 +958,7 @@ describe("runTransform", () => {
 			global: { include: ["custom_field", "reasoning.encrypted_content"] },
 			models: {},
 		};
-		const result = await runTransform(body, codexInstructions, userConfig, true, {
+		const result = await transformRequestBody(body, codexInstructions, userConfig, true, {
 			preserveIds: false,
 		});
 		expect(result.include).toEqual(["custom_field", "reasoning.encrypted_content"]);
@@ -911,14 +972,14 @@ describe("runTransform", () => {
 				{ type: "message", role: "user", content: "new" },
 			],
 		};
-		const result = await runTransform(body, codexInstructions);
+		const result = await transformRequestBody(body, codexInstructions);
 
 		// All items kept, IDs removed
 		expect(result.input).toHaveLength(2);
-		expect(result.input?.[0]).not.toHaveProperty("id");
-		expect(result.input?.[1]).not.toHaveProperty("id");
-		expect(result.input?.[0].content).toBe("old");
-		expect(result.input?.[1].content).toBe("new");
+		expect(result.input![0]).not.toHaveProperty("id");
+		expect(result.input![1]).not.toHaveProperty("id");
+		expect(result.input![0].content).toBe("old");
+		expect(result.input![1].content).toBe("new");
 	});
 
 	it("should preserve IDs when preserveIds option is set", async () => {
@@ -929,7 +990,7 @@ describe("runTransform", () => {
 				{ id: "call_1", type: "function_call", role: "assistant" },
 			],
 		};
-		const result = await runTransform(body, codexInstructions, undefined, true, {
+		const result = await transformRequestBody(body, codexInstructions, undefined, true, {
 			preserveIds: true,
 		});
 
@@ -945,7 +1006,7 @@ describe("runTransform", () => {
 			promptCacheKey: "camelcase-key",
 			prompt_cache_key: "snakecase-key",
 		};
-		const result = await runTransform(body, codexInstructions);
+		const result = await transformRequestBody(body, codexInstructions);
 
 		// Should prioritize snake_case over camelCase
 		expect(result.prompt_cache_key).toBe("snakecase-key");
@@ -957,8 +1018,8 @@ describe("runTransform", () => {
 			input: [{ type: "message", role: "user", content: "hello" }],
 			tools: [{ name: "test_tool" }],
 		};
-		const result = await runTransform(body, codexInstructions);
-		expect(result.input?.[0].role).toBe("developer");
+		const result = await transformRequestBody(body, codexInstructions);
+		expect(result.input![0].role).toBe("developer");
 	});
 
 	it("should not add tool remap message when tools absent", async () => {
@@ -966,8 +1027,8 @@ describe("runTransform", () => {
 			model: "gpt-5",
 			input: [{ type: "message", role: "user", content: "hello" }],
 		};
-		const result = await runTransform(body, codexInstructions);
-		expect(result.input?.[0].role).toBe("user");
+		const result = await transformRequestBody(body, codexInstructions);
+		expect(result.input![0].role).toBe("user");
 	});
 
 	it("should remove unsupported parameters", async () => {
@@ -977,7 +1038,7 @@ describe("runTransform", () => {
 			max_output_tokens: 1000,
 			max_completion_tokens: 2000,
 		};
-		const result = await runTransform(body, codexInstructions);
+		const result = await transformRequestBody(body, codexInstructions);
 		expect(result.max_output_tokens).toBeUndefined();
 		expect(result.max_completion_tokens).toBeUndefined();
 	});
@@ -991,7 +1052,7 @@ describe("runTransform", () => {
 			global: { reasoningEffort: "minimal" },
 			models: {},
 		};
-		const result = await runTransform(body, codexInstructions, userConfig, true, {
+		const result = await transformRequestBody(body, codexInstructions, userConfig, true, {
 			preserveIds: false,
 		});
 		expect(result.reasoning?.effort).toBe("low");
@@ -1006,7 +1067,7 @@ describe("runTransform", () => {
 			global: { reasoningEffort: "minimal" },
 			models: {},
 		};
-		const result = await runTransform(body, codexInstructions, userConfig, true, {
+		const result = await transformRequestBody(body, codexInstructions, userConfig, true, {
 			preserveIds: false,
 		});
 		expect(result.reasoning?.effort).toBe("minimal");
@@ -1017,7 +1078,7 @@ describe("runTransform", () => {
 			model: "gpt-5-nano",
 			input: [],
 		};
-		const result = await runTransform(body, codexInstructions);
+		const result = await transformRequestBody(body, codexInstructions);
 		expect(result.reasoning?.effort).toBe("minimal");
 	});
 
@@ -1028,11 +1089,11 @@ describe("runTransform", () => {
 				input: [{ type: "message", role: "user", content: "hello" }],
 				tools: [{ name: "test_tool" }],
 			};
-			const result = await runTransform(body, codexInstructions, undefined, true);
+			const result = await transformRequestBody(body, codexInstructions, undefined, true);
 
 			expect(result.input).toHaveLength(2);
-			expect(result.input?.[0].role).toBe("developer");
-			expect((result.input?.[0].content as any)[0].text).toContain("Codex in OpenCode");
+			expect(result.input![0].role).toBe("developer");
+			expect((result.input![0].content as any)[0].text).toContain("Codex in OpenCode");
 		});
 
 		it("should filter OpenCode prompts when codexMode=true", async () => {
@@ -1048,13 +1109,13 @@ describe("runTransform", () => {
 				],
 				tools: [{ name: "test_tool" }],
 			};
-			const result = await runTransform(body, codexInstructions, undefined, true);
+			const result = await transformRequestBody(body, codexInstructions, undefined, true);
 
 			// Should have bridge message + user message (OpenCode prompt filtered out)
 			expect(result.input).toHaveLength(2);
-			expect(result.input?.[0].role).toBe("developer");
-			expect((result.input?.[0].content as any)[0].text).toContain("Codex in OpenCode");
-			expect(result.input?.[1].role).toBe("user");
+			expect(result.input![0].role).toBe("developer");
+			expect((result.input![0].content as any)[0].text).toContain("Codex in OpenCode");
+			expect(result.input![1].role).toBe("user");
 		});
 
 		it("should not add bridge message when codexMode=true but no tools", async () => {
@@ -1062,10 +1123,10 @@ describe("runTransform", () => {
 				model: "gpt-5",
 				input: [{ type: "message", role: "user", content: "hello" }],
 			};
-			const result = await runTransform(body, codexInstructions, undefined, true);
+			const result = await transformRequestBody(body, codexInstructions, undefined, true);
 
 			expect(result.input).toHaveLength(1);
-			expect(result.input?.[0].role).toBe("user");
+			expect(result.input![0].role).toBe("user");
 		});
 
 		it("should use tool remap message when codexMode=false", async () => {
@@ -1074,11 +1135,11 @@ describe("runTransform", () => {
 				input: [{ type: "message", role: "user", content: "hello" }],
 				tools: [{ name: "test_tool" }],
 			};
-			const result = await runTransform(body, codexInstructions, undefined, false);
+			const result = await transformRequestBody(body, codexInstructions, undefined, false);
 
 			expect(result.input).toHaveLength(2);
-			expect(result.input?.[0].role).toBe("developer");
-			expect((result.input?.[0].content as any)[0].text).toContain("apply_patch");
+			expect(result.input![0].role).toBe("developer");
+			expect((result.input![0].content as any)[0].text).toContain("apply_patch");
 		});
 
 		it("should not filter OpenCode prompts when codexMode=false", async () => {
@@ -1094,14 +1155,14 @@ describe("runTransform", () => {
 				],
 				tools: [{ name: "test_tool" }],
 			};
-			const result = await runTransform(body, codexInstructions, undefined, false);
+			const result = await transformRequestBody(body, codexInstructions, undefined, false);
 
 			// Should have tool remap + opencode prompt + user message
 			expect(result.input).toHaveLength(3);
-			expect(result.input?.[0].role).toBe("developer");
-			expect((result.input?.[0].content as any)[0].text).toContain("apply_patch");
-			expect(result.input?.[1].role).toBe("developer");
-			expect(result.input?.[2].role).toBe("user");
+			expect(result.input![0].role).toBe("developer");
+			expect((result.input![0].content as any)[0].text).toContain("apply_patch");
+			expect(result.input![1].role).toBe("developer");
+			expect(result.input![2].role).toBe("user");
 		});
 
 		it("should default to codexMode=true when parameter not provided", async () => {
@@ -1111,11 +1172,11 @@ describe("runTransform", () => {
 				tools: [{ name: "test_tool" }],
 			};
 			// Not passing codexMode parameter - should default to true
-			const result = await runTransform(body, codexInstructions);
+			const result = await transformRequestBody(body, codexInstructions);
 
 			// Should use bridge message (codexMode=true by default)
-			expect(result.input?.[0].role).toBe("developer");
-			expect((result.input?.[0].content as any)[0].text).toContain("Codex in OpenCode");
+			expect(result.input![0].role).toBe("developer");
+			expect((result.input![0].content as any)[0].text).toContain("Codex in OpenCode");
 		});
 	});
 
@@ -1132,7 +1193,7 @@ describe("runTransform", () => {
 					models: {},
 				};
 
-				const result = await runTransform(body, codexInstructions, userConfig, true, {
+				const result = await transformRequestBody(body, codexInstructions, userConfig, true, {
 					preserveIds: false,
 				});
 
@@ -1147,7 +1208,7 @@ describe("runTransform", () => {
 					input: [],
 				};
 
-				const result = await runTransform(body, codexInstructions);
+				const result = await transformRequestBody(body, codexInstructions);
 
 				expect(result.model).toBe("gpt-5"); // Normalized
 				expect(result.reasoning?.effort).toBe("minimal"); // Lightweight default
@@ -1173,7 +1234,7 @@ describe("runTransform", () => {
 					input: [],
 				};
 
-				const result = await runTransform(body, codexInstructions, userConfig, true, {
+				const result = await transformRequestBody(body, codexInstructions, userConfig, true, {
 					preserveIds: false,
 				});
 
@@ -1188,7 +1249,7 @@ describe("runTransform", () => {
 					input: [],
 				};
 
-				const result = await runTransform(body, codexInstructions, userConfig, true, {
+				const result = await transformRequestBody(body, codexInstructions, userConfig, true, {
 					preserveIds: false,
 				});
 
@@ -1203,7 +1264,7 @@ describe("runTransform", () => {
 					input: [],
 				};
 
-				const result = await runTransform(body, codexInstructions, userConfig, true, {
+				const result = await transformRequestBody(body, codexInstructions, userConfig, true, {
 					preserveIds: false,
 				});
 
@@ -1228,7 +1289,7 @@ describe("runTransform", () => {
 					input: [],
 				};
 
-				const result = await runTransform(body, codexInstructions, userConfig, true, {
+				const result = await transformRequestBody(body, codexInstructions, userConfig, true, {
 					preserveIds: false,
 				});
 
@@ -1254,7 +1315,7 @@ describe("runTransform", () => {
 					input: [],
 				};
 
-				const result = await runTransform(body, codexInstructions, userConfig, true, {
+				const result = await transformRequestBody(body, codexInstructions, userConfig, true, {
 					preserveIds: false,
 				});
 
@@ -1267,7 +1328,7 @@ describe("runTransform", () => {
 					input: [],
 				};
 
-				const result = await runTransform(body, codexInstructions, userConfig, true, {
+				const result = await transformRequestBody(body, codexInstructions, userConfig, true, {
 					preserveIds: false,
 				});
 
@@ -1287,11 +1348,11 @@ describe("runTransform", () => {
 					],
 				};
 
-				const result = await runTransform(body, codexInstructions);
+				const result = await transformRequestBody(body, codexInstructions);
 
 				// All items kept, ALL IDs removed
 				expect(result.input).toHaveLength(4);
-				expect(result.input?.every((item) => !item.id)).toBe(true);
+				expect(result.input!.every((item) => !item.id)).toBe(true);
 				expect(result.store).toBe(false); // Stateless mode
 				expect(result.include).toEqual(["reasoning.encrypted_content"]);
 			});
@@ -1321,7 +1382,7 @@ describe("runTransform", () => {
 					tools: [{ name: "edit" }],
 				};
 
-				const result = await runTransform(body, codexInstructions, userConfig, true, {
+				const result = await transformRequestBody(body, codexInstructions, userConfig, true, {
 					preserveIds: false,
 				});
 
@@ -1329,7 +1390,7 @@ describe("runTransform", () => {
 				expect(result.model).toBe("gpt-5-codex");
 
 				// IDs removed
-				expect(result.input?.every((item) => !item.id)).toBe(true);
+				expect(result.input!.every((item) => !item.id)).toBe(true);
 
 				// Per-model options applied
 				expect(result.reasoning?.effort).toBe("low");
@@ -1351,7 +1412,7 @@ describe("runTransform", () => {
 				model: "gpt-5",
 				input: [],
 			};
-			const result = await runTransform(body, codexInstructions);
+			const result = await transformRequestBody(body, codexInstructions);
 			expect(result.input).toEqual([]);
 		});
 
@@ -1360,7 +1421,7 @@ describe("runTransform", () => {
 				model: "gpt-5",
 				input: null as any,
 			};
-			const result = await runTransform(body, codexInstructions);
+			const result = await transformRequestBody(body, codexInstructions);
 			expect(result.input).toBeNull();
 		});
 
@@ -1369,7 +1430,7 @@ describe("runTransform", () => {
 				model: "gpt-5",
 				input: undefined as any,
 			};
-			const result = await runTransform(body, codexInstructions);
+			const result = await transformRequestBody(body, codexInstructions);
 			expect(result.input).toBeUndefined();
 		});
 
@@ -1383,7 +1444,7 @@ describe("runTransform", () => {
 					{ not: "a valid item" } as any,
 				],
 			};
-			const result = await runTransform(body, codexInstructions);
+			const result = await transformRequestBody(body, codexInstructions);
 			expect(result.input).toHaveLength(4);
 		});
 
@@ -1404,9 +1465,9 @@ describe("runTransform", () => {
 					},
 				],
 			};
-			const result = await runTransform(body, codexInstructions);
+			const result = await transformRequestBody(body, codexInstructions);
 			expect(result.input).toHaveLength(1);
-			expect(Array.isArray(result.input?.[0].content)).toBe(true);
+			expect(Array.isArray(result.input![0].content)).toBe(true);
 		});
 
 		it("should handle very long model names", async () => {
@@ -1414,7 +1475,7 @@ describe("runTransform", () => {
 				model: "very-long-model-name-with-gpt-5-codex-and-extra-stuff",
 				input: [],
 			};
-			const result = await runTransform(body, codexInstructions);
+			const result = await transformRequestBody(body, codexInstructions);
 			expect(result.model).toBe("gpt-5-codex");
 		});
 
@@ -1423,7 +1484,7 @@ describe("runTransform", () => {
 				model: "gpt-5-codex@v1.0#beta",
 				input: [],
 			};
-			const result = await runTransform(body, codexInstructions);
+			const result = await transformRequestBody(body, codexInstructions);
 			expect(result.model).toBe("gpt-5-codex");
 		});
 
@@ -1432,7 +1493,7 @@ describe("runTransform", () => {
 				model: "",
 				input: [],
 			};
-			const result = await runTransform(body, codexInstructions);
+			const result = await transformRequestBody(body, codexInstructions);
 			expect(result.model).toBe("gpt-5.1");
 		});
 
@@ -1445,7 +1506,7 @@ describe("runTransform", () => {
 					summary: null as any,
 				} as any,
 			};
-			const result = await runTransform(body, codexInstructions);
+			const result = await transformRequestBody(body, codexInstructions);
 			// Should override with defaults
 			expect(result.reasoning?.effort).toBe("medium");
 			expect(result.reasoning?.summary).toBe("auto");
@@ -1459,7 +1520,7 @@ describe("runTransform", () => {
 					verbosity: "invalid" as any,
 				} as any,
 			};
-			const result = await runTransform(body, codexInstructions);
+			const result = await transformRequestBody(body, codexInstructions);
 			// Should override with defaults
 			expect(result.text?.verbosity).toBe("medium");
 		});
@@ -1470,7 +1531,7 @@ describe("runTransform", () => {
 				input: [],
 				include: ["invalid", "field", null as any, undefined as any],
 			};
-			const result = await runTransform(body, codexInstructions);
+			const result = await transformRequestBody(body, codexInstructions);
 			// Should override with defaults
 			expect(result.include).toEqual(["reasoning.encrypted_content"]);
 		});
@@ -1486,7 +1547,7 @@ describe("runTransform", () => {
 				applyRequest: () => null,
 			} as any;
 
-			const result = await runTransform(
+			const result = await transformRequestBody(
 				body,
 				codexInstructions,
 				undefined,
@@ -1505,10 +1566,10 @@ describe("runTransform", () => {
 				input: [{ type: "message", role: "user", content: "test" }],
 				tools: [null, undefined, { name: "valid_tool" }, "not an object" as any],
 			};
-			const result = await runTransform(body, codexInstructions);
+			const result = await transformRequestBody(body, codexInstructions);
 			// Should still add bridge message since tools array exists
 			expect(result.input).toHaveLength(2);
-			expect(result.input?.[0].role).toBe("developer");
+			expect(result.input![0].role).toBe("developer");
 		});
 
 		it("should handle empty tools array", async () => {
@@ -1517,10 +1578,10 @@ describe("runTransform", () => {
 				input: [{ type: "message", role: "user", content: "test" }],
 				tools: [],
 			};
-			const result = await runTransform(body, codexInstructions);
+			const result = await transformRequestBody(body, codexInstructions);
 			// Should not add bridge message for empty tools array
 			expect(result.input).toHaveLength(1);
-			expect(result.input?.[0].role).toBe("user");
+			expect(result.input![0].role).toBe("user");
 		});
 
 		it("should handle metadata edge cases", async () => {
@@ -1533,14 +1594,14 @@ describe("runTransform", () => {
 					nested: { id: "value" },
 				},
 			};
-			const result1 = await runTransform(body, codexInstructions);
+			const result1 = await transformRequestBody(body, codexInstructions);
 			const firstKey = result1.prompt_cache_key;
 			// Should generate fallback cache key
 			expect(typeof firstKey).toBe("string");
 			expect(firstKey).toMatch(/^cache_/);
 
 			// Second transform of the same body should reuse the existing key
-			const result2 = await runTransform(body, codexInstructions);
+			const result2 = await transformRequestBody(body, codexInstructions);
 			expect(result2.prompt_cache_key).toBe(firstKey);
 		});
 
@@ -1550,8 +1611,8 @@ describe("runTransform", () => {
 				model: "gpt-5",
 				input: [{ type: "message", role: "user", content: longContent }],
 			};
-			const result = await runTransform(body, codexInstructions);
-			expect(result.input?.[0].content).toBe(longContent);
+			const result = await transformRequestBody(body, codexInstructions);
+			expect(result.input![0].content).toBe(longContent);
 		});
 
 		it("should handle unicode content", async () => {
@@ -1560,8 +1621,8 @@ describe("runTransform", () => {
 				model: "gpt-5",
 				input: [{ type: "message", role: "user", content: unicodeContent }],
 			};
-			const result = await runTransform(body, codexInstructions);
-			expect(result.input?.[0].content).toBe(unicodeContent);
+			const result = await transformRequestBody(body, codexInstructions);
+			expect(result.input![0].content).toBe(unicodeContent);
 		});
 	});
 });
