@@ -1,9 +1,9 @@
 /**
  * In-memory session cache for Codex instructions
- * 
+ *
  * Provides fast access to frequently used prompts during a plugin session,
  * reducing file I/O and improving response times.
- * 
+ *
  * Includes metrics collection for cache performance monitoring.
  */
 
@@ -18,7 +18,7 @@ interface SessionCacheEntry<T> {
 
 interface SessionCache<T> {
 	get(key: string): SessionCacheEntry<T> | null;
-	set(key: string, entry: Omit<SessionCacheEntry<T>, 'timestamp'>): void;
+	set(key: string, entry: Omit<SessionCacheEntry<T>, "timestamp">): void;
 	clear(): void;
 	clean(): void; // Remove expired entries
 	getSize(): number; // Get current cache size
@@ -45,7 +45,7 @@ export function createSessionCache<T>(ttlMs = 15 * 60 * 1000): SessionCache<T> {
 		return entry;
 	};
 
-	const set = (key: string, entry: Omit<SessionCacheEntry<T>, 'timestamp'>): void => {
+	const set = (key: string, entry: Omit<SessionCacheEntry<T>, "timestamp">): void => {
 		cache.set(key, {
 			...entry,
 			timestamp: Date.now(),
@@ -83,7 +83,7 @@ export const openCodePromptCache = createSessionCache<string>(15 * 60 * 1000); /
  * @returns Cache key string
  */
 export function getCodexCacheKey(etag?: string, tag?: string): string {
-	return `codex:${etag || 'no-etag'}:${tag || 'no-tag'}`;
+	return `codex:${etag || "no-etag"}:${tag || "no-tag"}`;
 }
 
 /**
@@ -92,7 +92,7 @@ export function getCodexCacheKey(etag?: string, tag?: string): string {
  * @returns Cache key string
  */
 export function getOpenCodeCacheKey(etag?: string): string {
-	return `opencode:${etag || 'no-etag'}`;
+	return `opencode:${etag || "no-etag"}`;
 }
 
 /**
@@ -104,11 +104,11 @@ export function cleanupExpiredCaches(): void {
 	codexInstructionsCache.clean();
 	const afterCodex = codexInstructionsCache.getSize();
 	const evictedCodex = Math.max(0, beforeCodex - afterCodex);
-	for (let i = 0; i < evictedCodex; i++) recordCacheEviction('codexInstructions');
+	for (let i = 0; i < evictedCodex; i++) recordCacheEviction("codexInstructions");
 
 	const beforeOpenCode = openCodePromptCache.getSize();
 	openCodePromptCache.clean();
 	const afterOpenCode = openCodePromptCache.getSize();
 	const evictedOpenCode = Math.max(0, beforeOpenCode - afterOpenCode);
-	for (let i = 0; i < evictedOpenCode; i++) recordCacheEviction('opencodePrompt');
+	for (let i = 0; i < evictedOpenCode; i++) recordCacheEviction("opencodePrompt");
 }

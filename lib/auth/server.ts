@@ -1,9 +1,9 @@
-import http from "node:http";
 import fs from "node:fs";
+import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { OAuthServerInfo } from "../types.js";
 import { logError } from "../logger.js";
+import type { OAuthServerInfo } from "../types.js";
 
 // Resolve path to oauth-success.html (one level up from auth/ subfolder)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
