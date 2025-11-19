@@ -117,8 +117,10 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 		cachedMeta = JSON.parse(metaContent);
 	} catch (error) {
 		// Cache doesn't exist or is invalid, will fetch fresh
-		const err = error as Error;
-		logError("Failed to read OpenCode prompt cache", { error: err.message });
+		const err = error as Error & { code?: string };
+		if (err.code !== "ENOENT") {
+			logError("Failed to read OpenCode prompt cache", { error: err.message });
+		}
 	}
 
 	// Validate cache format and handle conflicts
@@ -235,8 +237,10 @@ export async function getCachedPromptPrefix(chars = 50): Promise<string | null> 
 		const content = await readFile(filePath, "utf-8");
 		return content.substring(0, chars);
 	} catch (error) {
-		const err = error as Error;
-		logError("Failed to read cached OpenCode prompt prefix", { error: err.message });
+		const err = error as Error & { code?: string };
+		if (err.code !== "ENOENT") {
+			logError("Failed to read cached OpenCode prompt prefix", { error: err.message });
+		}
 		return null;
 	}
 }
