@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const fsMocks = {
 	writeFileSync: vi.fn(),
@@ -34,10 +34,6 @@ beforeEach(() => {
 	fsMocks.existsSync.mockReset();
 	logSpy.mockClear();
 	warnSpy.mockClear();
-});
-
-afterEach(() => {
-	Object.assign(process.env, originalEnv);
 });
 
 describe('logger', () => {

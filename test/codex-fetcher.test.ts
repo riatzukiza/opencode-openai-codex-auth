@@ -62,7 +62,6 @@ describe("createCodexFetcher", () => {
 		refreshAndUpdateTokenMock.mockReset();
 		transformRequestForCodexMock.mockReset();
 		createCodexHeadersMock.mockReset();
-		createCodexHeadersMock.mockImplementation(() => new Headers({ Authorization: 'Bearer token' }));
 		handleErrorResponseMock.mockReset();
 		handleSuccessResponseMock.mockReset();
 		handleSuccessResponseMock.mockResolvedValue(new Response("handled", { status: 200 }));
