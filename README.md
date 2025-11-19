@@ -93,6 +93,22 @@ For the complete experience with all reasoning variants matching the official Co
         "store": false
       },
       "models": {
+        "gpt-5.1-codex-max": {
+          "name": "GPT 5.1 Codex Max (OAuth)",
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
+          "options": {
+            "reasoningEffort": "medium",
+            "reasoningSummary": "auto",
+            "textVerbosity": "medium",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        },
         "gpt-5.1-codex-low": {
           "name": "GPT 5.1 Codex Low (OAuth)",
           "limit": {
@@ -422,7 +438,7 @@ For the complete experience with all reasoning variants matching the official Co
    **Global config**: `~/.config/opencode/opencode.json`
    **Project config**: `<project>/.opencode.json`
 
-   This now gives you 20 model variants: the new GPT-5.1 lineup (recommended) plus every legacy gpt-5 preset for backwards compatibility.
+   This now gives you 21 model variants: the refreshed GPT-5.1 lineup (with Codex Max as the default) plus every legacy gpt-5 preset for backwards compatibility.
 
    All appear in the opencode model selector as "GPT 5.1 Codex Low (OAuth)", "GPT 5 High (OAuth)", etc.
 
@@ -434,6 +450,7 @@ When using [`config/full-opencode.json`](./config/full-opencode.json), you get t
 
 | CLI Model ID | TUI Display Name | Reasoning Effort | Best For |
 |--------------|------------------|-----------------|----------|
+| `gpt-5.1-codex-max` | GPT 5.1 Codex Max (OAuth) | Medium (Extra High optional) | Default flagship tier with optional `xhigh` reasoning for long, complex runs |
 | `gpt-5.1-codex-low` | GPT 5.1 Codex Low (OAuth) | Low | Fast code generation on the newest Codex tier |
 | `gpt-5.1-codex-medium` | GPT 5.1 Codex Medium (OAuth) | Medium | Balanced code + tooling workflows |
 | `gpt-5.1-codex-high` | GPT 5.1 Codex High (OAuth) | High | Multi-step coding tasks with deep tool use |
@@ -443,6 +460,8 @@ When using [`config/full-opencode.json`](./config/full-opencode.json), you get t
 | `gpt-5.1-low` | GPT 5.1 Low (OAuth) | Low | Fast general-purpose chat with light reasoning |
 | `gpt-5.1-medium` | GPT 5.1 Medium (OAuth) | Medium | Default adaptive reasoning for everyday work |
 | `gpt-5.1-high` | GPT 5.1 High (OAuth) | High | Deep analysis when reliability matters most |
+
+> **Extra High reasoning:** `reasoningEffort: "xhigh"` is exclusive to `gpt-5.1-codex-max`. Other models automatically map that option to `high` so their API calls remain valid.
 
 #### Legacy GPT-5 lineup (still supported)
 
@@ -505,7 +524,7 @@ These defaults match the official Codex CLI behavior and can be customized (see 
 ### Recommended: Use Pre-Configured File
 
 The easiest way to get started is to use [`config/full-opencode.json`](./config/full-opencode.json), which provides:
-- 20 pre-configured model variants matching the latest Codex CLI presets (GPT-5.1 + GPT-5)
+- 21 pre-configured model variants matching the latest Codex CLI presets (GPT-5.1 Codex Max + GPT-5.1 + GPT-5)
 - Optimal settings for each reasoning level
 - All variants visible in the opencode model selector
 
@@ -521,12 +540,12 @@ If you want to customize settings yourself, you can configure options at provide
 
 | Setting | GPT-5 / GPT-5.1 Values | GPT-5-Codex / Codex Mini Values | Plugin Default |
 |---------|-------------|-------------------|----------------|
-| `reasoningEffort` | `none`, `minimal`, `low`, `medium`, `high` | `low`, `medium`, `high` | `medium` |
+| `reasoningEffort` | `none`, `minimal`, `low`, `medium`, `high` | `low`, `medium`, `high`, `xhigh`* | `medium` |
 | `reasoningSummary` | `auto`, `detailed` | `auto`, `detailed` | `auto` |
 | `textVerbosity` | `low`, `medium`, `high` | `medium` only | `medium` |
 | `include` | Array of strings | Array of strings | `["reasoning.encrypted_content"]` |
 
-> **Note**: `minimal` effort is auto-normalized to `low` for gpt-5-codex (not supported by the API). `none` is only supported on GPT-5.1 general models; when used with legacy gpt-5 it is normalized to `minimal`.
+> **Note**: `minimal` effort is auto-normalized to `low` for gpt-5-codex (not supported by the API). `none` is only supported on GPT-5.1 general models; when used with legacy gpt-5 it is normalized to `minimal`. `xhigh` is exclusive to `gpt-5.1-codex-max`—other Codex presets automatically map it to `high`.
 
 #### Plugin-Level Settings
 

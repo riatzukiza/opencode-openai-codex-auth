@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here. Dates use the ISO format (YYYY-MM-DD).
 
+## [3.3.0] - 2025-11-19
+### Added
+- Codex Max support that mirrors the Codex CLI: normalization for every `gpt-5.1-codex-max` alias, `reasoningEffort: "xhigh"`, and unit tests covering both the transformer and request body integration path.
+- Documentation and configuration updates calling out Codex Max as the flagship preset, plus refreshed samples showing how to opt into the Extra High reasoning mode.
+
+### Changed
+- Sample configs (`full` + `minimal`), README tables, AGENTS.md, and the diagnostics script now prefer `gpt-5.1-codex-max`, keeping plugin defaults aligned with Codex CLI behaviour.
+
+### Fixed
+- Requests that specify `reasoningEffort: "xhigh"` for non-supported models are now automatically downgraded to `high`, preventing API errors when Codex Max isn't selected.
+
 ## [3.2.0] - 2025-11-13
 ### Added
 - GPT-5.1 family integration: normalization for `gpt-5.1`/`gpt-5.1-codex`/`gpt-5.1-codex-mini`, expanded reasoning heuristics (including `reasoningEffort: "none"`), and preservation of the native `shell`/`apply_patch` tools emitted by Codex CLI.

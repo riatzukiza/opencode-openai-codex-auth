@@ -368,6 +368,13 @@ Advanced plugin settings in `~/.opencode/openhax-codex-config.json`:
 }
 ```
 
+### Log file management
+
+Control local request/rolling log growth:
+- `CODEX_LOG_MAX_BYTES` (default: 5_242_880) - rotate when the rolling log exceeds this many bytes.
+- `CODEX_LOG_MAX_FILES` (default: 5) - number of rotated log files to retain (plus the active log).
+- `CODEX_LOG_QUEUE_MAX` (default: 1000) - maximum buffered log entries before oldest entries are dropped.
+
 ### CODEX_MODE
 
 **What it does:**

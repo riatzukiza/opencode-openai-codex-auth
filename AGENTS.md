@@ -4,7 +4,7 @@ This file provides coding guidance for AI agents (including Claude Code, Codex, 
 
 ## Overview
 
-This is an **opencode plugin** that enables OAuth authentication with OpenAI's ChatGPT Plus/Pro Codex backend. It allows users to access `gpt-5-codex`, `gpt-5-codex-mini`, and `gpt-5` models through their ChatGPT subscription instead of using OpenAI Platform API credits.
+This is an **opencode plugin** that enables OAuth authentication with OpenAI's ChatGPT Plus/Pro Codex backend. It now mirrors the Codex CLI lineup, making `gpt-5.1-codex-max` (with optional `xhigh` reasoning) the default alongside the existing `gpt-5.1-codex`, `gpt-5.1-codex-mini`, and legacy `gpt-5` models—all available through a ChatGPT subscription instead of OpenAI Platform API credits.
 
 **Key architecture principle**: 7-step fetch flow that intercepts opencode's OpenAI SDK requests, transforms them for the ChatGPT backend API, and handles OAuth token management.
 
@@ -156,6 +156,8 @@ This plugin **intentionally differs from opencode defaults** because it accesses
 | gpt-5-codex config | (excluded) | Full support | opencode excludes gpt-5-codex from auto-config |
 | `store` | true | false | Required for ChatGPT backend |
 | `include` | (not set) | `["reasoning.encrypted_content"]` | Required for stateless operation |
+
+> **Extra High reasoning**: `reasoningEffort: "xhigh"` is only honored for `gpt-5.1-codex-max`. Other models automatically downgrade it to `high` so their API calls remain valid.
 
 ## File Paths & Locations
 
