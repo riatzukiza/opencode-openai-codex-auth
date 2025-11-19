@@ -33,8 +33,8 @@ vi.mock("node:os", () => ({
 
 describe("Codex Instructions Fetcher", () => {
 	const cacheDir = join("/mock-home", ".opencode", "cache");
-	const cacheFile = join(cacheDir, "codex-instructions.md");
-	const cacheMeta = join(cacheDir, "codex-instructions-meta.json");
+	const cacheFile = join(cacheDir, "openhax-codex-instructions.md");
+	const cacheMeta = join(cacheDir, "openhax-codex-instructions-meta.json");
 
 	beforeEach(() => {
 		files.clear();
