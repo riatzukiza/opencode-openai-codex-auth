@@ -1,6 +1,6 @@
 # Test Suite
 
-This directory contains the comprehensive test suite for the OpenAI Codex OAuth plugin.
+This directory contains the comprehensive test suite for `@openhax/codex`, the OpenHax Codex OAuth plugin.
 
 ## Test Structure
 
