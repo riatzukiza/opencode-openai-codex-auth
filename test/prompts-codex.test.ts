@@ -6,6 +6,7 @@ const files = new Map<string, string>();
 const existsSync = vi.fn((file: string) => files.has(file));
 const readFileSync = vi.fn((file: string) => files.get(file) ?? '');
 const writeFileSync = vi.fn((file: string, content: string) => files.set(file, content));
+const appendFileSync = vi.fn((file: string, content: string) => files.set(`${file}-rolling`, content));
 const mkdirSync = vi.fn();
 const homedirMock = vi.fn(() => '/mock-home');
 const fetchMock = vi.fn();
@@ -15,11 +16,13 @@ vi.mock('node:fs', () => ({
 		existsSync,
 		readFileSync,
 		writeFileSync,
+		appendFileSync,
 		mkdirSync,
 	},
 	existsSync,
 	readFileSync,
 	writeFileSync,
+	appendFileSync,
 	mkdirSync,
 }));
 
@@ -38,12 +41,14 @@ beforeEach(() => {
 		existsSync.mockClear();
 		readFileSync.mockClear();
 		writeFileSync.mockClear();
+		appendFileSync.mockClear();
 		mkdirSync.mockClear();
 		homedirMock.mockReturnValue('/mock-home');
 		fetchMock.mockClear();
-		global.fetch = fetchMock;
+		(global as any).fetch = fetchMock;
 		codexInstructionsCache.clear();
 	});
+
 
 	afterEach(() => {
 		// Cleanup global fetch if needed
