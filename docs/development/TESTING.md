@@ -2,6 +2,8 @@
 
 Comprehensive testing matrix for all config scenarios and backwards compatibility.
 
+> **Logging note:** All test runs and plugin executions now write per-request JSON files plus a rolling `codex-plugin.log` under `~/.opencode/logs/codex-plugin/`. Set `ENABLE_PLUGIN_REQUEST_LOGGING=1` or `DEBUG_CODEX_PLUGIN=1` if you also want live console output in addition to the files.
+
 ## Test Scenarios Matrix
 
 ### Scenario 1: Default OpenCode Models (No Custom Config)
