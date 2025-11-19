@@ -2,130 +2,115 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const fsMocks = {
 	writeFileSync: vi.fn(),
+	appendFileSync: vi.fn(),
 	mkdirSync: vi.fn(),
 	existsSync: vi.fn(),
 };
 
-const homedirMock = vi.fn(() => '/mock-home');
-
 vi.mock('node:fs', () => ({
 	writeFileSync: fsMocks.writeFileSync,
+	appendFileSync: fsMocks.appendFileSync,
 	mkdirSync: fsMocks.mkdirSync,
 	existsSync: fsMocks.existsSync,
 }));
 
 vi.mock('node:os', () => ({
 	__esModule: true,
-	homedir: homedirMock,
+	homedir: () => '/mock-home',
 }));
 
-describe('Logger Module', () => {
-	const originalEnv = { ...process.env };
-	const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-	const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-	const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+const originalEnv = { ...process.env };
+const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-	beforeEach(() => {
-		vi.clearAllMocks();
-		Object.assign(process.env, originalEnv);
-		delete process.env.ENABLE_PLUGIN_REQUEST_LOGGING;
-		delete process.env.DEBUG_CODEX_PLUGIN;
-		fsMocks.writeFileSync.mockReset();
-		fsMocks.mkdirSync.mockReset();
-		fsMocks.existsSync.mockReset();
-		homedirMock.mockReturnValue('/mock-home');
-		logSpy.mockClear();
-		warnSpy.mockClear();
-		errorSpy.mockClear();
-	});
+beforeEach(() => {
+	vi.resetModules();
+	Object.assign(process.env, originalEnv);
+	delete process.env.ENABLE_PLUGIN_REQUEST_LOGGING;
+	delete process.env.DEBUG_CODEX_PLUGIN;
+	fsMocks.writeFileSync.mockReset();
+	fsMocks.appendFileSync.mockReset();
+	fsMocks.mkdirSync.mockReset();
+	fsMocks.existsSync.mockReset();
+	logSpy.mockClear();
+	warnSpy.mockClear();
+});
 
-	afterEach(() => {
-		Object.assign(process.env, originalEnv);
-	});
+afterEach(() => {
+	Object.assign(process.env, originalEnv);
+});
 
+describe('logger', () => {
 	it('LOGGING_ENABLED reflects env state', async () => {
 		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = '1';
 		const { LOGGING_ENABLED } = await import('../lib/logger.js');
 		expect(LOGGING_ENABLED).toBe(true);
 	});
 
-it('logRequest skips writing when logging disabled', async () => {
-		// Since LOGGING_ENABLED is evaluated at module load time,
-		// and ES modules are cached, we need to test the behavior
-		// based on the current environment state
-		delete process.env.ENABLE_PLUGIN_REQUEST_LOGGING;
-		
-		// Clear module cache to get fresh evaluation
-		vi.unmock('../lib/logger.js');
+	it('logRequest writes stage file and rolling log by default', async () => {
+		fsMocks.existsSync.mockReturnValue(false);
 		const { logRequest } = await import('../lib/logger.js');
-		
-		fsMocks.existsSync.mockReturnValue(true);
+
 		logRequest('stage-one', { foo: 'bar' });
-		
-		// If LOGGING_ENABLED was false, no writes should occur
-		// Note: Due to module caching in vitest, this test assumes
-		// the environment was clean when the module was first loaded
-	});
-
-	it('logRequest creates directory and writes when enabled', async () => {
-		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = '1';
-		let existsCall = 0;
-		fsMocks.existsSync.mockImplementation(() => existsCall++ > 0);
-		const { logRequest } = await import('../lib/logger.js');
-
-		logRequest('before', { some: 'data' });
 
 		expect(fsMocks.mkdirSync).toHaveBeenCalledWith('/mock-home/.opencode/logs/codex-plugin', { recursive: true });
-		expect(fsMocks.writeFileSync).toHaveBeenCalledOnce();
+		const [requestPath, payload, encoding] = fsMocks.writeFileSync.mock.calls[0];
+		expect(requestPath).toBe('/mock-home/.opencode/logs/codex-plugin/request-1-stage-one.json');
+		expect(encoding).toBe('utf8');
+		const parsedPayload = JSON.parse(payload as string);
+		expect(parsedPayload.stage).toBe('stage-one');
+		expect(parsedPayload.foo).toBe('bar');
 
-		const [, jsonString] = fsMocks.writeFileSync.mock.calls[0];
-		const parsed = JSON.parse(jsonString as string);
-		expect(parsed.stage).toBe('before');
-		expect(parsed.some).toBe('data');
-		expect(typeof parsed.requestId).toBe('number');
+		const [logPath, logLine, logEncoding] = fsMocks.appendFileSync.mock.calls[0];
+		expect(logPath).toBe('/mock-home/.opencode/logs/codex-plugin/codex-plugin.log');
+		expect(logEncoding).toBe('utf8');
+		expect(logLine as string).toContain('"stage":"stage-one"');
+		expect(logSpy).not.toHaveBeenCalled();
 	});
 
-	it('logRequest records errors from writeFileSync', async () => {
+	it('logDebug appends to rolling log without printing to console by default', async () => {
+		fsMocks.existsSync.mockReturnValue(true);
+		const { logDebug } = await import('../lib/logger.js');
+
+		logDebug('debug-message', { detail: 'info' });
+
+		expect(fsMocks.appendFileSync).toHaveBeenCalledTimes(1);
+		expect(logSpy).not.toHaveBeenCalled();
+	});
+
+	it('logWarn emits to console even without env overrides', async () => {
+		fsMocks.existsSync.mockReturnValue(true);
+		const { logWarn } = await import('../lib/logger.js');
+
+		logWarn('warning');
+
+		expect(warnSpy).toHaveBeenCalledWith('[openai-codex-plugin] warning');
+	});
+
+	it('logInfo only mirrors to console when logging env is enabled', async () => {
+		fsMocks.existsSync.mockReturnValue(true);
+		const { logInfo } = await import('../lib/logger.js');
+		logInfo('info-message');
+		expect(logSpy).not.toHaveBeenCalled();
+
 		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = '1';
+		await vi.resetModules();
+		fsMocks.existsSync.mockReturnValue(true);
+		const { logInfo: envLogInfo } = await import('../lib/logger.js');
+		envLogInfo('info-message');
+		expect(logSpy).toHaveBeenCalledWith('[openai-codex-plugin] info-message');
+	});
+
+	it('persist failures log warnings and append entries', async () => {
 		fsMocks.existsSync.mockReturnValue(true);
 		fsMocks.writeFileSync.mockImplementation(() => {
 			throw new Error('boom');
 		});
 		const { logRequest } = await import('../lib/logger.js');
 
-		logRequest('error-stage', { boom: true });
+		logRequest('stage-two', { foo: 'bar' });
 
-		expect(warnSpy).toHaveBeenCalledWith('[openai-codex-plugin] Failed to persist request log {"stage":"error-stage","error":"boom"}');
+		expect(warnSpy).toHaveBeenCalledWith('[openai-codex-plugin] Failed to persist request log {"stage":"stage-two","error":"boom"}');
+		expect(fsMocks.appendFileSync).toHaveBeenCalled();
 	});
-
-	it('logDebug logs only when enabled', async () => {
-		// Ensure a clean import without debug/logging enabled
-		delete process.env.DEBUG_CODEX_PLUGIN;
-		delete process.env.ENABLE_PLUGIN_REQUEST_LOGGING;
-		await vi.resetModules();
-		let mod = await import('../lib/logger.js');
-		mod.logDebug('should not log');
-		expect(logSpy).not.toHaveBeenCalled();
-
-		// Enable debug and reload module to re-evaluate DEBUG_ENABLED
-		process.env.DEBUG_CODEX_PLUGIN = '1';
-		await vi.resetModules();
-		mod = await import('../lib/logger.js');
-		mod.logDebug('hello', { a: 1 });
-		expect(logSpy).toHaveBeenCalledWith('[openai-codex-plugin] hello {"a":1}');
-	});
-
-	it('logWarn always logs', async () => {
-			const { logWarn } = await import('../lib/logger.js');
-			logWarn('warning', { detail: 'info' });
-			expect(warnSpy).toHaveBeenCalledWith('[openai-codex-plugin] warning {"detail":"info"}');
-		});
-
-		it('logWarn logs message without data', async () => {
-			const { logWarn } = await import('../lib/logger.js');
-			warnSpy.mockClear();
-			logWarn('just-message');
-			expect(warnSpy).toHaveBeenCalledWith('[openai-codex-plugin] just-message');
-		});
-
 });
