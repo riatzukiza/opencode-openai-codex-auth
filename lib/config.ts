@@ -1,5 +1,5 @@
-import type { PluginConfig } from "./types.js";
 import { logWarn } from "./logger.js";
+import type { PluginConfig } from "./types.js";
 import { getOpenCodePath, safeReadFile } from "./utils/file-system-utils.js";
 
 const CONFIG_PATH = getOpenCodePath("openhax-codex-config.json");
@@ -12,6 +12,8 @@ const CONFIG_PATH = getOpenCodePath("openhax-codex-config.json");
 const DEFAULT_CONFIG: PluginConfig = {
 	codexMode: true,
 	enablePromptCaching: true,
+	enableCodexCompaction: true,
+	autoCompactMinMessages: 8,
 };
 
 /**

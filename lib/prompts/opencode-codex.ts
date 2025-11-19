@@ -6,11 +6,11 @@
  */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { openCodePromptCache, getOpenCodeCacheKey } from "../cache/session-cache.js";
 import { recordCacheHit, recordCacheMiss } from "../cache/cache-metrics.js";
+import { openCodePromptCache } from "../cache/session-cache.js";
 import { logError } from "../logger.js";
-import { getOpenCodePath, safeWriteFile, safeReadFile, fileExistsAndNotEmpty } from "../utils/file-system-utils.js";
 import { CACHE_FILES, CACHE_TTL_MS } from "../utils/cache-config.js";
+import { getOpenCodePath } from "../utils/file-system-utils.js";
 
 const OPENCODE_CODEX_URL =
 	"https://raw.githubusercontent.com/sst/opencode/main/packages/opencode/src/session/prompt/codex.txt";
@@ -38,10 +38,10 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 	// Check session cache first (fastest path)
 	const sessionEntry = openCodePromptCache.get("main");
 	if (sessionEntry) {
-		recordCacheHit('opencodePrompt');
+		recordCacheHit("opencodePrompt");
 		return sessionEntry.data;
 	}
-	recordCacheMiss('opencodePrompt');
+	recordCacheMiss("opencodePrompt");
 
 	// Try to load cached content and metadata
 	let cachedContent: string | null = null;
@@ -58,7 +58,7 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 	}
 
 	// Rate limit protection: If cache is less than 15 minutes old, use it
-	if (cachedMeta?.lastChecked && (Date.now() - cachedMeta.lastChecked) < CACHE_TTL_MS && cachedContent) {
+	if (cachedMeta?.lastChecked && Date.now() - cachedMeta.lastChecked < CACHE_TTL_MS && cachedContent) {
 		// Store in session cache for faster subsequent access
 		openCodePromptCache.set("main", { data: cachedContent, etag: cachedMeta.etag || undefined });
 		return cachedContent;
@@ -96,9 +96,9 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 						lastChecked: Date.now(),
 					} satisfies OpenCodeCacheMeta,
 					null,
-					2
+					2,
 				),
-				"utf-8"
+				"utf-8",
 			);
 
 			// Store in session cache
@@ -124,9 +124,7 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 			return cachedContent;
 		}
 
-		throw new Error(
-			`Failed to fetch OpenCode codex.txt and no cache available: ${err.message}`
-		);
+		throw new Error(`Failed to fetch OpenCode codex.txt and no cache available: ${err.message}`);
 	}
 }
 

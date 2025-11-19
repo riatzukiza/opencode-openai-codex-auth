@@ -1,11 +1,12 @@
 import type { PluginInput } from "@opencode-ai/plugin";
 import type { Auth } from "@opencode-ai/sdk";
+import { maybeHandleCodexCommand } from "../commands/codex-metrics.js";
+import { finalizeCompactionResponse } from "../compaction/compaction-executor.js";
 import { LOG_STAGES } from "../constants.js";
 import { logRequest } from "../logger.js";
-import { maybeHandleCodexCommand } from "../commands/codex-metrics.js";
 import { recordSessionResponseFromHandledResponse } from "../session/response-recorder.js";
 import type { SessionManager } from "../session/session-manager.js";
-import type { UserConfig } from "../types.js";
+import type { PluginConfig, UserConfig } from "../types.js";
 import {
 	createCodexHeaders,
 	extractRequestUrl,
@@ -25,10 +26,20 @@ export type CodexFetcherDeps = {
 	codexMode: boolean;
 	sessionManager: SessionManager;
 	codexInstructions: string;
+	pluginConfig: PluginConfig;
 };
 
 export function createCodexFetcher(deps: CodexFetcherDeps) {
-	const { getAuth, client, accountId, userConfig, codexMode, sessionManager, codexInstructions } = deps;
+	const {
+		getAuth,
+		client,
+		accountId,
+		userConfig,
+		codexMode,
+		sessionManager,
+		codexInstructions,
+		pluginConfig,
+	} = deps;
 
 	return async function codexFetch(input: Request | string | URL, init?: RequestInit): Promise<Response> {
 		const currentAuth = await getAuth();
@@ -48,6 +59,7 @@ export function createCodexFetcher(deps: CodexFetcherDeps) {
 			userConfig,
 			codexMode,
 			sessionManager,
+			pluginConfig,
 		);
 
 		if (transformation) {
@@ -80,7 +92,17 @@ export function createCodexFetcher(deps: CodexFetcherDeps) {
 			return await handleErrorResponse(response);
 		}
 
-		const handledResponse = await handleSuccessResponse(response, hasTools);
+		let handledResponse = await handleSuccessResponse(response, hasTools);
+
+		if (transformation?.compactionDecision) {
+			handledResponse = await finalizeCompactionResponse({
+				response: handledResponse,
+				decision: transformation.compactionDecision,
+				sessionManager,
+				sessionContext,
+			});
+		}
+
 		await recordSessionResponseFromHandledResponse({
 			sessionManager,
 			sessionContext,

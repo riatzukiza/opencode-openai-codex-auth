@@ -13,3 +13,4 @@ tmp
 .nx/
 
 .stryker-tmp/
+.worktrees/

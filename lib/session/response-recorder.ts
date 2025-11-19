@@ -30,10 +30,7 @@ export async function recordSessionResponseFromHandledResponse(options: {
 }): Promise<void> {
 	const { sessionManager, sessionContext, handledResponse } = options;
 
-	if (
-		!sessionContext ||
-		!handledResponse.headers.get("content-type")?.includes("application/json")
-	) {
+	if (!sessionContext || !handledResponse.headers.get("content-type")?.includes("application/json")) {
 		return;
 	}
 

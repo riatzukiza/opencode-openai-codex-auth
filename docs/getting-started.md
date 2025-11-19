@@ -374,6 +374,22 @@ Create `~/.opencode/openhax-codex-config.json`:
 
 **⚠️ Warning**: Disabling caching will dramatically increase token usage and costs.
 
+### Compaction Controls
+
+To mirror the Codex CLI `/compact` command, add the following to `~/.opencode/openhax-codex-config.json`:
+
+```json
+{
+  "enableCodexCompaction": true,
+  "autoCompactTokenLimit": 12000,
+  "autoCompactMinMessages": 8
+}
+```
+
+- `enableCodexCompaction` toggles both the `/codex-compact` manual command and Codex-side history rewrites.
+- Set `autoCompactTokenLimit` to have the plugin run compaction automatically once the conversation grows beyond the specified budget.
+- Users receive the Codex summary (with the standard `SUMMARY_PREFIX`) and can immediately resend their paused instruction; subsequent turns are rebuilt from the stored summary instead of the entire backlog.
+
 ---
 
 ## Next Steps

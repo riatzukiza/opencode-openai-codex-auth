@@ -1,6 +1,6 @@
 /**
  * Cache Configuration Constants
- * 
+ *
  * Centralized cache settings used across the codebase
  */
 

@@ -1,13 +1,13 @@
-import type { OpencodeClient } from "@opencode-ai/sdk";
-import { writeFileSync, existsSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { homedir } from "node:os";
+import type { OpencodeClient } from "@opencode-ai/sdk";
 import { PLUGIN_NAME } from "./constants.js";
-import { getOpenCodePath, ensureDirectory } from "./utils/file-system-utils.js";
+import { ensureDirectory, getOpenCodePath } from "./utils/file-system-utils.js";
 
 export const LOGGING_ENABLED = process.env.ENABLE_PLUGIN_REQUEST_LOGGING === "1";
 const DEBUG_ENABLED = process.env.DEBUG_CODEX_PLUGIN === "1" || LOGGING_ENABLED;
 const LOG_DIR = getOpenCodePath("logs", "codex-plugin");
+const IS_TEST_ENV = process.env.VITEST === "1" || process.env.NODE_ENV === "test";
 
 type LogLevel = "debug" | "info" | "warn" | "error";
 
@@ -100,6 +100,9 @@ function emit(level: LogLevel, message: string, extra?: Record<string, unknown>)
 }
 
 function fallback(level: LogLevel, message: string, extra?: Record<string, unknown>, error?: unknown): void {
+	if (IS_TEST_ENV && !LOGGING_ENABLED && !DEBUG_ENABLED && level !== "error") {
+		return;
+	}
 	const prefix = `[${PLUGIN_NAME}] ${message}`;
 	const details = extra ? `${prefix} ${JSON.stringify(extra)}` : prefix;
 	if (level === "error") {

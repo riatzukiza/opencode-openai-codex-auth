@@ -1,0 +1,7 @@
+dist/
+node_modules/
+coverage/
+.serena/
+assets/
+docs/
+spec/

@@ -1,0 +1,26 @@
+name: PR Auto Base
+
+on:
+  pull_request:
+    types: [opened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  retarget:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Retarget PR to staging unless from staging
+        run: |
+          if [ "${GITHUB_BASE_REF}" = "staging" ]; then
+            echo "PR already targets staging."; exit 0
+          fi
+          BRANCH="${GITHUB_HEAD_REF}"
+          if [ "$BRANCH" = "staging" ]; then
+            echo "Staging PRs can target main."; exit 0
+          fi
+          echo "Retargeting PR #${GITHUB_EVENT_PULL_REQUEST_NUMBER} to staging"
+          gh pr edit "$GITHUB_EVENT_PULL_REQUEST_NUMBER" --base staging

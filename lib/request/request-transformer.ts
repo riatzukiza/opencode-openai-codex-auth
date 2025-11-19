@@ -1,15 +1,22 @@
+import { createHash, randomUUID } from "node:crypto";
+import {
+	cacheBridgeDecision,
+	generateContentHash,
+	generateInputHash,
+	getCachedBridgeDecision,
+	hasBridgePromptInConversation,
+} from "../cache/prompt-fingerprinting.js";
+import {
+	approximateTokenCount,
+	buildCompactionPromptItems,
+	collectSystemMessages,
+	serializeConversation,
+} from "../compaction/codex-compaction.js";
+import type { CompactionDecision } from "../compaction/compaction-executor.js";
 import { logDebug, logWarn } from "../logger.js";
 import { TOOL_REMAP_MESSAGE } from "../prompts/codex.js";
-import { createHash, randomUUID } from "node:crypto";
 import { CODEX_OPENCODE_BRIDGE } from "../prompts/codex-opencode-bridge.js";
 import { getOpenCodeCodexPrompt } from "../prompts/opencode-codex.js";
-import { 
-	generateInputHash, 
-	generateContentHash,
-	hasBridgePromptInConversation, 
-	getCachedBridgeDecision, 
-	cacheBridgeDecision 
-} from "../cache/prompt-fingerprinting.js";
 import type {
 	ConfigOptions,
 	InputItem,
@@ -18,10 +25,10 @@ import type {
 	SessionContext,
 	UserConfig,
 } from "../types.js";
+import { cloneInputItems } from "../utils/clone.js";
+import { countConversationTurns, extractTextFromItem } from "../utils/input-item-utils.js";
 
-function cloneInputItem<T extends Record<string, unknown>>(item: T): T {
-	return JSON.parse(JSON.stringify(item)) as T;
-}
+// Clone utilities now imported from ../utils/clone.ts
 
 function stableStringify(value: unknown): string {
 	if (value === null || typeof value !== "object") {
@@ -39,7 +46,7 @@ function stableStringify(value: unknown): string {
 	return `{${entries.join(",")}}`;
 }
 
-function computePayloadHash(item: InputItem): string {
+function _computePayloadHash(item: InputItem): string {
 	const canonical = stableStringify(item);
 	return createHash("sha1").update(canonical).digest("hex");
 }
@@ -56,10 +63,9 @@ export interface ConversationMemory {
 	usage: Map<string, number>;
 }
 
-const CONVERSATION_ENTRY_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
-const CONVERSATION_MAX_ENTRIES = 1000;
+// CONVERSATION_ENTRY_TTL_MS and CONVERSATION_MAX_ENTRIES now imported from ../constants.ts as CONVERSATION_CONFIG
 
-function decrementUsage(memory: ConversationMemory, hash: string): void {
+function _decrementUsage(memory: ConversationMemory, hash: string): void {
 	const current = memory.usage.get(hash) ?? 0;
 	if (current <= 1) {
 		memory.usage.delete(hash);
@@ -69,7 +75,7 @@ function decrementUsage(memory: ConversationMemory, hash: string): void {
 	}
 }
 
-function incrementUsage(memory: ConversationMemory, hash: string, payload: InputItem): void {
+function _incrementUsage(memory: ConversationMemory, hash: string, payload: InputItem): void {
 	const current = memory.usage.get(hash) ?? 0;
 	if (current === 0) {
 		memory.payloads.set(hash, payload);
@@ -77,73 +83,7 @@ function incrementUsage(memory: ConversationMemory, hash: string, payload: Input
 	memory.usage.set(hash, current + 1);
 }
 
-function storeConversationEntry(
-	memory: ConversationMemory,
-	id: string,
-	item: InputItem,
-	callId: string | undefined,
-	timestamp: number,
-): void {
-	const sanitized = cloneInputItem(item);
-	const hash = computePayloadHash(sanitized);
-	const existing = memory.entries.get(id);
-
-	if (existing && existing.hash === hash) {
-		existing.lastUsed = timestamp;
-		if (callId && !existing.callId) {
-			existing.callId = callId;
-		}
-		return;
-	}
-
-	if (existing) {
-		decrementUsage(memory, existing.hash);
-	}
-
-	incrementUsage(memory, hash, sanitized);
-	memory.entries.set(id, { hash, callId, lastUsed: timestamp });
-}
-
-function removeConversationEntry(memory: ConversationMemory, id: string): void {
-	const existing = memory.entries.get(id);
-	if (!existing) return;
-	memory.entries.delete(id);
-	decrementUsage(memory, existing.hash);
-}
-
-function pruneConversationMemory(
-	memory: ConversationMemory,
-	timestamp: number,
-	protectedIds: Set<string>,
-): void {
-	for (const [id, entry] of memory.entries.entries()) {
-		if (timestamp - entry.lastUsed > CONVERSATION_ENTRY_TTL_MS && !protectedIds.has(id)) {
-			removeConversationEntry(memory, id);
-		}
-	}
-
-	if (memory.entries.size <= CONVERSATION_MAX_ENTRIES) {
-		return;
-	}
-
-	const candidates = Array.from(memory.entries.entries())
-		.filter(([id]) => !protectedIds.has(id))
-		.sort((a, b) => a[1].lastUsed - b[1].lastUsed);
-
-	for (const [id] of candidates) {
-		if (memory.entries.size <= CONVERSATION_MAX_ENTRIES) break;
-		removeConversationEntry(memory, id);
-	}
-
-	if (memory.entries.size > CONVERSATION_MAX_ENTRIES) {
-		const fallback = Array.from(memory.entries.entries())
-			.sort((a, b) => a[1].lastUsed - b[1].lastUsed);
-		for (const [id] of fallback) {
-			if (memory.entries.size <= CONVERSATION_MAX_ENTRIES) break;
-			removeConversationEntry(memory, id);
-		}
-	}
-}
+// Removed unused conversation memory functions - dead code eliminated
 /**
  * Normalize incoming tools into the exact JSON shape the Codex CLI emits.
  * Handles strings, CLI-style objects, AI SDK nested objects, and boolean maps.
@@ -167,21 +107,13 @@ function normalizeToolsForResponses(tools: unknown): any[] | undefined {
 		return typeof value === "string" && (value === "shell" || value === "apply_patch");
 	};
 
-	const makeFunctionTool = (
-		name: unknown,
-		description?: unknown,
-		parameters?: unknown,
-		strict?: unknown,
-	) => {
+	const makeFunctionTool = (name: unknown, description?: unknown, parameters?: unknown, strict?: unknown) => {
 		if (typeof name !== "string" || !name.trim()) return undefined;
 		const tool: Record<string, unknown> = {
 			type: "function",
 			name,
 			strict: typeof strict === "boolean" ? strict : false,
-			parameters:
-				parameters && typeof parameters === "object"
-					? parameters
-					: defaultFunctionParameters,
+			parameters: parameters && typeof parameters === "object" ? parameters : defaultFunctionParameters,
 		};
 		if (typeof description === "string" && description.trim()) {
 			tool.description = description;
@@ -189,19 +121,12 @@ function normalizeToolsForResponses(tools: unknown): any[] | undefined {
 		return tool;
 	};
 
-	const makeFreeformTool = (
-		name: unknown,
-		description?: unknown,
-		format?: unknown,
-	) => {
+	const makeFreeformTool = (name: unknown, description?: unknown, format?: unknown) => {
 		if (typeof name !== "string" || !name.trim()) return undefined;
 		const tool: Record<string, unknown> = {
 			type: "custom",
 			name,
-			format:
-				format && typeof format === "object"
-					? format
-					: defaultFreeformFormat,
+			format: format && typeof format === "object" ? format : defaultFreeformFormat,
 		};
 		if (typeof description === "string" && description.trim()) {
 			tool.description = description;
@@ -256,12 +181,7 @@ function normalizeToolsForResponses(tools: unknown): any[] | undefined {
 			return makeFunctionTool(obj.name, obj.description, obj.parameters, obj.strict);
 		}
 		if (nestedFn?.name) {
-			return makeFunctionTool(
-				nestedFn.name,
-				nestedFn.description,
-				nestedFn.parameters,
-				nestedFn.strict,
-			);
+			return makeFunctionTool(nestedFn.name, nestedFn.description, nestedFn.parameters, nestedFn.strict);
 		}
 		return undefined;
 	};
@@ -280,12 +200,7 @@ function normalizeToolsForResponses(tools: unknown): any[] | undefined {
 					if (record.type === "custom") {
 						return makeFreeformTool(name, record.description, record.format);
 					}
-					return makeFunctionTool(
-						name,
-						record.description,
-						record.parameters,
-						record.strict,
-					);
+					return makeFunctionTool(name, record.description, record.parameters, record.strict);
 				}
 				if (value === true) {
 					return makeFunctionTool(name);
@@ -298,7 +213,6 @@ function normalizeToolsForResponses(tools: unknown): any[] | undefined {
 	return undefined;
 }
 
-
 /**
  * Normalize model name to Codex-supported variants
  * @param model - Original model name
@@ -309,7 +223,7 @@ export function normalizeModel(model: string | undefined): string {
 	if (!model) return fallback;
 
 	const lowered = model.toLowerCase();
-	const sanitized = lowered.replace(/\./g, "-").replace(/[\s_\/]+/g, "-");
+	const sanitized = lowered.replace(/\./g, "-").replace(/[\s_/]+/g, "-");
 
 	const contains = (needle: string) => sanitized.includes(needle);
 	const hasGpt51 = contains("gpt-5-1") || sanitized.includes("gpt51");
@@ -493,27 +407,13 @@ export function filterInput(
  * @param cachedPrompt - Cached OpenCode codex.txt content
  * @returns True if this is the OpenCode system prompt
  */
-export function isOpenCodeSystemPrompt(
-	item: InputItem,
-	cachedPrompt: string | null,
-): boolean {
+export function isOpenCodeSystemPrompt(item: InputItem, cachedPrompt: string | null): boolean {
 	const isSystemRole = item.role === "developer" || item.role === "system";
 	if (!isSystemRole) return false;
 
-	const getContentText = (item: InputItem): string => {
-		if (typeof item.content === "string") {
-			return item.content;
-		}
-		if (Array.isArray(item.content)) {
-			return item.content
-				.filter((c) => c.type === "input_text" && c.text)
-				.map((c) => c.text)
-				.join("\n");
-		}
-		return "";
-	};
+	// extractTextFromItem now imported from ../utils/input-item-utils.ts
 
-	const contentText = getContentText(item);
+	const contentText = extractTextFromItem(item);
 	if (!contentText) return false;
 
 	// Primary check: Compare against cached OpenCode prompt
@@ -560,35 +460,92 @@ export async function filterOpenCodeSystemPrompts(
 
 	// Heuristic detector for OpenCode auto-compaction prompts that instruct
 	// saving/reading a conversation summary from a file path.
+	const compactionInstructionPatterns: RegExp[] = [
+		/(summary[ _-]?file)/i,
+		/(summary[ _-]?path)/i,
+		/summary\s+(?:has\s+been\s+)?saved\s+(?:to|at)/i,
+		/summary\s+(?:is\s+)?stored\s+(?:in|at|to)/i,
+		/summary\s+(?:is\s+)?available\s+(?:at|in)/i,
+		/write\s+(?:the\s+)?summary\s+(?:to|into)/i,
+		/save\s+(?:the\s+)?summary\s+(?:to|into)/i,
+		/open\s+(?:the\s+)?summary/i,
+		/read\s+(?:the\s+)?summary/i,
+		/cat\s+(?:the\s+)?summary/i,
+		/view\s+(?:the\s+)?summary/i,
+		/~\/\.opencode/i,
+		/\.opencode\/.*summary/i,
+	];
+
+	// getCompactionText now uses extractTextFromItem from ../utils/input-item-utils.ts
+
+	const matchesCompactionInstruction = (value: string): boolean =>
+		compactionInstructionPatterns.some((pattern) => pattern.test(value));
+
+	const sanitizeOpenCodeCompactionPrompt = (item: InputItem): InputItem | null => {
+		const text = extractTextFromItem(item);
+		if (!text) return null;
+		const sanitizedText = text
+			.split(/\r?\n/)
+			.map((line) => line.trimEnd())
+			.filter((line) => {
+				const trimmed = line.trim();
+				if (!trimmed) {
+					return true;
+				}
+				return !matchesCompactionInstruction(trimmed);
+			})
+			.join("\n")
+			.replace(/\n{3,}/g, "\n\n")
+			.trim();
+		if (!sanitizedText) {
+			return null;
+		}
+		const originalMentionedCompaction = /\bauto[-\s]?compaction\b/i.test(text);
+		let finalText = sanitizedText;
+		if (originalMentionedCompaction && !/\bauto[-\s]?compaction\b/i.test(finalText)) {
+			finalText = `Auto-compaction summary\n\n${finalText}`;
+		}
+		return {
+			...item,
+			content: finalText,
+		};
+	};
+
 	const isOpenCodeCompactionPrompt = (item: InputItem): boolean => {
 		const isSystemRole = item.role === "developer" || item.role === "system";
 		if (!isSystemRole) return false;
-		const getText = (it: InputItem): string => {
-			if (typeof it.content === "string") return it.content;
-			if (Array.isArray(it.content)) {
-				return it.content
-					.filter((c: any) => c && c.type === "input_text" && c.text)
-					.map((c: any) => c.text)
-					.join("\n");
-			}
-			return "";
-		};
-		const text = getText(item).toLowerCase();
+		const text = extractTextFromItem(item);
 		if (!text) return false;
 		const hasCompaction = /\b(auto[-\s]?compaction|compaction|compact)\b/i.test(text);
 		const hasSummary = /\b(summary|summarize|summarise)\b/i.test(text);
-		const mentionsFile = /(summary[ _-]?file|summary[ _-]?path|write (the )?summary|save (the )?summary)/i.test(text);
-		return hasCompaction && hasSummary && mentionsFile;
+		return hasCompaction && hasSummary && matchesCompactionInstruction(text);
 	};
 
-	return input.filter((item) => {
+	const filteredInput: InputItem[] = [];
+	for (const item of input) {
 		// Keep user messages
-		if (item.role === "user") return true;
-		// Filter out OpenCode system and compaction prompts
-		if (isOpenCodeSystemPrompt(item, cachedPrompt)) return false;
-		if (isOpenCodeCompactionPrompt(item)) return false;
-		return true;
-	});
+		if (item.role === "user") {
+			filteredInput.push(item);
+			continue;
+		}
+
+		// Filter out OpenCode system prompts entirely
+		if (isOpenCodeSystemPrompt(item, cachedPrompt)) {
+			continue;
+		}
+
+		if (isOpenCodeCompactionPrompt(item)) {
+			const sanitized = sanitizeOpenCodeCompactionPrompt(item);
+			if (sanitized) {
+				filteredInput.push(sanitized);
+			}
+			continue;
+		}
+
+		filteredInput.push(item);
+	}
+
+	return filteredInput;
 }
 
 /**
@@ -599,7 +556,7 @@ export async function filterOpenCodeSystemPrompts(
  */
 function analyzeBridgeRequirement(
 	input: InputItem[] | undefined,
-	hasTools: boolean
+	hasTools: boolean,
 ): { needsBridge: boolean; reason: string; toolCount: number } {
 	if (!hasTools || !Array.isArray(input)) {
 		return { needsBridge: false, reason: "no_tools_or_input", toolCount: 0 };
@@ -609,11 +566,11 @@ function analyzeBridgeRequirement(
 	// This maintains backward compatibility with existing tests
 	// Future optimization can make this more sophisticated
 	const toolCount = 1; // Simple heuristic
-	
-	return { 
-		needsBridge: true, 
+
+	return {
+		needsBridge: true,
 		reason: "tools_present",
-		toolCount 
+		toolCount,
 	};
 }
 
@@ -634,22 +591,31 @@ export function addCodexBridgeMessage(
 
 	// Generate input hash for caching
 	const inputHash = generateInputHash(input);
-	
+
 	// Analyze bridge requirement
 	const analysis = analyzeBridgeRequirement(input, hasTools);
-	
+
 	// Check session-level bridge injection flag first
 	if (sessionContext?.state.bridgeInjected) {
 		logDebug("Bridge prompt already injected in session, skipping injection");
 		return input;
 	}
-	
+
 	// Check cache first
 	const cachedDecision = getCachedBridgeDecision(inputHash, analysis.toolCount);
 	if (cachedDecision) {
-		logDebug(`Using cached bridge decision: ${cachedDecision.hash === generateContentHash("add") ? "add" : "skip"}`);
-		return cachedDecision.hash === generateContentHash("add") 
-			? [{ type: "message", role: "developer", content: [{ type: "input_text", text: CODEX_OPENCODE_BRIDGE }] }, ...input]
+		logDebug(
+			`Using cached bridge decision: ${cachedDecision.hash === generateContentHash("add") ? "add" : "skip"}`,
+		);
+		return cachedDecision.hash === generateContentHash("add")
+			? [
+					{
+						type: "message",
+						role: "developer",
+						content: [{ type: "input_text", text: CODEX_OPENCODE_BRIDGE }],
+					},
+					...input,
+				]
 			: input;
 	}
 
@@ -715,6 +681,65 @@ export function addToolRemapMessage(
 	return [toolRemapMessage, ...input];
 }
 
+function maybeBuildCompactionPrompt(
+	originalInput: InputItem[],
+	commandText: string | null,
+	settings: { enabled: boolean; autoLimitTokens?: number; autoMinMessages?: number },
+): { items: InputItem[]; decision: CompactionDecision } | null {
+	if (!settings.enabled) {
+		return null;
+	}
+	const conversationSource = commandText
+		? removeLastUserMessage(originalInput)
+		: cloneInputItems(originalInput);
+	const turnCount = countConversationTurns(conversationSource);
+	let trigger: "command" | "auto" | null = null;
+	let reason: string | undefined;
+	let approxTokens: number | undefined;
+
+	if (commandText) {
+		trigger = "command";
+	} else if (settings.autoLimitTokens && settings.autoLimitTokens > 0) {
+		approxTokens = approximateTokenCount(conversationSource);
+		const minMessages = settings.autoMinMessages ?? 8;
+		if (approxTokens >= settings.autoLimitTokens && turnCount >= minMessages) {
+			trigger = "auto";
+			reason = `~${approxTokens} tokens >= limit ${settings.autoLimitTokens}`;
+		}
+	}
+
+	if (!trigger) {
+		return null;
+	}
+
+	const serialization = serializeConversation(conversationSource);
+	const promptItems = buildCompactionPromptItems(serialization.transcript);
+
+	return {
+		items: promptItems,
+		decision: {
+			mode: trigger,
+			reason,
+			approxTokens,
+			preservedSystem: collectSystemMessages(originalInput),
+			serialization,
+		},
+	};
+}
+
+// cloneConversationItems now imported from ../utils/clone.ts as cloneInputItems
+
+function removeLastUserMessage(items: InputItem[]): InputItem[] {
+	const cloned = cloneInputItems(items);
+	for (let index = cloned.length - 1; index >= 0; index -= 1) {
+		if (cloned[index]?.role === "user") {
+			cloned.splice(index, 1);
+			break;
+		}
+	}
+	return cloned;
+}
+
 const PROMPT_CACHE_METADATA_KEYS = [
 	"conversation_id",
 	"conversationId",
@@ -726,12 +751,27 @@ const PROMPT_CACHE_METADATA_KEYS = [
 	"chatId",
 ];
 
+const PROMPT_CACHE_FORK_KEYS = [
+	"forkId",
+	"fork_id",
+	"branchId",
+	"branch_id",
+	"parentConversationId",
+	"parent_conversation_id",
+];
+
 type PromptCacheKeySource = "existing" | "metadata" | "generated";
 
 interface PromptCacheKeyResult {
 	key: string;
 	source: PromptCacheKeySource;
 	sourceKey?: string;
+	forkSourceKey?: string;
+	hintKeys?: string[];
+	unusableKeys?: string[];
+	forkHintKeys?: string[];
+	forkUnusableKeys?: string[];
+	fallbackHash?: string;
 }
 
 function extractString(value: unknown): string | undefined {
@@ -742,38 +782,101 @@ function extractString(value: unknown): string | undefined {
 	return trimmed.length > 0 ? trimmed : undefined;
 }
 
-function derivePromptCacheKeyFromBody(body: RequestBody): { value: string; sourceKey: string } | undefined {
+function normalizeCacheKeyBase(base: string): string {
+	const trimmed = base.trim();
+	if (!trimmed) {
+		return `cache_${randomUUID()}`;
+	}
+	const sanitized = trimmed.replace(/\s+/g, "-");
+	return sanitized.startsWith("cache_") ? sanitized : `cache_${sanitized}`;
+}
+
+function normalizeForkSuffix(forkId: string): string {
+	const trimmed = forkId.trim();
+	if (!trimmed) return "fork";
+	return trimmed.replace(/\s+/g, "-");
+}
+
+function derivePromptCacheKeyFromBody(body: RequestBody): {
+	base?: string;
+	sourceKey?: string;
+	hintKeys: string[];
+	unusableKeys: string[];
+	forkId?: string;
+	forkSourceKey?: string;
+	forkHintKeys: string[];
+	forkUnusableKeys: string[];
+} {
 	const metadata = body.metadata as Record<string, unknown> | undefined;
 	const root = body as Record<string, unknown>;
 
-	const getForkIdentifier = (): string | undefined => {
-		// Prefer metadata over root, and support both camelCase and snake_case
-		return (
-			extractString(metadata?.forkId) ||
-			extractString(metadata?.fork_id) ||
-			extractString(metadata?.branchId) ||
-			extractString(metadata?.branch_id) ||
-			extractString(root.forkId) ||
-			extractString(root.fork_id) ||
-			extractString(root.branchId) ||
-			extractString(root.branch_id)
-		);
-	};
-
-	const forkId = getForkIdentifier();
+	const hintKeys: string[] = [];
+	const unusableKeys: string[] = [];
+	let base: string | undefined;
+	let sourceKey: string | undefined;
 
 	for (const key of PROMPT_CACHE_METADATA_KEYS) {
-		const base = extractString(metadata?.[key]) ?? extractString(root[key]);
-		if (base) {
-			const value = forkId ? `${base}::fork::${forkId}` : base;
-			return { value, sourceKey: key };
+		const raw = metadata?.[key] ?? root[key];
+		if (raw !== undefined) {
+			hintKeys.push(key);
+		}
+		const value = extractString(raw);
+		if (value) {
+			base = value;
+			sourceKey = key;
+			break;
+		}
+		if (raw !== undefined) {
+			unusableKeys.push(key);
 		}
 	}
-	return undefined;
+
+	const forkHintKeys: string[] = [];
+	const forkUnusableKeys: string[] = [];
+	let forkId: string | undefined;
+	let forkSourceKey: string | undefined;
+
+	for (const key of PROMPT_CACHE_FORK_KEYS) {
+		const raw = metadata?.[key] ?? root[key];
+		if (raw !== undefined) {
+			forkHintKeys.push(key);
+		}
+		const value = extractString(raw);
+		if (value) {
+			forkId = value;
+			forkSourceKey = key;
+			break;
+		}
+		if (raw !== undefined) {
+			forkUnusableKeys.push(key);
+		}
+	}
+
+	return {
+		base,
+		sourceKey,
+		hintKeys,
+		unusableKeys,
+		forkId,
+		forkSourceKey,
+		forkHintKeys,
+		forkUnusableKeys,
+	};
 }
 
-function generatePromptCacheKey(): string {
-	return `cache_${randomUUID()}`;
+function computeFallbackHashForBody(body: RequestBody): string {
+	try {
+		const inputSlice = Array.isArray(body.input) ? body.input.slice(0, 3) : undefined;
+		const seed = stableStringify({
+			model: typeof body.model === "string" ? body.model : undefined,
+			metadata: body.metadata,
+			input: inputSlice,
+		});
+		return createHash("sha1").update(seed).digest("hex").slice(0, 12);
+	} catch {
+		const model = typeof body.model === "string" ? body.model : "unknown";
+		return createHash("sha1").update(model).digest("hex").slice(0, 12);
+	}
 }
 
 function ensurePromptCacheKey(body: RequestBody): PromptCacheKeyResult {
@@ -781,7 +884,7 @@ function ensurePromptCacheKey(body: RequestBody): PromptCacheKeyResult {
 	const existingSnake = extractString(hostBody.prompt_cache_key);
 	const existingCamel = extractString(hostBody.promptCacheKey);
 	const existing = existingSnake || existingCamel;
-	
+
 	if (existing) {
 		// Codex backend expects snake_case, so always set prompt_cache_key
 		// Preserve the camelCase field for OpenCode if it was provided
@@ -793,17 +896,35 @@ function ensurePromptCacheKey(body: RequestBody): PromptCacheKeyResult {
 	}
 
 	const derived = derivePromptCacheKeyFromBody(body);
-	if (derived) {
-		const sanitized = extractString(derived.value) ?? generatePromptCacheKey();
-		body.prompt_cache_key = sanitized;
+	if (derived.base) {
+		const baseKey = normalizeCacheKeyBase(derived.base);
+		const suffix = derived.forkId ? `-fork-${normalizeForkSuffix(derived.forkId)}` : "";
+		const finalKey = `${baseKey}${suffix}`;
+		body.prompt_cache_key = finalKey;
 		// Don't set camelCase field for derived keys - only snake_case for Codex
-		return { key: sanitized, source: "metadata", sourceKey: derived.sourceKey };
+		return {
+			key: finalKey,
+			source: "metadata",
+			sourceKey: derived.sourceKey,
+			forkSourceKey: derived.forkSourceKey,
+			hintKeys: derived.hintKeys,
+			forkHintKeys: derived.forkHintKeys,
+		};
 	}
 
-	const generated = generatePromptCacheKey();
+	const fallbackHash = computeFallbackHashForBody(body);
+	const generated = `cache_${fallbackHash}`;
 	body.prompt_cache_key = generated;
 	// Don't set camelCase field for generated keys - only snake_case for Codex
-	return { key: generated, source: "generated" };
+	return {
+		key: generated,
+		source: "generated",
+		hintKeys: derived.hintKeys,
+		unusableKeys: derived.unusableKeys,
+		forkHintKeys: derived.forkHintKeys,
+		forkUnusableKeys: derived.forkUnusableKeys,
+		fallbackHash,
+	};
 }
 
 /**
@@ -813,26 +934,54 @@ function ensurePromptCacheKey(body: RequestBody): PromptCacheKeyResult {
  * - opencode sets textVerbosity="low" for gpt-5, but Codex CLI uses "medium"
  * - opencode excludes gpt-5-codex from reasoning configuration
  * - This plugin uses store=false (stateless), requiring encrypted reasoning content
- *
- * @param body - Original request body
- * @param codexInstructions - Codex system instructions
- * @param userConfig - User configuration from loader
- * @param codexMode - Enable CODEX_MODE (bridge prompt instead of tool remap) - defaults to true
- * @param options - Options including preserveIds flag
- * @param sessionContext - Optional session context for bridge tracking
- * @returns Transformed request body
  */
+export interface TransformRequestOptions {
+	preserveIds?: boolean;
+	compaction?: {
+		settings: {
+			enabled: boolean;
+			autoLimitTokens?: number;
+			autoMinMessages?: number;
+		};
+		commandText: string | null;
+		originalInput: InputItem[];
+	};
+}
+
+interface TransformResult {
+	body: RequestBody;
+	compactionDecision?: CompactionDecision;
+}
+
 export async function transformRequestBody(
 	body: RequestBody,
 	codexInstructions: string,
 	userConfig: UserConfig = { global: {}, models: {} },
 	codexMode = true,
-	options: { preserveIds?: boolean } = {},
+	options: TransformRequestOptions = {},
 	sessionContext?: SessionContext,
-): Promise<RequestBody> {
+): Promise<TransformResult> {
 	const originalModel = body.model;
 	const normalizedModel = normalizeModel(body.model);
 	const preserveIds = options.preserveIds ?? false;
+
+	let compactionDecision: CompactionDecision | undefined;
+	const compactionOptions = options.compaction;
+	if (compactionOptions?.settings.enabled) {
+		const compactionBuild = maybeBuildCompactionPrompt(
+			compactionOptions.originalInput,
+			compactionOptions.commandText,
+			compactionOptions.settings,
+		);
+		if (compactionBuild) {
+			body.input = compactionBuild.items;
+			delete (body as any).tools;
+			delete (body as any).tool_choice;
+			delete (body as any).parallel_tool_calls;
+			compactionDecision = compactionBuild.decision;
+		}
+	}
+	const skipConversationTransforms = Boolean(compactionDecision);
 
 	// Get model-specific configuration using ORIGINAL model name (config key)
 	// This allows per-model options like "gpt-5-codex-low" to work correctly
@@ -840,13 +989,10 @@ export async function transformRequestBody(
 	const modelConfig = getModelConfig(lookupModel, userConfig);
 
 	// Debug: Log which config was resolved
-	logDebug(
-		`Model config lookup: "${lookupModel}" → normalized to "${normalizedModel}" for API`,
-		{
-			hasModelSpecificConfig: !!userConfig.models?.[lookupModel],
-			resolvedConfig: modelConfig,
-		},
-	);
+	logDebug(`Model config lookup: "${lookupModel}" → normalized to "${normalizedModel}" for API`, {
+		hasModelSpecificConfig: !!userConfig.models?.[lookupModel],
+		resolvedConfig: modelConfig,
+	});
 
 	// Normalize model name for API call
 	body.model = normalizedModel;
@@ -869,27 +1015,45 @@ export async function transformRequestBody(
 		logDebug("Prompt cache key missing; derived from metadata", {
 			promptCacheKey: cacheKeyResult.key,
 			sourceKey: cacheKeyResult.sourceKey,
+			forkSourceKey: cacheKeyResult.forkSourceKey,
+			forkHintKeys: cacheKeyResult.forkHintKeys,
 		});
 	} else if (cacheKeyResult.source === "generated") {
-		logWarn("Prompt cache key missing; generated fallback cache key", {
-			promptCacheKey: cacheKeyResult.key,
-		});
+		const hasHints = Boolean(
+			(cacheKeyResult.hintKeys && cacheKeyResult.hintKeys.length > 0) ||
+				(cacheKeyResult.forkHintKeys && cacheKeyResult.forkHintKeys.length > 0),
+		);
+		logWarn(
+			hasHints
+				? "Prompt cache key hints detected but unusable; generated fallback cache key"
+				: "Prompt cache key missing; generated fallback cache key",
+			{
+				promptCacheKey: cacheKeyResult.key,
+				fallbackHash: cacheKeyResult.fallbackHash,
+				hintKeys: cacheKeyResult.hintKeys,
+				unusableKeys: cacheKeyResult.unusableKeys,
+				forkHintKeys: cacheKeyResult.forkHintKeys,
+				forkUnusableKeys: cacheKeyResult.forkUnusableKeys,
+			},
+		);
 	}
 
 	// Tool behavior parity with Codex CLI (normalize shapes)
 	let hasNormalizedTools = false;
-	if (body.tools) {
+	if (skipConversationTransforms) {
+		delete (body as any).tools;
+		delete (body as any).tool_choice;
+		delete (body as any).parallel_tool_calls;
+	} else if (body.tools) {
 		const normalizedTools = normalizeToolsForResponses(body.tools);
 		if (normalizedTools && normalizedTools.length > 0) {
 			(body as any).tools = normalizedTools;
 			(body as any).tool_choice = "auto";
 			const modelName = (body.model || "").toLowerCase();
-			const codexParallelDisabled =
-				modelName.includes("gpt-5-codex") || modelName.includes("gpt-5.1-codex");
+			const codexParallelDisabled = modelName.includes("gpt-5-codex") || modelName.includes("gpt-5.1-codex");
 			(body as any).parallel_tool_calls = !codexParallelDisabled;
 			hasNormalizedTools = true;
 		} else {
-			// Ensure empty objects don't count as tools and don't leak to backend
 			delete (body as any).tools;
 			delete (body as any).tool_choice;
 			delete (body as any).parallel_tool_calls;
@@ -897,23 +1061,18 @@ export async function transformRequestBody(
 	}
 
 	// Filter and transform input
-	if (body.input && Array.isArray(body.input)) {
+	if (body.input && Array.isArray(body.input) && !skipConversationTransforms) {
 		// Debug: Log original input message IDs before filtering
-		const originalIds = body.input
-			.filter((item) => item.id)
-			.map((item) => item.id);
+		const originalIds = body.input.filter((item) => item.id).map((item) => item.id);
 		if (originalIds.length > 0) {
-			logDebug(
-				`Filtering ${originalIds.length} message IDs from input:`,
-				originalIds,
-			);
+			logDebug(`Filtering ${originalIds.length} message IDs from input:`, originalIds);
 		}
 
 		body.input = filterInput(body.input, { preserveIds });
 
 		// Debug: Verify all IDs were removed
 		if (!preserveIds) {
-			const remainingIds = (body.input || []).filter(item => item.id).map(item => item.id);
+			const remainingIds = (body.input || []).filter((item) => item.id).map((item) => item.id);
 			if (remainingIds.length > 0) {
 				logWarn(`WARNING: ${remainingIds.length} IDs still present after filtering:`, remainingIds);
 			} else if (originalIds.length > 0) {
@@ -956,5 +1115,5 @@ export async function transformRequestBody(
 	body.max_output_tokens = undefined;
 	body.max_completion_tokens = undefined;
 
-	return body;
+	return { body, compactionDecision };
 }

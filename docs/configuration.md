@@ -361,7 +361,10 @@ Advanced plugin settings in `~/.opencode/openhax-codex-config.json`:
 
 ```json
 {
-  "codexMode": true
+  "codexMode": true,
+  "enableCodexCompaction": true,
+  "autoCompactTokenLimit": 12000,
+  "autoCompactMinMessages": 8
 }
 ```
 
@@ -382,6 +385,24 @@ Advanced plugin settings in `~/.opencode/openhax-codex-config.json`:
 CODEX_MODE=0 opencode run "task"  # Temporarily disable
 CODEX_MODE=1 opencode run "task"  # Temporarily enable
 ```
+
+### enableCodexCompaction
+
+Controls whether the plugin exposes Codex-style compaction commands.
+
+- `true` (default): `/codex-compact` is available and auto-compaction heuristics may run if enabled.
+- `false`: Compaction commands are ignored and OpenCode's own prompts pass through untouched.
+
+Disable only if you prefer OpenCode's host-side compaction or while debugging prompt differences.
+
+### autoCompactTokenLimit / autoCompactMinMessages
+
+Configures the optional auto-compaction heuristic.
+
+- `autoCompactTokenLimit`: Approximate token budget (based on character count ÷ 4). When unset, auto-compaction never triggers.
+- `autoCompactMinMessages`: Minimum number of conversation turns before auto-compaction is considered (default `8`).
+
+When the limit is reached, the plugin injects a Codex summary, stores it for future turns, and replies: “Auto compaction triggered… Review the summary then resend your last instruction.”
 
 ### Prompt caching
 
