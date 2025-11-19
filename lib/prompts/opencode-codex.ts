@@ -13,11 +13,14 @@ import { logError, logWarn, logInfo } from "../logger.js";
 import { CACHE_FILES, CACHE_TTL_MS, LEGACY_CACHE_FILES, PLUGIN_PREFIX } from "../utils/cache-config.js";
 import { getOpenCodePath } from "../utils/file-system-utils.js";
 
-const OPENCODE_CODEX_URL =
-	"https://raw.githubusercontent.com/sst/opencode/main/packages/opencode/src/session/prompt/codex.txt";
+const OPENCODE_CODEX_URLS = [
+	"https://raw.githubusercontent.com/sst/opencode/dev/packages/opencode/src/session/prompt/codex.txt",
+	"https://raw.githubusercontent.com/sst/opencode/main/packages/opencode/src/session/prompt/codex.txt",
+];
 
 interface OpenCodeCacheMeta {
 	etag: string;
+	sourceUrl?: string;
 	lastFetch?: string; // Legacy field for backwards compatibility
 	lastChecked: number; // Timestamp for rate limit protection
 	url?: string; // Track source URL for validation
@@ -142,88 +145,86 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 		return cachedContent;
 	}
 
-	// Fetch from GitHub with conditional request
-	const headers: Record<string, string> = {};
-	if (cachedMeta?.etag) {
-		headers["If-None-Match"] = cachedMeta.etag;
+	// Fetch from GitHub with conditional requests and fallbacks
+	let lastError: Error | undefined;
+	for (const url of OPENCODE_CODEX_URLS) {
+		const headers: Record<string, string> = {};
+		if (cachedMeta?.etag && (!cachedMeta.sourceUrl || cachedMeta.sourceUrl === url)) {
+			headers["If-None-Match"] = cachedMeta.etag;
+		}
+
+		try {
+			const response = await fetch(url, { headers });
+
+			// 304 Not Modified - cache is still valid
+			if (response.status === 304 && cachedContent) {
+				const updatedMeta: OpenCodeCacheMeta = {
+					etag: cachedMeta?.etag || "",
+					sourceUrl: cachedMeta?.sourceUrl || url,
+					lastFetch: cachedMeta?.lastFetch,
+					lastChecked: Date.now(),
+					url: cachedMeta?.url,
+				};
+				await writeFile(cacheMetaPath, JSON.stringify(updatedMeta, null, 2), "utf-8");
+
+				openCodePromptCache.set("main", { data: cachedContent, etag: updatedMeta.etag || undefined });
+				return cachedContent;
+			}
+
+			// 200 OK - new content available
+			if (response.ok) {
+				const content = await response.text();
+				const etag = response.headers.get("etag") || "";
+
+				await writeFile(cacheFilePath, content, "utf-8");
+				await writeFile(
+					cacheMetaPath,
+					JSON.stringify(
+						{
+							etag,
+							sourceUrl: url,
+							lastFetch: new Date().toISOString(), // Keep for backwards compat
+							lastChecked: Date.now(),
+						} satisfies OpenCodeCacheMeta,
+						null,
+						2,
+					),
+					"utf-8",
+				);
+
+				openCodePromptCache.set("main", { data: content, etag });
+
+				return content;
+			}
+
+			lastError = new Error(`HTTP ${response.status} from ${url}`);
+		} catch (error) {
+			const err = error as Error;
+			lastError = new Error(`Failed to fetch ${url}: ${err.message}`);
+		}
 	}
 
-	try {
-		const response = await fetch(OPENCODE_CODEX_URL, { headers });
-
-		// 304 Not Modified - cache is still valid
-		if (response.status === 304 && cachedContent) {
-			// Store in session cache
-			openCodePromptCache.set("main", { data: cachedContent, etag: cachedMeta?.etag || undefined });
-			return cachedContent;
-		}
-
-		// 200 OK - new content available
-		if (response.ok) {
-			const content = await response.text();
-			const etag = response.headers.get("etag") || "";
-
-			// Save to cache with timestamp and plugin identifier
-			await writeFile(cacheFilePath, content, "utf-8");
-			await writeFile(
-				cacheMetaPath,
-				JSON.stringify(
-					{
-						etag,
-						lastFetch: new Date().toISOString(), // Keep for backwards compat
-						lastChecked: Date.now(),
-						url: OPENCODE_CODEX_URL, // Track source URL for validation
-					} satisfies OpenCodeCacheMeta,
-					null,
-					2,
-				),
-				"utf-8",
-			);
-
-			// Store in session cache
-			openCodePromptCache.set("main", { data: content, etag });
-
-			return content;
-		}
-
-		// Fallback to cache if available
-		if (cachedContent) {
-			logWarn("Using cached OpenCode prompt due to fetch failure", {
-				status: response.status,
-				cacheAge: cachedMeta ? Date.now() - cachedMeta.lastChecked : "unknown",
-			});
-			openCodePromptCache.set("main", { data: cachedContent, etag: cachedMeta?.etag || undefined });
-			return cachedContent;
-		}
-
-		throw new Error(`Failed to fetch OpenCode codex.txt: ${response.status}`);
-	} catch (error) {
-		const err = error as Error;
-		logError("Failed to fetch OpenCode codex.txt from GitHub", { error: err.message });
-
-		// Network error - fallback to cache
-		if (cachedContent) {
-			logWarn("Network error detected, using cached OpenCode prompt", {
-				error: err.message,
-				cacheAge: cachedMeta ? Date.now() - cachedMeta.lastChecked : "unknown",
-			});
-
-			// Store in session cache even for fallback
-			openCodePromptCache.set("main", { data: cachedContent, etag: cachedMeta?.etag || undefined });
-			return cachedContent;
-		}
-
-		// Provide helpful error message for cache conflicts
-		if (err.message.includes("404") || err.message.includes("ENOENT")) {
-			throw new Error(
-				`Failed to fetch OpenCode prompt and no valid cache available. ` +
-					`This may happen when switching between different Codex plugins. ` +
-					`Try clearing the cache with: rm -rf ~/.opencode/cache/opencode* && rm -rf ~/.opencode/cache/codex*`,
-			);
-		}
-
-		throw new Error(`Failed to fetch OpenCode codex.txt and no cache available: ${err.message}`);
+	if (lastError) {
+		logError("Failed to fetch OpenCode codex.txt from GitHub", { error: lastError.message });
 	}
+
+	if (cachedContent) {
+		const updatedMeta: OpenCodeCacheMeta = {
+			etag: cachedMeta?.etag || "",
+			sourceUrl: cachedMeta?.sourceUrl,
+			lastFetch: cachedMeta?.lastFetch,
+			lastChecked: Date.now(),
+			url: cachedMeta?.url,
+		};
+		await writeFile(cacheMetaPath, JSON.stringify(updatedMeta, null, 2), "utf-8");
+
+		openCodePromptCache.set("main", { data: cachedContent, etag: updatedMeta.etag || undefined });
+		return cachedContent;
+	}
+
+	throw new Error(
+		`Failed to fetch OpenCode codex.txt and no cache available: ${lastError?.message || "unknown error"}`,
+	);
 }
 
 /**

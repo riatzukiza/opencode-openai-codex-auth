@@ -246,6 +246,30 @@ describe("OpenCode Codex Prompt Fetcher", () => {
 			expect(result).toBe(cachedContent);
 		});
 
+		it("falls back to legacy URL when primary returns 404", async () => {
+			openCodePromptCache.get = vi.fn().mockReturnValue(undefined);
+			readFileMock.mockRejectedValue(new Error("No cache files"));
+
+			fetchMock
+				.mockResolvedValueOnce(new Response("Missing", { status: 404 }))
+				.mockResolvedValueOnce(
+					new Response("legacy-content", { status: 200, headers: { etag: '"legacy-etag"' } }),
+				);
+
+			const { getOpenCodeCodexPrompt } = await import("../lib/prompts/opencode-codex.js");
+			const result = await getOpenCodeCodexPrompt();
+
+			expect(result).toBe("legacy-content");
+			expect(fetchMock).toHaveBeenCalledTimes(2);
+			expect(fetchMock.mock.calls[0][0]).toContain("/dev/");
+			expect(fetchMock.mock.calls[1][0]).toContain("/main/");
+			const metaWrite = writeFileMock.mock.calls.find((call) => call[0] === cacheMetaFile);
+			const metaPayload = metaWrite?.[1];
+			const metaObject = typeof metaPayload === "string" ? JSON.parse(metaPayload) : metaPayload;
+			expect(metaObject?.etag).toBe('"legacy-etag"');
+			expect(metaObject?.sourceUrl).toContain("/main/");
+		});
+
 		it("creates cache directory when it does not exist", async () => {
 			openCodePromptCache.get = vi.fn().mockReturnValue(undefined);
 			readFileMock.mockRejectedValue(new Error("No cache files"));
