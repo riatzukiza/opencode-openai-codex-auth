@@ -32,7 +32,7 @@ pnpm run test:coverage
 
 ## Test Coverage
 
-### auth.test.ts (16 tests)
+### auth.test.ts (27 tests)
 
 Tests OAuth authentication functionality:
 
@@ -42,7 +42,7 @@ Tests OAuth authentication functionality:
 - Authorization flow creation with PKCE
 - URL parameter validation
 
-### config.test.ts (13 tests)
+### config.test.ts (16 tests)
 
 Tests configuration parsing and merging:
 
@@ -53,7 +53,7 @@ Tests configuration parsing and merging:
 - Reasoning effort normalization (minimal → low for codex)
 - Lightweight model detection (nano, mini)
 
-### request-transformer.test.ts (30 tests)
+### request-transformer.test.ts (123 tests)
 
 Tests request body transformations:
 
@@ -75,7 +75,7 @@ Tests SSE to JSON conversion:
 - Empty stream handling
 - Status preservation
 
-### logger.test.ts (5 tests)
+### logger.test.ts (7 tests)
 
 Tests logging functionality:
 
@@ -113,5 +113,5 @@ When adding new functionality:
 
 See the `config/` directory for working configuration examples:
 
-- `minimal-opencode.json`: Simplest setup with defaults
-- `full-opencode.json`: Complete example with all model variants
+- `config/minimal-opencode.json`: Simplest setup with defaults
+- `config/full-opencode.json`: Complete example with all model variants
