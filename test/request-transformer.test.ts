@@ -10,15 +10,16 @@ import {
 	normalizeModel,
 	transformRequestBody,
 } from "../lib/request/request-transformer.js";
-import type { InputItem, RequestBody, UserConfig } from "../lib/types.js";
+import type { TransformRequestOptions } from "../lib/request/request-transformer.js";
+import type { InputItem, RequestBody, SessionContext, UserConfig } from "../lib/types.js";
 
 async function runTransform(
 	body: RequestBody,
 	codexInstructions: string,
 	userConfig?: UserConfig,
 	codexMode = true,
-	options?: Record<string, unknown>,
-	sessionContext?: any,
+	options?: TransformRequestOptions,
+	sessionContext?: SessionContext,
 ) {
 	const result = await transformRequestBody(
 		body,
@@ -598,7 +599,10 @@ describe("filterOpenCodeSystemPrompts", () => {
 				type: "message",
 				role: "developer",
 				content: [
-					{ type: "input_text", text: "Auto-compaction summary saved to ~/.opencode/summaries/session.md" },
+					{
+						type: "input_text",
+						text: "Auto-compaction summary saved to ~/.opencode/summaries/session.md",
+					},
 					{ type: "input_text", text: "- Built caching layer and refreshed metrics." },
 					{ type: "input_text", text: "Open the summary file for the full log." },
 				],
@@ -843,7 +847,9 @@ describe("runTransform", () => {
 			},
 			models: {},
 		};
-		const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
+		const result = await runTransform(body, codexInstructions, userConfig, true, {
+			preserveIds: false,
+		});
 
 		expect(result.reasoning?.effort).toBe("high");
 		expect(result.reasoning?.summary).toBe("detailed");
@@ -867,7 +873,9 @@ describe("runTransform", () => {
 			global: { textVerbosity: "low" },
 			models: {},
 		};
-		const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
+		const result = await runTransform(body, codexInstructions, userConfig, true, {
+			preserveIds: false,
+		});
 		expect(result.text?.verbosity).toBe("low");
 	});
 
@@ -889,7 +897,9 @@ describe("runTransform", () => {
 			global: { include: ["custom_field", "reasoning.encrypted_content"] },
 			models: {},
 		};
-		const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
+		const result = await runTransform(body, codexInstructions, userConfig, true, {
+			preserveIds: false,
+		});
 		expect(result.include).toEqual(["custom_field", "reasoning.encrypted_content"]);
 	});
 
@@ -919,7 +929,9 @@ describe("runTransform", () => {
 				{ id: "call_1", type: "function_call", role: "assistant" },
 			],
 		};
-		const result = await runTransform(body, codexInstructions, undefined, true, { preserveIds: true });
+		const result = await runTransform(body, codexInstructions, undefined, true, {
+			preserveIds: true,
+		});
 
 		expect(result.input).toHaveLength(2);
 		expect(result.input?.[0].id).toBe("msg_1");
@@ -979,7 +991,9 @@ describe("runTransform", () => {
 			global: { reasoningEffort: "minimal" },
 			models: {},
 		};
-		const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
+		const result = await runTransform(body, codexInstructions, userConfig, true, {
+			preserveIds: false,
+		});
 		expect(result.reasoning?.effort).toBe("low");
 	});
 
@@ -992,7 +1006,9 @@ describe("runTransform", () => {
 			global: { reasoningEffort: "minimal" },
 			models: {},
 		};
-		const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
+		const result = await runTransform(body, codexInstructions, userConfig, true, {
+			preserveIds: false,
+		});
 		expect(result.reasoning?.effort).toBe("minimal");
 	});
 
@@ -1116,7 +1132,9 @@ describe("runTransform", () => {
 					models: {},
 				};
 
-				const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
+				const result = await runTransform(body, codexInstructions, userConfig, true, {
+					preserveIds: false,
+				});
 
 				expect(result.model).toBe("gpt-5-codex"); // Not changed
 				expect(result.reasoning?.effort).toBe("high"); // From global
@@ -1155,7 +1173,9 @@ describe("runTransform", () => {
 					input: [],
 				};
 
-				const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
+				const result = await runTransform(body, codexInstructions, userConfig, true, {
+					preserveIds: false,
+				});
 
 				expect(result.model).toBe("gpt-5-codex"); // Normalized
 				expect(result.reasoning?.effort).toBe("low"); // From per-model
@@ -1168,7 +1188,9 @@ describe("runTransform", () => {
 					input: [],
 				};
 
-				const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
+				const result = await runTransform(body, codexInstructions, userConfig, true, {
+					preserveIds: false,
+				});
 
 				expect(result.model).toBe("gpt-5-codex"); // Normalized
 				expect(result.reasoning?.effort).toBe("high"); // From per-model
@@ -1181,7 +1203,9 @@ describe("runTransform", () => {
 					input: [],
 				};
 
-				const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
+				const result = await runTransform(body, codexInstructions, userConfig, true, {
+					preserveIds: false,
+				});
 
 				expect(result.model).toBe("gpt-5-codex"); // Not changed
 				expect(result.reasoning?.effort).toBe("medium"); // From global (no per-model)
@@ -1204,7 +1228,9 @@ describe("runTransform", () => {
 					input: [],
 				};
 
-				const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
+				const result = await runTransform(body, codexInstructions, userConfig, true, {
+					preserveIds: false,
+				});
 
 				expect(result.model).toBe("gpt-5-codex"); // Normalized
 				expect(result.reasoning?.effort).toBe("low"); // From per-model (old format)
@@ -1228,7 +1254,9 @@ describe("runTransform", () => {
 					input: [],
 				};
 
-				const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
+				const result = await runTransform(body, codexInstructions, userConfig, true, {
+					preserveIds: false,
+				});
 
 				expect(result.reasoning?.effort).toBe("low"); // Per-model
 			});
@@ -1239,7 +1267,9 @@ describe("runTransform", () => {
 					input: [],
 				};
 
-				const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
+				const result = await runTransform(body, codexInstructions, userConfig, true, {
+					preserveIds: false,
+				});
 
 				expect(result.reasoning?.effort).toBe("medium"); // Global
 			});
@@ -1291,7 +1321,9 @@ describe("runTransform", () => {
 					tools: [{ name: "edit" }],
 				};
 
-				const result = await runTransform(body, codexInstructions, userConfig, true, { preserveIds: false });
+				const result = await runTransform(body, codexInstructions, userConfig, true, {
+					preserveIds: false,
+				});
 
 				// Model normalized
 				expect(result.model).toBe("gpt-5-codex");

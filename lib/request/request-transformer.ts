@@ -26,7 +26,7 @@ import type {
 	UserConfig,
 } from "../types.js";
 import { cloneInputItems } from "../utils/clone.js";
-import { extractTextFromItem } from "../utils/input-item-utils.js";
+import { countConversationTurns, extractTextFromItem } from "../utils/input-item-utils.js";
 
 // Clone utilities now imported from ../utils/clone.ts
 
@@ -740,10 +740,6 @@ function removeLastUserMessage(items: InputItem[]): InputItem[] {
 	return cloned;
 }
 
-function countConversationTurns(items: InputItem[]): number {
-	return items.filter((item) => item.role === "user" || item.role === "assistant").length;
-}
-
 const PROMPT_CACHE_METADATA_KEYS = [
 	"conversation_id",
 	"conversationId",
@@ -939,7 +935,7 @@ function ensurePromptCacheKey(body: RequestBody): PromptCacheKeyResult {
  * - opencode excludes gpt-5-codex from reasoning configuration
  * - This plugin uses store=false (stateless), requiring encrypted reasoning content
  */
-interface TransformRequestOptions {
+export interface TransformRequestOptions {
 	preserveIds?: boolean;
 	compaction?: {
 		settings: {

@@ -18,6 +18,7 @@ import {
 import { logError, logRequest } from "../logger.js";
 import type { SessionManager } from "../session/session-manager.js";
 import type { InputItem, PluginConfig, RequestBody, SessionContext, UserConfig } from "../types.js";
+import { cloneInputItems } from "../utils/clone.js";
 import { transformRequestBody } from "./request-transformer.js";
 import { convertSseToJson, ensureContentType } from "./response-handler.js";
 
@@ -85,17 +86,6 @@ export function extractRequestUrl(input: Request | string | URL): string {
 	return input.url;
 }
 
-function cloneInput(items: InputItem[] | undefined): InputItem[] {
-	if (!Array.isArray(items) || items.length === 0) {
-		return [];
-	}
-	const globalClone = (globalThis as { structuredClone?: <T>(value: T) => T }).structuredClone;
-	if (typeof globalClone === "function") {
-		return items.map((item) => globalClone(item));
-	}
-	return items.map((item) => JSON.parse(JSON.stringify(item)) as InputItem);
-}
-
 /**
  * Rewrites OpenAI API URLs to Codex backend URLs
  * @param url - Original URL
@@ -136,7 +126,7 @@ export async function transformRequestForCodex(
 	try {
 		const body = JSON.parse(init.body as string) as RequestBody;
 		const originalModel = body.model;
-		const originalInput = cloneInput(body.input);
+		const originalInput = cloneInputItems(body.input ?? []);
 		const compactionEnabled = pluginConfig?.enableCodexCompaction !== false;
 		const compactionSettings = {
 			enabled: compactionEnabled,

@@ -10,10 +10,14 @@
  * @param value - Value to clone
  * @returns Deep cloned value
  */
+const STRUCTURED_CLONE = (globalThis as { structuredClone?: <U>(value: U) => U }).structuredClone;
+
 export function deepClone<T>(value: T): T {
-	const globalClone = (globalThis as { structuredClone?: <T>(value: T) => T }).structuredClone;
-	if (typeof globalClone === "function") {
-		return globalClone(value);
+	if (value === null || typeof value !== "object") {
+		return value;
+	}
+	if (typeof STRUCTURED_CLONE === "function") {
+		return STRUCTURED_CLONE(value);
 	}
 	return JSON.parse(JSON.stringify(value)) as T;
 }

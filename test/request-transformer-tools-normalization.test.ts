@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { transformRequestBody } from "../lib/request/request-transformer.js";
+import type { TransformRequestOptions } from "../lib/request/request-transformer.js";
 import type { RequestBody, UserConfig } from "../lib/types.js";
 
 async function runTransform(
@@ -7,7 +8,7 @@ async function runTransform(
 	instructions: string,
 	userConfig?: UserConfig,
 	codexMode = true,
-	options?: any,
+	options?: TransformRequestOptions,
 ) {
 	const result = await transformRequestBody(body, instructions, userConfig, codexMode, options);
 	return result.body;
