@@ -2,7 +2,8 @@
 
 ## Code References
 
-- `.github/workflows/ci.yml` — `lint` job installs deps, runs ESLint, and typechecks; new `format` job auto-runs Prettier with write/check phases and commits changes on push events.
+- `.github/workflows/ci.yml` — `lint` job installs deps, runs ESLint, and typechecks.
+- `.github/workflows/formatting.yml` — standalone workflow that auto-runs Prettier with write/check phases and commits changes on push events (requires explicit permissions).
 - `package.json` — defines discrete scripts for ESLint (`lint:eslint`) and Prettier (`format:write`, `format:check`, aggregated `format`).
 
 ## Existing Issues / PRs
@@ -30,8 +31,9 @@
    - `format:write` and `format:check` (Prettier write/check)
    - Keep developer-friendly aggregators (`lint`, `lint:fix`) that orchestrate both for local use.
 2. Update `.github/workflows/ci.yml` lint job to run `pnpm lint:eslint` (no warning masking) followed by the existing typecheck step. Drop the previous guard logic since ESLint will fail naturally on errors.
-3. Add a `format` job to `.github/workflows/ci.yml` that:
-   - Runs only on push events (PRs still rely on contributors running Prettier locally).
+3. Move the auto-format process into `.github/workflows/formatting.yml` (a separate workflow) that:
+   - Triggers only on push events (PRs still rely on contributors running Prettier locally).
    - Installs deps, executes `pnpm format:write`, confirms clean state via `pnpm format:check`, and commits/pushes formatting changes automatically when diffs exist.
+   - Runs with explicit `permissions: { contents: write, workflows: write }` so the auto-commit action can touch workflow files when Prettier reflows them.
    - Fails only if Prettier encounters errors it cannot fix (e.g., invalid syntax causing `format:write` or `format:check` to exit non-zero).
-4. Document the new workflow expectations in the spec so contributors know Prettier is auto-managed while ESLint remains developer responsibility.
+4. Document the new workflow expectations in the spec so contributors know Prettier is auto-managed (via `formatting.yml`) while ESLint remains developer responsibility in `ci.yml`.
