@@ -313,12 +313,16 @@ export function normalizeModel(model: string | undefined): string {
 
 	const contains = (needle: string) => sanitized.includes(needle);
 	const hasGpt51 = contains("gpt-5-1") || sanitized.includes("gpt51");
+	const hasCodexMax = contains("codex-max") || contains("codexmax");
 
 	if (contains("gpt-5-1-codex-mini") || (hasGpt51 && contains("codex-mini"))) {
 		return "gpt-5.1-codex-mini";
 	}
 	if (contains("codex-mini")) {
 		return "gpt-5.1-codex-mini";
+	}
+	if (hasCodexMax) {
+		return "gpt-5.1-codex-max";
 	}
 	if (contains("gpt-5-1-codex") || (hasGpt51 && contains("codex"))) {
 		return "gpt-5.1-codex";
@@ -384,6 +388,7 @@ export function getReasoningConfig(
 		normalizedOriginal.includes("codex-mini") ||
 		normalizedOriginal.includes("codex mini") ||
 		normalizedOriginal.includes("codex_mini");
+	const isCodexMax = normalized === "gpt-5.1-codex-max";
 	const isCodexFamily =
 		normalized.startsWith("gpt-5-codex") ||
 		normalized.startsWith("gpt-5.1-codex") ||
@@ -405,6 +410,11 @@ export function getReasoningConfig(
 	}
 
 	let effort = userConfig.reasoningEffort || defaultEffort;
+	const requestedXHigh = effort === "xhigh";
+
+	if (requestedXHigh && !isCodexMax) {
+		effort = "high";
+	}
 
 	if (isCodexMini) {
 		if (effort === "minimal" || effort === "low" || effort === "none") {
@@ -412,6 +422,10 @@ export function getReasoningConfig(
 		}
 		if (effort !== "high") {
 			effort = "medium";
+		}
+	} else if (isCodexMax) {
+		if (effort === "minimal" || effort === "none") {
+			effort = "low";
 		}
 	} else if (isCodexFamily) {
 		if (effort === "minimal" || effort === "none") {
