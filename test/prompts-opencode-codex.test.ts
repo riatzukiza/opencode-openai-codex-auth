@@ -10,11 +10,28 @@ const homedirMock = vi.fn(() => '/mock-home');
 const fetchMock = vi.fn();
 const recordCacheHitMock = vi.fn();
 const recordCacheMissMock = vi.fn();
+const existsSync = vi.fn(() => false);
+const appendFileSync = vi.fn();
+const writeFileSync = vi.fn();
+const mkdirSync = vi.fn();
 
 vi.mock('node:fs/promises', () => ({
 	mkdir: mkdirMock,
 	readFile: readFileMock,
 	writeFile: writeFileMock,
+}));
+
+vi.mock('node:fs', () => ({
+	default: {
+		existsSync,
+		appendFileSync,
+		writeFileSync,
+		mkdirSync,
+	},
+	existsSync,
+	appendFileSync,
+	writeFileSync,
+	mkdirSync,
 }));
 
 vi.mock('node:os', () => ({
@@ -50,6 +67,10 @@ describe('OpenCode Codex Prompt Fetcher', () => {
 		fetchMock.mockClear();
 		recordCacheHitMock.mockClear();
 		recordCacheMissMock.mockClear();
+		existsSync.mockReset();
+		appendFileSync.mockReset();
+		writeFileSync.mockReset();
+		mkdirSync.mockReset();
 		openCodePromptCache.clear();
 		vi.stubGlobal('fetch', fetchMock);
 	});
