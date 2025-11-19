@@ -28,19 +28,49 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run lint (ESLint + Prettier check)
-        id: lint
-        continue-on-error: true
-        run: pnpm lint
+      - name: Run ESLint
+        run: pnpm lint:eslint
 
       - name: Run typecheck
         run: pnpm typecheck
 
-      - name: Fail when lint errors occur
-        if: ${{ steps.lint.outcome == 'failure' }}
-        run: |
-          echo "Lint reported errors; see logs above."
-          exit 1
+  format:
+    name: Auto Format
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Prettier (write)
+        run: pnpm format:write
+
+      - name: Verify formatting
+        run: pnpm format:check
+
+      - name: Commit formatted changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "style: apply prettier formatting"
+          branch: ${{ github.ref }}
 
   test:
     name: Test
