@@ -38,8 +38,8 @@ vi.mock("../lib/cache/cache-metrics.js", () => ({
 
 describe("OpenCode Codex Prompt Fetcher", () => {
 	const cacheDir = join("/mock-home", ".opencode", "cache");
-	const cacheFile = join(cacheDir, "opencode-codex.txt");
-	const cacheMetaFile = join(cacheDir, "opencode-codex-meta.json");
+	const cacheFile = join(cacheDir, "openhax-codex-opencode-prompt.txt");
+	const cacheMetaFile = join(cacheDir, "openhax-codex-opencode-prompt-meta.json");
 
 	beforeEach(() => {
 		files.clear();
@@ -70,6 +70,7 @@ describe("OpenCode Codex Prompt Fetcher", () => {
 			expect(recordCacheHitMock).toHaveBeenCalledWith("opencodePrompt");
 			expect(recordCacheMissMock).not.toHaveBeenCalled();
 			expect(readFileMock).not.toHaveBeenCalled();
+			expect(mkdirMock).toHaveBeenCalled(); // Should still call mkdir for cache directory
 		});
 
 		it("falls back to file cache when session cache misses", async () => {
