@@ -9,6 +9,7 @@ vi.mock('node:fs', () => ({
 	readFileSync: vi.fn(),
 	writeFileSync: vi.fn(),
 	mkdirSync: vi.fn(),
+	appendFileSync: vi.fn(),
 }));
 
 // Get mocked functions
