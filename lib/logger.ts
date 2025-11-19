@@ -123,7 +123,7 @@ function logToConsole(
 	error?: unknown,
 ): void {
 	const shouldLog = CONSOLE_LOGGING_ENABLED || level === "warn" || level === "error";
-	if (IS_TEST_ENV && !shouldLog && level !== "error") {
+	if (IS_TEST_ENV && !shouldLog) {
 		return;
 	}
 	const prefix = `[${PLUGIN_NAME}] ${message}`;
