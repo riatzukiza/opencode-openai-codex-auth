@@ -459,7 +459,7 @@ DEBUG_CODEX_PLUGIN=1 opencode run "test" --model=openai/your-model-name
 
 Look for:
 ```
-[openai-codex-plugin] Model config lookup: "your-model-name" → normalized to "gpt-5-codex" for API {
+[openhax/codex] Model config lookup: "your-model-name" → normalized to "gpt-5-codex" for API {
   hasModelSpecificConfig: true,
   resolvedConfig: { ... }
 }

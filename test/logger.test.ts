@@ -106,7 +106,7 @@ describe("logger", () => {
 		logWarn("warning");
 		await flushRollingLogsForTest();
 
-		expect(warnSpy).toHaveBeenCalledWith("[openai-codex-plugin] warning");
+		expect(warnSpy).toHaveBeenCalledWith("[openhax/codex] warning");
 	});
 
 	it("logInfo does not mirror to console unless debug flag is set", async () => {
@@ -134,7 +134,7 @@ describe("logger", () => {
 		await flushRollingLogsForTest();
 
 		expect(warnSpy).toHaveBeenCalledWith(
-			'[openai-codex-plugin] Failed to persist request log {"stage":"stage-two","error":"boom"}',
+			'[openhax/codex] Failed to persist request log {"stage":"stage-two","error":"boom"}',
 		);
 		expect(fsMocks.appendFile).toHaveBeenCalled();
 	});
@@ -175,7 +175,7 @@ describe("logger", () => {
 		expect(appended).toContain('"message":"third"');
 		expect(appended).not.toContain('"message":"first"');
 		expect(warnSpy).toHaveBeenCalledWith(
-			'[openai-codex-plugin] Rolling log queue overflow; dropping oldest entries {"maxQueueLength":2}',
+			'[openhax/codex] Rolling log queue overflow; dropping oldest entries {"maxQueueLength":2}',
 		);
 	});
 });

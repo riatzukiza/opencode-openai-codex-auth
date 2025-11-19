@@ -375,8 +375,8 @@ DEBUG_CODEX_PLUGIN=1 opencode run "test" --model=openai/gpt-5-codex-low
 #### Case 1: Custom Model with Config
 
 ```
-[openai-codex-plugin] Debug logging ENABLED
-[openai-codex-plugin] Model config lookup: "gpt-5-codex-low" → normalized to "gpt-5-codex" for API {
+[openhax/codex] Debug logging ENABLED
+[openhax/codex] Model config lookup: "gpt-5-codex-low" → normalized to "gpt-5-codex" for API {
   hasModelSpecificConfig: true,
   resolvedConfig: {
     reasoningEffort: 'low',
@@ -385,7 +385,7 @@ DEBUG_CODEX_PLUGIN=1 opencode run "test" --model=openai/gpt-5-codex-low
     include: ['reasoning.encrypted_content']
   }
 }
-[openai-codex-plugin] Filtering 0 message IDs from input: []
+[openhax/codex] Filtering 0 message IDs from input: []
 ```
 
 ✅ **Verify:** `hasModelSpecificConfig: true` confirms per-model options found
@@ -399,8 +399,8 @@ DEBUG_CODEX_PLUGIN=1 opencode run "test" --model=openai/gpt-5-codex
 ```
 
 ```
-[openai-codex-plugin] Debug logging ENABLED
-[openai-codex-plugin] Model config lookup: "gpt-5-codex" → normalized to "gpt-5-codex" for API {
+[openhax/codex] Debug logging ENABLED
+[openhax/codex] Model config lookup: "gpt-5-codex" → normalized to "gpt-5-codex" for API {
   hasModelSpecificConfig: false,
   resolvedConfig: {
     reasoningEffort: 'medium',
@@ -409,7 +409,7 @@ DEBUG_CODEX_PLUGIN=1 opencode run "test" --model=openai/gpt-5-codex
     include: ['reasoning.encrypted_content']
   }
 }
-[openai-codex-plugin] Filtering 0 message IDs from input: []
+[openhax/codex] Filtering 0 message IDs from input: []
 ```
 
 ✅ **Verify:** `hasModelSpecificConfig: false` confirms using global options
@@ -419,8 +419,8 @@ DEBUG_CODEX_PLUGIN=1 opencode run "test" --model=openai/gpt-5-codex
 #### Case 3: Multi-Turn with ID Filtering
 
 ```
-[openai-codex-plugin] Filtering 3 message IDs from input: ['msg_abc123', 'rs_xyz789', 'msg_def456']
-[openai-codex-plugin] Successfully removed all 3 message IDs
+[openhax/codex] Filtering 3 message IDs from input: ['msg_abc123', 'rs_xyz789', 'msg_def456']
+[openhax/codex] Successfully removed all 3 message IDs
 ```
 
 ✅ **Verify:** All IDs removed, no warnings
@@ -430,7 +430,7 @@ DEBUG_CODEX_PLUGIN=1 opencode run "test" --model=openai/gpt-5-codex
 #### Case 4: Warning if IDs Leak (Should Never Happen)
 
 ```
-[openai-codex-plugin] WARNING: 1 IDs still present after filtering: ['msg_abc123']
+[openhax/codex] WARNING: 1 IDs still present after filtering: ['msg_abc123']
 ```
 
 ❌ **This would indicate a bug** - should never appear

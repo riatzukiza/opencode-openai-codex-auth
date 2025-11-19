@@ -4,7 +4,7 @@
  */
 
 /** Plugin identifier for logging and error messages */
-export const PLUGIN_NAME = "openai-codex-plugin";
+export const PLUGIN_NAME = "openhax/codex";
 
 /** Base URL for ChatGPT backend API */
 export const CODEX_BASE_URL = "https://chatgpt.com/backend-api";
