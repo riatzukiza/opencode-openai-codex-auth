@@ -34,7 +34,7 @@ export interface UserConfig {
  * Configuration options for reasoning and text settings
  */
 export interface ConfigOptions {
-	reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high";
+	reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
 	reasoningSummary?: "auto" | "concise" | "detailed";
 	textVerbosity?: "low" | "medium" | "high";
 	include?: string[];
@@ -44,7 +44,7 @@ export interface ConfigOptions {
  * Reasoning configuration for requests
  */
 export interface ReasoningConfig {
-	effort: "none" | "minimal" | "low" | "medium" | "high";
+	effort: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
 	summary: "auto" | "concise" | "detailed";
 }
 
