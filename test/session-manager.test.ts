@@ -236,7 +236,7 @@ describe("SessionManager", () => {
 		let parentContext = manager.getContext(parentBody) as SessionContext;
 		expect(parentContext.isNew).toBe(true);
 		expect(parentContext.state.promptCacheKey).toBe("conv-fork-parent::fork::parent-conv");
-		parentContext = manager.applyRequest(parentBody, parentContext) as SessionContext;
+		manager.applyRequest(parentBody, parentContext);
 		expect(parentBody.prompt_cache_key).toBe("conv-fork-parent::fork::parent-conv");
 
 		const snakeParentBody = createBody("conv-fork-parent", 1, {
