@@ -58,7 +58,7 @@ export function startLocalOAuthServer({ state }: { state: string }): Promise<OAu
 				resolve({
 					port: 1455,
 					close: () => server.close(),
-					waitForCode: async (expectedState?: string) => {
+					waitForCode: async (_expectedState?: string) => {
 						const poll = () => new Promise<void>((r) => setTimeout(r, 100));
 						for (let i = 0; i < 600; i++) {
 							const lastCode = (server as http.Server & { _lastCode?: string })._lastCode;
