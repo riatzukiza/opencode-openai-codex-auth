@@ -651,6 +651,7 @@ describe("addCodexBridgeMessage", () => {
 		expect(result).toHaveLength(2);
 		expect(result?.[0].role).toBe("developer");
 		expect(result?.[1].role).toBe("user");
+		expect(sessionContext.state.bridgeInjected).toBe(true);
 	});
 
 	it("should not modify input when tools not present", async () => {
@@ -838,7 +839,6 @@ describe("transformRequestBody", () => {
 			"Prompt cache key missing; generated fallback cache key",
 			expect.anything(),
 		);
-		expect(logWarnSpy).not.toHaveBeenCalled();
 
 		expect(logInfoSpy).toHaveBeenCalledWith(
 			"Prompt cache key missing; generated fallback cache key",

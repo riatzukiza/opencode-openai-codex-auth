@@ -42,9 +42,9 @@ function extractLatestUserSlice(items: InputItem[] | undefined): InputItem[] {
 		const item = items[index];
 		if (item && (isUserMessage(item) || isAssistantMessage(item))) {
 			tail.push(item);
-			continue;
+		} else {
+			break;
 		}
-		break;
 	}
 
 	return cloneInputItems(tail);

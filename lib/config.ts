@@ -31,7 +31,7 @@ export function loadPluginConfig(options: { forceReload?: boolean } = {}): Plugi
 		cachedPluginConfig = undefined;
 	}
 
-	if (cachedPluginConfig && !forceReload) {
+	if (cachedPluginConfig) {
 		return cachedPluginConfig;
 	}
 

@@ -191,13 +191,11 @@ export async function transformRequestForCodex(
 			body: transformResult.body as unknown as Record<string, unknown>,
 		});
 
-		// Keep updatedInit.body in sync with any subsequent mutations to the transformed body
-		const updatedInit: RequestInit = { ...init };
-		Object.defineProperty(updatedInit, "body", {
-			configurable: true,
-			enumerable: true,
-			get: () => JSON.stringify(transformResult.body),
-		});
+		// Serialize body once - callers must re-serialize if they mutate transformResult.body after this function returns
+		const updatedInit: RequestInit = {
+			...init,
+			body: JSON.stringify(transformResult.body),
+		};
 
 		return {
 			body: transformResult.body,
