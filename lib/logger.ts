@@ -7,10 +7,10 @@ import { ensureDirectory, getOpenCodePath } from "./utils/file-system-utils.js";
 export const LOGGING_ENABLED = process.env.ENABLE_PLUGIN_REQUEST_LOGGING === "1";
 const DEBUG_FLAG_ENABLED = process.env.DEBUG_CODEX_PLUGIN === "1";
 const DEBUG_ENABLED = DEBUG_FLAG_ENABLED || LOGGING_ENABLED;
-const CONSOLE_LOGGING_ENABLED = DEBUG_FLAG_ENABLED;
+const IS_TEST_ENV = process.env.NODE_ENV === "test";
+const CONSOLE_LOGGING_ENABLED = DEBUG_FLAG_ENABLED && !IS_TEST_ENV;
 const LOG_DIR = getOpenCodePath("logs", "codex-plugin");
 const ROLLING_LOG_FILE = join(LOG_DIR, "codex-plugin.log");
-const IS_TEST_ENV = process.env.VITEST === "1" || process.env.NODE_ENV === "test";
 
 const LOG_ROTATION_MAX_BYTES = Math.max(1, getEnvNumber("CODEX_LOG_MAX_BYTES", 5 * 1024 * 1024));
 const LOG_ROTATION_MAX_FILES = Math.max(1, getEnvNumber("CODEX_LOG_MAX_FILES", 5));
@@ -22,6 +22,21 @@ type LoggerOptions = {
 	client?: OpencodeClient;
 	directory?: string;
 };
+
+type OpencodeClientWithTui = OpencodeClient & {
+	tui?: {
+		showToast?: (args: { message: string; variant?: "success" | "error" | "warning" | "info" }) => void;
+	};
+};
+
+function hasTuiShowToast(client: OpencodeClient): client is OpencodeClientWithTui {
+	return (
+		"tui" in client &&
+		typeof client.tui === "object" &&
+		client.tui !== null &&
+		typeof client.tui?.showToast === "function"
+	);
+}
 
 type RollingLogEntry = {
 	timestamp: string;
@@ -74,7 +89,8 @@ export function logRequest(stage: string, data: Record<string, unknown>): void {
 		stage,
 		...data,
 	};
-	const filePath = persistRequestStage(stage, payload);
+	const shouldPersist = LOGGING_ENABLED || DEBUG_ENABLED;
+	const filePath = shouldPersist ? persistRequestStage(stage, payload) : undefined;
 	const extra: Record<string, unknown> = {
 		stage,
 		requestId: payload.requestId,
@@ -110,6 +126,7 @@ export async function flushRollingLogsForTest(): Promise<void> {
 
 function emit(level: LogLevel, message: string, extra?: Record<string, unknown>): void {
 	const sanitizedExtra = sanitizeExtra(extra);
+	const supportsToast = loggerClient ? hasTuiShowToast(loggerClient) : false;
 	const entry: RollingLogEntry = {
 		timestamp: new Date().toISOString(),
 		service: PLUGIN_NAME,
@@ -117,9 +134,12 @@ function emit(level: LogLevel, message: string, extra?: Record<string, unknown>)
 		message,
 		extra: sanitizedExtra,
 	};
-	appendRollingLog(entry);
 
-	if (loggerClient?.app) {
+	if (LOGGING_ENABLED || DEBUG_ENABLED) {
+		appendRollingLog(entry);
+	}
+
+	if (loggerClient?.app?.log) {
 		void loggerClient.app
 			.log({
 				body: entry,
@@ -132,23 +152,100 @@ function emit(level: LogLevel, message: string, extra?: Record<string, unknown>)
 			);
 	}
 
+	if (level === "error" || (level === "warn" && supportsToast)) {
+		notifyToast(level, message, sanitizedExtra);
+	}
+
 	logToConsole(level, message, sanitizedExtra);
 }
 
-function logToConsole(
-	level: LogLevel,
-	message: string,
-	extra?: Record<string, unknown>,
-	error?: unknown,
-): void {
-	const shouldLog = CONSOLE_LOGGING_ENABLED || level === "warn" || level === "error";
+/**
+ * Sends a user-facing notification (toast) through the configured logger client, if available.
+ *
+ * Constructs a payload with a title derived from the log level, the provided message as the body,
+ * and optional extra metadata, then attempts to call `app.notify` or `app.toast`. If no app or
+ * compatible send method is present, the function returns without action. Failures to send are
+ * recorded as a warning via console logging.
+ *
+ * @param level - The severity level for the notification (`"debug" | "info" | "warn" | "error"`). A value of `"error"` produces an "error" title; other values produce a "warning" title.
+ * @param message - The primary text to show in the notification body.
+ * @param extra - Optional metadata to include with the notification payload.
+ */
+function notifyToast(level: LogLevel, message: string, _extra?: Record<string, unknown>): void {
+	if (!loggerClient?.tui?.showToast) return;
+
+	const variant = level === "error" ? "error" : "warning";
+	const wrappedMessage = wrapToastMessage(`${PLUGIN_NAME}: ${message}`);
+
+	try {
+		void loggerClient.tui.showToast({
+			body: {
+				title: level === "error" ? `${PLUGIN_NAME} error` : `${PLUGIN_NAME} warning`,
+				message: wrappedMessage,
+				variant,
+			},
+		});
+	} catch (err: unknown) {
+		logToConsole("warn", "Failed to send plugin toast", { error: toErrorMessage(err) });
+	}
+}
+
+function wrapToastMessage(message: string, maxWidth = 72): string {
+	if (message.length <= maxWidth) return message;
+
+	const words = message.split(/\s+/).filter(Boolean);
+	const lines: string[] = [];
+	let current = "";
+
+	for (const word of words) {
+		if (current.length === 0) {
+			current = word;
+			continue;
+		}
+		const nextLength = current.length + 1 + word.length;
+		if (nextLength <= maxWidth) {
+			current = `${current} ${word}`;
+			continue;
+		}
+		lines.push(current);
+		current = word;
+	}
+
+	if (current) {
+		lines.push(current);
+	}
+
+	return lines.join("\n");
+}
+
+/**
+ * Writes a plugin-prefixed log message to the console when the log level is applicable.
+ *
+ * Logs warnings and errors unconditionally; debug and info messages are written only when console logging is enabled. The message is prefixed with the plugin name and, if provided, `extra` is JSON-stringified and appended; on JSON serialization failure, `String(extra)` is appended instead.
+ *
+ * @param level - Log level determining severity and console method
+ * @param message - Primary log message text
+ * @param extra - Additional context appended to the message; values are JSON-stringified when possible
+ */
+function logToConsole(level: LogLevel, message: string, extra?: Record<string, unknown>): void {
+	const isWarnOrError = level === "warn" || level === "error";
+	const shouldLogDebugOrInfo = CONSOLE_LOGGING_ENABLED && (level === "debug" || level === "info");
+	const shouldLog = isWarnOrError || shouldLogDebugOrInfo;
 	if (!shouldLog) {
 		return;
 	}
 	const prefix = `[${PLUGIN_NAME}] ${message}`;
-	const details = extra ? `${prefix} ${JSON.stringify(extra)}` : prefix;
+	let details = prefix;
+	if (extra) {
+		try {
+			details = `${prefix} ${JSON.stringify(extra)}`;
+		} catch {
+			// Fallback to a best-effort representation instead of throwing from logging
+			details = `${prefix} ${String(extra)}`;
+		}
+	}
 	if (level === "error") {
-		console.error(details, error ?? "");
+		console.error(details);
 		return;
 	}
 	if (level === "warn") {
