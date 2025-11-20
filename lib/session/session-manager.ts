@@ -3,7 +3,7 @@ import { SESSION_CONFIG } from "../constants.js";
 import { logDebug, logWarn } from "../logger.js";
 import type { CodexResponsePayload, InputItem, RequestBody, SessionContext, SessionState } from "../types.js";
 import { cloneInputItems, deepClone } from "../utils/clone.js";
-import { isUserMessage } from "../utils/input-item-utils.js";
+import { isAssistantMessage, isUserMessage } from "../utils/input-item-utils.js";
 
 export interface SessionManagerOptions {
 	enabled: boolean;
@@ -23,13 +23,31 @@ function extractLatestUserSlice(items: InputItem[] | undefined): InputItem[] {
 	if (!Array.isArray(items) || items.length === 0) {
 		return [];
 	}
+
+	let lastUserIndex = -1;
 	for (let index = items.length - 1; index >= 0; index -= 1) {
 		const item = items[index];
 		if (item && isUserMessage(item)) {
-			return cloneInputItems(items.slice(index));
+			lastUserIndex = index;
+			break;
 		}
 	}
-	return [];
+
+	if (lastUserIndex < 0) {
+		return [];
+	}
+
+	const tail: InputItem[] = [];
+	for (let index = lastUserIndex; index < items.length; index += 1) {
+		const item = items[index];
+		if (item && (isUserMessage(item) || isAssistantMessage(item))) {
+			tail.push(item);
+			continue;
+		}
+		break;
+	}
+
+	return cloneInputItems(tail);
 }
 
 function sharesPrefix(previous: InputItem[], current: InputItem[]): boolean {
