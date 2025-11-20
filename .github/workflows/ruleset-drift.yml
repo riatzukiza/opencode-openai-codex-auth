@@ -29,10 +29,10 @@ jobs:
           gh api repos/${{ github.repository }}/rulesets/10200441 > /tmp/rulesets/release.json
           gh api repos/${{ github.repository }}/rulesets/10223971 > /tmp/rulesets/main.json
 
-      - name: Normalize JSON (strip volatile timestamps)
+      - name: Normalize JSON (strip volatile fields)
         run: |
           mkdir -p /tmp/rulesets/normalized
-          strip='del(.created_at, .updated_at)'
+          strip='del(.created_at, .updated_at, .bypass_actors, .current_user_can_bypass)'
           jq -S "$strip" .github/rulesets/release.json > /tmp/rulesets/normalized/release.json
           jq -S "$strip" /tmp/rulesets/release.json > /tmp/rulesets/normalized/release.live.json
           jq -S "$strip" .github/rulesets/main.json > /tmp/rulesets/normalized/main.json
