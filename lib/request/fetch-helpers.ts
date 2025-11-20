@@ -66,15 +66,13 @@ export async function refreshAndUpdateToken(
 	});
 
 	// Update current auth reference if it's OAuth type
-	const updatedAuth =
-		currentAuth.type === "oauth"
-			? {
-					...currentAuth,
-					access: refreshResult.access,
-					refresh: refreshResult.refresh,
-					expires: refreshResult.expires,
-				}
-			: currentAuth;
+	let updatedAuth: Auth = currentAuth;
+	if (currentAuth.type === "oauth") {
+		currentAuth.access = refreshResult.access;
+		currentAuth.refresh = refreshResult.refresh;
+		currentAuth.expires = refreshResult.expires;
+		updatedAuth = currentAuth;
+	}
 
 	return { success: true, auth: updatedAuth };
 }

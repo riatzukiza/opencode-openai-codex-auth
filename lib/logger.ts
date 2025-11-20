@@ -7,7 +7,9 @@ import { ensureDirectory, getOpenCodePath } from "./utils/file-system-utils.js";
 export const LOGGING_ENABLED = process.env.ENABLE_PLUGIN_REQUEST_LOGGING === "1";
 const DEBUG_FLAG_ENABLED = process.env.DEBUG_CODEX_PLUGIN === "1";
 const DEBUG_ENABLED = DEBUG_FLAG_ENABLED || LOGGING_ENABLED;
-const CONSOLE_LOGGING_ENABLED = DEBUG_FLAG_ENABLED;
+const IS_TEST_ENV = process.env.NODE_ENV === "test";
+const SKIP_IO = IS_TEST_ENV;
+const CONSOLE_LOGGING_ENABLED = DEBUG_FLAG_ENABLED && !IS_TEST_ENV;
 const LOG_DIR = getOpenCodePath("logs", "codex-plugin");
 const ROLLING_LOG_FILE = join(LOG_DIR, "codex-plugin.log");
 
@@ -131,7 +133,33 @@ function emit(level: LogLevel, message: string, extra?: Record<string, unknown>)
 			);
 	}
 
+	if (level === "error") {
+		notifyToast(level, message, sanitizedExtra);
+	}
+
 	logToConsole(level, message, sanitizedExtra);
+}
+
+function notifyToast(level: LogLevel, message: string, extra?: Record<string, unknown>): void {
+	const app = (loggerClient as any)?.app;
+	if (!app) return;
+
+	const payload = {
+		title: level === "error" ? `${PLUGIN_NAME} error` : `${PLUGIN_NAME} warning`,
+		body: message,
+		level,
+		extra,
+	};
+	// For Opencode SDK compatibility, also allow notify({ title, body, level }) shape
+
+	const notify = typeof app.notify === "function" ? app.notify.bind(app) : undefined;
+	const toast = typeof app.toast === "function" ? app.toast.bind(app) : undefined;
+	const send = notify ?? toast;
+	if (!send) return;
+
+	void send(payload).catch((err: unknown) => {
+		logToConsole("warn", "Failed to send plugin toast", { error: toErrorMessage(err) });
+	});
 }
 
 function logToConsole(
@@ -140,7 +168,9 @@ function logToConsole(
 	extra?: Record<string, unknown>,
 	error?: unknown,
 ): void {
-	const shouldLog = CONSOLE_LOGGING_ENABLED || level === "warn" || level === "error";
+	const isWarnOrError = level === "warn" || level === "error";
+	const shouldLogDebugOrInfo = CONSOLE_LOGGING_ENABLED || (!IS_TEST_ENV && level === "info");
+	const shouldLog = isWarnOrError || shouldLogDebugOrInfo;
 	if (!shouldLog) {
 		return;
 	}
