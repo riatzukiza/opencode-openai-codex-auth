@@ -29,7 +29,7 @@ describe("compaction helpers", () => {
 		expect((body as any).parallel_tool_calls).toBeUndefined();
 	});
 
-	it("returns original items when no user message exists", () => {
+	it("applies compaction when no user message exists", () => {
 		const originalInput: InputItem[] = [
 			{
 				type: "message",
