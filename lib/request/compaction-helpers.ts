@@ -23,10 +23,13 @@ export interface CompactionOptions {
 	preserveIds?: boolean;
 }
 
+/**
+ * Drop only the latest user message (e.g., a compaction command) while preserving any later assistant/tool items.
+ */
 function removeLastUserMessage(items: InputItem[]): InputItem[] {
 	for (let index = items.length - 1; index >= 0; index -= 1) {
 		if (items[index]?.role === "user") {
-			return items.slice(0, index);
+			return [...items.slice(0, index), ...items.slice(index + 1)];
 		}
 	}
 	return items;
