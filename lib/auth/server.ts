@@ -10,9 +10,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const successHtml = fs.readFileSync(path.join(__dirname, "..", "oauth-success.html"), "utf-8");
 
 /**
- * Start a small local HTTP server that waits for /auth/callback and returns the code
- * @param options - OAuth state for validation
- * @returns Promise that resolves to server info
+ * Start a local HTTP listener that captures the OAuth authorization code from /auth/callback.
+ *
+ * @param options - Configuration object.
+ * @param options.state - Expected `state` query parameter value used to validate the callback.
+ * @returns An object containing:
+ *  - `port`: the bound port number (1455),
+ *  - `close()`: a function that closes the server,
+ *  - `waitForCode(expectedState?)`: a function that waits up to ~60 seconds for an authorization code; returns `{ code: string }` when a code is captured (and matches the configured state), or `null` if no code is received within the timeout.
  */
 export function startLocalOAuthServer({ state }: { state: string }): Promise<OAuthServerInfo> {
 	const server = http.createServer((req, res) => {

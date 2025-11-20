@@ -248,9 +248,10 @@ export function createCodexHeaders(
 }
 
 /**
- * Handles error responses from the Codex API
- * @param response - Error response from API
- * @returns Response with error details
+ * Enriches a Codex API error Response with structured error details and rate-limit metadata.
+ *
+ * @param response - The original error Response from a Codex API request
+ * @returns A Response with the same status and statusText whose body is either the original raw body or a JSON object containing an `error` object with `message`, optional `friendly_message`, optional `rate_limits`, and `status`. When the body is enriched, the response `Content-Type` is set to `application/json; charset=utf-8`.
  */
 export async function handleErrorResponse(response: Response): Promise<Response> {
 	const raw = await response.text();
