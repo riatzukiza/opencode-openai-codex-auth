@@ -34,11 +34,16 @@ describe("compaction helpers", () => {
 
 		const decision = applyCompactionIfNeeded(body, {
 			settings: { enabled: true },
-			commandText: "codex-compact",
+			commandText: null, // No command, so no compaction should occur
 			originalInput,
 		});
 
-		expect(decision?.serialization.totalTurns).toBe(1);
-		expect(decision?.serialization.transcript).toContain("system-only follow-up");
+		// No compaction should occur when there's no command text
+		expect(decision).toBeUndefined();
+		// Verify RequestBody mutations
+		expect(body.input).toBeDefined();
+		expect(body.input).toEqual(originalInput);
+		expect((body as any).tools).toBeUndefined();
+		expect((body as any).tool_choice).toBeUndefined();
 	});
 });
