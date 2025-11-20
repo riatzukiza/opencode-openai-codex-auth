@@ -203,7 +203,19 @@ export function addCodexBridgeMessage(
 	const analysis = analyzeBridgeRequirement(input, hasTools);
 
 	if (sessionBridgeInjected) {
+		const alreadyPresent = hasBridgePromptInConversation(input, CODEX_OPENCODE_BRIDGE);
+		if (alreadyPresent) {
+			logDebug("Bridge prompt already present; preserving session continuity");
+			if (sessionContext) {
+				sessionContext.state.bridgeInjected = true;
+			}
+			return input;
+		}
+
 		logDebug("Bridge prompt previously injected in session; reapplying for continuity");
+		if (sessionContext) {
+			sessionContext.state.bridgeInjected = true;
+		}
 		return [bridgeMessage, ...input];
 	}
 
