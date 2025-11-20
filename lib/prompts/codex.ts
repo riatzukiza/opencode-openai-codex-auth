@@ -74,7 +74,13 @@ function readCachedInstructions(
 }
 
 function loadBundledInstructions(): string {
-	const bundledContent = readFileSync(join(__dirname, "codex-instructions.md"), "utf8");
+	let bundledContent: string;
+	try {
+		bundledContent = readFileSync(join(__dirname, "codex-instructions.md"), "utf8");
+	} catch (error) {
+		logError("Failed to load bundled instructions", { error });
+		throw new Error("Cannot load bundled Codex instructions; installation may be corrupted");
+	}
 	cacheSessionEntry(bundledContent, undefined, undefined);
 	return bundledContent;
 }
