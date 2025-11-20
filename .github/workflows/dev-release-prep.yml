@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   prepare:
-    if: github.event.pull_request.merged == true && !startsWith(github.event.pull_request.head.ref, 'release/')
+    if: github.event.pull_request.merged == true && !startsWith(github.event.pull_request.head.ref, 'release/') && !startsWith(github.event.pull_request.head.ref, 'review/')
     runs-on: ubuntu-latest
     env:
       OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}

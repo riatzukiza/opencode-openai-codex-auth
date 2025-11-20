@@ -67,8 +67,13 @@ function readCachedInstructions(
 	cacheFilePath: string,
 	etag?: string | undefined,
 	tag?: string | undefined,
-): string {
-	const fileContent = safeReadFile(cacheFilePath) || "";
+): string | null {
+	const fileContent = safeReadFile(cacheFilePath);
+	if (!fileContent) {
+		logWarn("Cached Codex instructions missing or empty; skipping session cache");
+		return null;
+	}
+
 	cacheSessionEntry(fileContent, etag, tag);
 	return fileContent;
 }
@@ -101,7 +106,11 @@ async function fetchInstructionsFromGithub(
 	const response = await fetch(url, { headers });
 
 	if (response.status === 304 && cacheFileExists) {
-		return readCachedInstructions(cacheFilePath, cachedETag || undefined, latestTag);
+		const cachedContent = readCachedInstructions(cacheFilePath, cachedETag || undefined, latestTag);
+		if (cachedContent) {
+			return cachedContent;
+		}
+		throw new Error("Cached Codex instructions were unavailable after 304 response");
 	}
 
 	if (!response.ok) {
@@ -153,11 +162,15 @@ async function fetchInstructionsWithFallback(
 
 		if (options.cacheFileExists) {
 			logWarn("Using cached instructions due to fetch failure");
-			return readCachedInstructions(
+			const cachedContent = readCachedInstructions(
 				options.cacheFilePath,
 				options.effectiveEtag || options.cachedETag || undefined,
 				options.cachedTag || undefined,
 			);
+			if (cachedContent) {
+				return cachedContent;
+			}
+			logWarn("Cached instructions unavailable; falling back to bundled instructions");
 		}
 
 		logWarn("Falling back to bundled instructions");
@@ -196,7 +209,15 @@ export async function getCodexInstructions(): Promise<string> {
 
 	const cacheFileExists = fileExistsAndNotEmpty(cacheFilePath);
 	if (cacheIsFresh(cachedTimestamp, cacheFileExists)) {
-		return readCachedInstructions(cacheFilePath, cachedETag || undefined, cachedTag || undefined);
+		const cachedContent = readCachedInstructions(
+			cacheFilePath,
+			cachedETag || undefined,
+			cachedTag || undefined,
+		);
+		if (cachedContent) {
+			return cachedContent;
+		}
+		logWarn("Cached Codex instructions were empty; attempting to refetch");
 	}
 
 	let latestTag: string | undefined;
@@ -207,7 +228,15 @@ export async function getCodexInstructions(): Promise<string> {
 			error,
 		});
 		if (cacheFileExists) {
-			return readCachedInstructions(cacheFilePath, cachedETag || undefined, cachedTag || undefined);
+			const cachedContent = readCachedInstructions(
+				cacheFilePath,
+				cachedETag || undefined,
+				cachedTag || undefined,
+			);
+			if (cachedContent) {
+				return cachedContent;
+			}
+			logWarn("Cached instructions unavailable; falling back to bundled copy");
 		}
 		return loadBundledInstructions();
 	}
