@@ -1,15 +1,12 @@
 name: review-response
 
-env:
-  REVIEW_RESPONDER_WHITELIST: coderabbitai,riatzukiza
-
 on:
   pull_request_review_comment:
     types: [created]
 
 jobs:
   auto-review-response:
-    if: contains(env.REVIEW_RESPONDER_WHITELIST, github.event.comment.user.login) || github.event.comment.author_association == 'OWNER' || github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'COLLABORATOR'
+    if: contains(fromJson('["coderabbitai","riatzukiza"]'), github.event.comment.user.login) || github.event.comment.author_association == 'OWNER' || github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'COLLABORATOR'
     runs-on: ubuntu-latest
     permissions:
       contents: write
