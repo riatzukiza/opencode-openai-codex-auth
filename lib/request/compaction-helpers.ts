@@ -8,7 +8,6 @@ import {
 import type { CompactionDecision } from "../compaction/compaction-executor.js";
 import { filterInput } from "./input-filters.js";
 import type { InputItem, RequestBody } from "../types.js";
-import { cloneInputItems } from "../utils/clone.js";
 import { countConversationTurns } from "../utils/input-item-utils.js";
 
 export interface CompactionSettings {
@@ -25,14 +24,12 @@ export interface CompactionOptions {
 }
 
 function removeLastUserMessage(items: InputItem[]): InputItem[] {
-	const cloned = cloneInputItems(items);
-	for (let index = cloned.length - 1; index >= 0; index -= 1) {
-		if (cloned[index]?.role === "user") {
-			cloned.splice(index, 1);
-			break;
+	for (let index = items.length - 1; index >= 0; index -= 1) {
+		if (items[index]?.role === "user") {
+			return items.slice(0, index);
 		}
 	}
-	return cloned;
+	return items;
 }
 
 function maybeBuildCompactionPrompt(
@@ -43,9 +40,7 @@ function maybeBuildCompactionPrompt(
 	if (!settings.enabled) {
 		return null;
 	}
-	const conversationSource = commandText
-		? removeLastUserMessage(originalInput)
-		: cloneInputItems(originalInput);
+	const conversationSource = commandText ? removeLastUserMessage(originalInput) : originalInput;
 	const turnCount = countConversationTurns(conversationSource);
 	let trigger: "command" | "auto" | null = null;
 	let reason: string | undefined;

@@ -13,6 +13,8 @@ import type { InputItem, SessionContext } from "../types.js";
 import { extractTextFromItem } from "../utils/input-item-utils.js";
 import { logDebug } from "../logger.js";
 
+const TOOL_REMAP_MESSAGE_HASH = generateContentHash(TOOL_REMAP_MESSAGE);
+
 export function filterInput(
 	input: InputItem[] | undefined,
 	options: { preserveIds?: boolean } = {},
@@ -246,6 +248,17 @@ export function addToolRemapMessage(
 	hasTools: boolean,
 ): InputItem[] | undefined {
 	if (!hasTools || !Array.isArray(input)) return input;
+
+	const hasExistingToolRemap = input.some((item) => {
+		if (item?.type !== "message" || item?.role !== "developer") return false;
+		const contentText = extractTextFromItem(item);
+		if (!contentText) return false;
+		return generateContentHash(contentText) === TOOL_REMAP_MESSAGE_HASH;
+	});
+
+	if (hasExistingToolRemap) {
+		return input;
+	}
 
 	const toolRemapMessage: InputItem = {
 		type: "message",
