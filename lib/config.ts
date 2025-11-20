@@ -16,33 +16,48 @@ const DEFAULT_CONFIG: PluginConfig = {
 	autoCompactMinMessages: 8,
 };
 
+let cachedPluginConfig: PluginConfig | undefined;
+
 /**
  * Load plugin configuration from ~/.opencode/openhax-codex-config.json
  * Falls back to defaults if file doesn't exist or is invalid
  *
  * @returns Plugin configuration
  */
-export function loadPluginConfig(): PluginConfig {
+export function loadPluginConfig(options: { forceReload?: boolean } = {}): PluginConfig {
+	const { forceReload } = options;
+
+	if (forceReload) {
+		cachedPluginConfig = undefined;
+	}
+
+	if (cachedPluginConfig && !forceReload) {
+		return cachedPluginConfig;
+	}
+
 	try {
 		const fileContent = safeReadFile(CONFIG_PATH);
 		if (!fileContent) {
 			logWarn("Plugin config file not found, using defaults", { path: CONFIG_PATH });
-			return DEFAULT_CONFIG;
+			cachedPluginConfig = DEFAULT_CONFIG;
+			return cachedPluginConfig;
 		}
 
 		const userConfig = JSON.parse(fileContent) as Partial<PluginConfig>;
 
 		// Merge with defaults
-		return {
+		cachedPluginConfig = {
 			...DEFAULT_CONFIG,
 			...userConfig,
 		};
+		return cachedPluginConfig;
 	} catch (error) {
 		logWarn("Failed to load plugin config", {
 			path: CONFIG_PATH,
 			error: (error as Error).message,
 		});
-		return DEFAULT_CONFIG;
+		cachedPluginConfig = DEFAULT_CONFIG;
+		return cachedPluginConfig;
 	}
 }
 

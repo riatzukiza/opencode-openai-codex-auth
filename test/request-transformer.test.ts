@@ -11,6 +11,7 @@ import {
 	transformRequestBody as transformRequestBodyInternal,
 } from "../lib/request/request-transformer.js";
 import * as logger from "../lib/logger.js";
+import { SessionManager } from "../lib/session/session-manager.js";
 import type { RequestBody, SessionContext, UserConfig, InputItem } from "../lib/types.js";
 
 const transformRequestBody = async (...args: Parameters<typeof transformRequestBodyInternal>) => {
@@ -628,6 +629,30 @@ describe("addCodexBridgeMessage", () => {
 		expect((result![0].content as any)[0].text).toContain("Codex in OpenCode");
 	});
 
+	it("reapplies bridge when session already injected to keep prefix stable", async () => {
+		const input: InputItem[] = [{ type: "message", role: "user", content: "next turn" }];
+		const sessionContext: SessionContext = {
+			sessionId: "ses_test",
+			enabled: true,
+			preserveIds: true,
+			isNew: false,
+			state: {
+				id: "ses_test",
+				promptCacheKey: "ses_test",
+				store: false,
+				lastInput: [],
+				lastPrefixHash: null,
+				lastUpdated: Date.now(),
+				bridgeInjected: true,
+			},
+		};
+		const result = addCodexBridgeMessage(input, true, sessionContext);
+
+		expect(result).toHaveLength(2);
+		expect(result?.[0].role).toBe("developer");
+		expect(result?.[1].role).toBe("user");
+	});
+
 	it("should not modify input when tools not present", async () => {
 		const input: InputItem[] = [{ type: "message", role: "user", content: "hello" }];
 		const result = addCodexBridgeMessage(input, false);
@@ -717,6 +742,55 @@ describe("transformRequestBody", () => {
 		expect(result2.prompt_cache_key).toBe("cache_meta-conv-789-fork-fork-x");
 	});
 
+	it("keeps bridge prompt across turns so prompt_cache_key stays stable", async () => {
+		const sessionManager = new SessionManager({ enabled: true });
+		const baseInput: InputItem[] = [
+			{ type: "message", role: "user", content: "first" },
+			{ type: "message", role: "assistant", content: "reply" },
+		];
+
+		const firstBody: RequestBody = {
+			model: "gpt-5-codex",
+			input: baseInput,
+			tools: [{ name: "edit" }],
+			metadata: { conversation_id: "ses_turns" },
+		};
+		const sessionOne = sessionManager.getContext(firstBody)!;
+		const firstTransform = await transformRequestBodyInternal(
+			firstBody,
+			codexInstructions,
+			{ global: {}, models: {} },
+			true,
+			{ preserveIds: sessionOne.preserveIds },
+			sessionOne,
+		);
+		sessionManager.applyRequest(firstTransform.body, sessionOne);
+		const cacheKey = firstTransform.body.prompt_cache_key;
+
+		expect(firstTransform.body.input?.[0].role).toBe("developer");
+
+		const secondBody: RequestBody = {
+			model: "gpt-5-codex",
+			input: [...baseInput, { type: "message", role: "user", content: "follow-up" }],
+			tools: [{ name: "edit" }],
+			metadata: { conversation_id: "ses_turns" },
+		};
+		const sessionTwo = sessionManager.getContext(secondBody)!;
+		const secondTransform = await transformRequestBodyInternal(
+			secondBody,
+			codexInstructions,
+			{ global: {}, models: {} },
+			true,
+			{ preserveIds: sessionTwo.preserveIds },
+			sessionTwo,
+		);
+		const appliedContext = sessionManager.applyRequest(secondTransform.body, sessionTwo);
+
+		expect(secondTransform.body.input?.[0].role).toBe("developer");
+		expect(secondTransform.body.prompt_cache_key).toBe(cacheKey);
+		expect(appliedContext?.isNew).toBe(false);
+	});
+
 	it("generates fallback prompt_cache_key when no identifiers exist", async () => {
 		const body: RequestBody = {
 			model: "gpt-5",
@@ -766,6 +840,37 @@ describe("transformRequestBody", () => {
 		);
 		expect(logWarnSpy).not.toHaveBeenCalled();
 
+		expect(logInfoSpy).toHaveBeenCalledWith(
+			"Prompt cache key missing; generated fallback cache key",
+			expect.objectContaining({
+				promptCacheKey: expect.stringMatching(/^cache_/),
+				fallbackHash: expect.any(String),
+			}),
+		);
+
+		logWarnSpy.mockRestore();
+		logInfoSpy.mockRestore();
+	});
+
+	it("logs fallback prompt cache key as info when session context is absent", async () => {
+		const logWarnSpy = vi.spyOn(logger, "logWarn").mockImplementation(() => {});
+		const logInfoSpy = vi.spyOn(logger, "logInfo").mockImplementation(() => {});
+
+		const body: RequestBody = {
+			model: "gpt-5",
+			input: [],
+		};
+
+		await transformRequestBodyInternal(
+			body,
+			codexInstructions,
+			{ global: {}, models: {} },
+			true,
+			{},
+			undefined,
+		);
+
+		expect(logWarnSpy).not.toHaveBeenCalled();
 		expect(logInfoSpy).toHaveBeenCalledWith(
 			"Prompt cache key missing; generated fallback cache key",
 			expect.objectContaining({

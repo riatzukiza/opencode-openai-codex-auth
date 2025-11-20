@@ -611,31 +611,39 @@ export function addCodexBridgeMessage(
 ): InputItem[] | undefined {
 	if (!Array.isArray(input)) return input;
 
+	const bridgeMessage = buildBridgeMessage();
+	const sessionBridgeInjected = sessionContext?.state.bridgeInjected ?? false;
+
 	// Generate input hash for caching
 	const inputHash = generateInputHash(input);
 
 	// Analyze bridge requirement
 	const analysis = analyzeBridgeRequirement(input, hasTools);
 
-	// Check session-level bridge injection flag first
-	if (sessionContext?.state.bridgeInjected) {
-		logDebug("Bridge prompt already injected in session, skipping injection");
-		return input;
-	}
-
-	// Check cache first
-	const cachedDecision = getCachedBridgeDecision(inputHash, analysis.toolCount);
-	if (cachedDecision) {
-		logDebug(
-			`Using cached bridge decision: ${cachedDecision.hash === generateContentHash("add") ? "add" : "skip"}`,
-		);
-		return cachedDecision.hash === generateContentHash("add") ? [buildBridgeMessage(), ...input] : input;
+	// Keep bridge in every turn once injected to avoid cache prefix drift
+	if (sessionBridgeInjected) {
+		logDebug("Bridge prompt previously injected in session; reapplying for continuity");
+		return [bridgeMessage, ...input];
 	}
 
 	// Check if bridge prompt is already in conversation (fallback)
 	if (hasBridgePromptInConversation(input, CODEX_OPENCODE_BRIDGE)) {
 		logDebug("Bridge prompt already present in conversation, skipping injection");
 		cacheBridgeDecision(inputHash, analysis.toolCount, false);
+		return input;
+	}
+
+	// Check cache first
+	const cachedDecision = getCachedBridgeDecision(inputHash, analysis.toolCount);
+	if (cachedDecision) {
+		const shouldAdd = cachedDecision.hash === generateContentHash("add");
+		logDebug(`Using cached bridge decision: ${shouldAdd ? "add" : "skip"}`);
+		if (shouldAdd) {
+			if (sessionContext) {
+				sessionContext.state.bridgeInjected = true;
+			}
+			return [bridgeMessage, ...input];
+		}
 		return input;
 	}
 
@@ -654,7 +662,7 @@ export function addCodexBridgeMessage(
 		sessionContext.state.bridgeInjected = true;
 	}
 
-	return [buildBridgeMessage(), ...input];
+	return [bridgeMessage, ...input];
 }
 
 /**
@@ -1011,7 +1019,8 @@ export async function transformRequestBody(
 
 	// Ensure prompt_cache_key is set using our robust logic
 	const cacheKeyResult = ensurePromptCacheKey(body);
-	const isNewSession = Boolean(sessionContext?.isNew);
+	// Default to treating missing session context as a new session to avoid noisy startup warnings
+	const isNewSession = sessionContext?.isNew ?? true;
 	if (cacheKeyResult.source === "existing") {
 		// Host provided a valid cache key, use it as-is
 	} else if (cacheKeyResult.source === "metadata") {
