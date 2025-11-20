@@ -56,7 +56,7 @@ function normalizeForkSuffix(forkId: string): string {
 	return trimmed.replace(/\s+/g, "-");
 }
 
-const PROMPT_CACHE_METADATA_KEYS = [
+export const PROMPT_CACHE_METADATA_KEYS = [
 	"conversation_id",
 	"conversationId",
 	"thread_id",
@@ -67,7 +67,7 @@ const PROMPT_CACHE_METADATA_KEYS = [
 	"chatId",
 ];
 
-const PROMPT_CACHE_FORK_KEYS = [
+export const PROMPT_CACHE_FORK_KEYS = [
 	"forkId",
 	"fork_id",
 	"branchId",

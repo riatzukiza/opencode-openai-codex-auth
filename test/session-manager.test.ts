@@ -6,6 +6,8 @@ import type { InputItem, RequestBody, SessionContext } from "../lib/types.js";
 
 interface BodyOptions {
 	forkId?: string;
+	parentConversationId?: string;
+	parent_conversation_id?: string;
 }
 
 function createBody(conversationId: string, inputCount = 1, options: BodyOptions = {}): RequestBody {
@@ -14,6 +16,12 @@ function createBody(conversationId: string, inputCount = 1, options: BodyOptions
 	};
 	if (options.forkId) {
 		metadata.forkId = options.forkId;
+	}
+	if (options.parentConversationId) {
+		metadata.parentConversationId = options.parentConversationId;
+	}
+	if (options.parent_conversation_id) {
+		metadata.parent_conversation_id = options.parent_conversation_id;
 	}
 
 	return {
@@ -220,6 +228,23 @@ describe("SessionManager", () => {
 		const betaContext = manager.getContext(betaBody) as SessionContext;
 		expect(betaContext.isNew).toBe(true);
 		expect(betaContext.state.promptCacheKey).toBe("conv-fork::fork::beta");
+	});
+
+	it("derives fork ids from parent conversation hints", () => {
+		const manager = new SessionManager({ enabled: true });
+		const parentBody = createBody("conv-fork-parent", 1, { parentConversationId: "parent-conv" });
+		let parentContext = manager.getContext(parentBody) as SessionContext;
+		expect(parentContext.isNew).toBe(true);
+		expect(parentContext.state.promptCacheKey).toBe("conv-fork-parent::fork::parent-conv");
+		parentContext = manager.applyRequest(parentBody, parentContext) as SessionContext;
+		expect(parentBody.prompt_cache_key).toBe("conv-fork-parent::fork::parent-conv");
+
+		const snakeParentBody = createBody("conv-fork-parent", 1, {
+			parent_conversation_id: "parent-snake",
+		});
+		const snakeParentContext = manager.getContext(snakeParentBody) as SessionContext;
+		expect(snakeParentContext.isNew).toBe(true);
+		expect(snakeParentContext.state.promptCacheKey).toBe("conv-fork-parent::fork::parent-snake");
 	});
 
 	it("scopes compaction summaries per fork session", () => {
