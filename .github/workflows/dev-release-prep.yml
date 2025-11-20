@@ -181,7 +181,6 @@ jobs:
             exit 1
           fi
           echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
-          gh api repos/$REPO/pulls/$PR_NUMBER/requested_reviewers -f reviewers[]="coderabbitai"
           gh api graphql -f query='mutation($prId:ID!,$method:PullRequestMergeMethod!){enablePullRequestAutoMerge(input:{pullRequestId:$prId,mergeMethod:$method}){pullRequest{number autoMergeRequest{enabledBy{login}}}}}' -f prId="$PR_NODE_ID" -f method=SQUASH
 
       - name: Create release tag
