@@ -41,16 +41,9 @@ export function hasTextContent(item: InputItem): boolean {
  * @returns Formatted role name or empty string if invalid
  */
 export function formatRole(role: string): string {
-	const validRoles = [
-		"user",
-		"assistant",
-		"system",
-		"developer",
-		"function",
-		"function_call",
-		"function_call_output",
-	];
-	return validRoles.includes(role) ? role : "";
+	const normalized = (role ?? "").trim();
+	if (!normalized) return "";
+	return normalized;
 }
 
 /**

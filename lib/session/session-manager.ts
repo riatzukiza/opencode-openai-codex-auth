@@ -150,6 +150,8 @@ function buildSessionKey(conversationId: string, forkId: string | undefined): st
 	return `${conversationId}::fork::${forkId}`;
 }
 
+// Keep in sync with ensurePromptCacheKey logic in request-transformer.ts so session-managed
+// and stateless flows derive identical cache keys.
 function buildPromptCacheKey(conversationId: string, forkId: string | undefined): string {
 	const sanitized = sanitizeCacheKey(conversationId);
 	if (!forkId) {
