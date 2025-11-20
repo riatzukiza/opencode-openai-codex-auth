@@ -54,5 +54,6 @@ describe("compaction helpers", () => {
 		expect(body.input).not.toEqual(originalInput);
 		expect((body as any).tools).toBeUndefined();
 		expect((body as any).tool_choice).toBeUndefined();
+		expect((body as any).parallel_tool_calls).toBeUndefined();
 	});
 });
