@@ -137,11 +137,9 @@ describe("Codex Instructions Fetcher", () => {
 		expect(result).toBe("still-good");
 		expect(consoleError).toHaveBeenCalledWith(
 			'[openhax/codex] Failed to fetch instructions from GitHub {"error":"HTTP 500"}',
-			"",
 		);
 		expect(consoleError).toHaveBeenCalledWith(
 			"[openhax/codex] Using cached instructions due to fetch failure",
-			"",
 		);
 		consoleError.mockRestore();
 	});
@@ -244,9 +242,8 @@ describe("Codex Instructions Fetcher", () => {
 		expect(typeof result).toBe("string");
 		expect(consoleError).toHaveBeenCalledWith(
 			'[openhax/codex] Failed to fetch instructions from GitHub {"error":"HTTP 500"}',
-			"",
 		);
-		expect(consoleError).toHaveBeenCalledWith("[openhax/codex] Falling back to bundled instructions", "");
+		expect(consoleError).toHaveBeenCalledWith("[openhax/codex] Falling back to bundled instructions");
 
 		const readPaths = readFileSync.mock.calls.map((call) => call[0] as string);
 		const fallbackPath = readPaths.find(

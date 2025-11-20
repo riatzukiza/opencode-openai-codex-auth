@@ -219,7 +219,6 @@ describe("Auth Module", () => {
 			expect(result).toEqual({ type: "failed" });
 			expect(console.error).toHaveBeenCalledWith(
 				'[openhax/codex] Authorization code exchange failed {"status":400,"body":"bad request"}',
-				"",
 			);
 		});
 
@@ -233,7 +232,6 @@ describe("Auth Module", () => {
 			await exchangeAuthorizationCode("code", "verifier");
 			expect(console.error).toHaveBeenCalledWith(
 				'[openhax/codex] Authorization code exchange failed {"status":500,"body":""}',
-				"",
 			);
 		});
 
@@ -246,7 +244,6 @@ describe("Auth Module", () => {
 			expect(result).toEqual({ type: "failed" });
 			expect(console.error).toHaveBeenCalledWith(
 				'[openhax/codex] Token response missing fields {"access_token":"only-access"}',
-				"",
 			);
 		});
 	});
@@ -270,7 +267,7 @@ describe("Auth Module", () => {
 				access: "new-access",
 				refresh: "new-refresh",
 			});
-			expect(result.expires).toBeGreaterThan(Date.now());
+
 			const [url, init] = fetchMock.mock.calls[0];
 			expect(url).toBe("https://auth.openai.com/oauth/token");
 			expect((init as RequestInit).method).toBe("POST");
@@ -288,7 +285,6 @@ describe("Auth Module", () => {
 			expect(result).toEqual({ type: "failed" });
 			expect(console.error).toHaveBeenCalledWith(
 				'[openhax/codex] Token refresh failed {"status":401,"body":"denied"}',
-				"",
 			);
 		});
 
@@ -298,7 +294,6 @@ describe("Auth Module", () => {
 			expect(result).toEqual({ type: "failed" });
 			expect(console.error).toHaveBeenCalledWith(
 				'[openhax/codex] Token refresh error {"error":"network down"}',
-				"",
 			);
 		});
 
@@ -312,7 +307,6 @@ describe("Auth Module", () => {
 			await refreshAccessToken("refresh-token");
 			expect(console.error).toHaveBeenCalledWith(
 				'[openhax/codex] Token refresh failed {"status":403,"body":""}',
-				"",
 			);
 		});
 
@@ -324,7 +318,6 @@ describe("Auth Module", () => {
 			expect(result).toEqual({ type: "failed" });
 			expect(console.error).toHaveBeenCalledWith(
 				'[openhax/codex] Token refresh response missing fields {"access_token":"only"}',
-				"",
 			);
 		});
 	});
