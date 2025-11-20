@@ -3,11 +3,11 @@ name: Ruleset Drift Check
 on:
   pull_request:
     branches:
-      - staging
+      - dev
       - main
   push:
     branches:
-      - staging
+      - dev
       - main
   workflow_dispatch:
 

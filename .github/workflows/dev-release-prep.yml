@@ -1,18 +1,18 @@
-name: Staging Release Prep
+name: Dev Release Prep
 
 on:
   pull_request:
     types:
       - closed
     branches:
-      - staging
+      - dev
 
 permissions:
   contents: write
   pull-requests: write
 
 concurrency:
-  group: staging-release
+  group: dev-release
 
 jobs:
   prepare:
@@ -22,7 +22,7 @@ jobs:
       OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
       OPENCODE_API_URL: ${{ secrets.OPENCODE_API_URL }}
     steps:
-      - name: Checkout staging
+      - name: Checkout dev
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.ref }}
@@ -135,7 +135,7 @@ jobs:
           fi
           git push origin "$RELEASE_BRANCH"
 
-      - name: Open release PR to staging
+      - name: Open release PR to dev
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}

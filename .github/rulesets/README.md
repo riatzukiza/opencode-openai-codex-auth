@@ -13,7 +13,7 @@ After refreshing, commit changes. CI (`.github/workflows/ruleset-drift.yml`) fet
 
 ## Notes
 
-- `release` ruleset applies to the default branch (currently `staging`); strict required checks enforced.
+- `release` ruleset applies to the default branch (currently `dev`); strict required checks enforced.
 - `main` ruleset applies to `refs/heads/main`; strict_required_status_checks_policy is false.
-- If we rename `staging` to `dev`, update the default branch and the `release` ruleset target accordingly, then refresh these snapshots.
-- Future improvement: add a lightweight workflow to fetch rulesets via `gh` and fail on diff vs snapshots.
+- If we rename `dev` again, update the default branch and the `release` ruleset target accordingly, then refresh these snapshots.
+- CI drift check already fetches live rulesets and diffs against snapshots.
