@@ -42,12 +42,13 @@ export function createCodexFetcher(deps: CodexFetcherDeps) {
 	} = deps;
 
 	return async function codexFetch(input: Request | string | URL, init?: RequestInit): Promise<Response> {
-		const currentAuth = await getAuth();
+		let currentAuth = await getAuth();
 		if (shouldRefreshToken(currentAuth)) {
 			const refreshResult = await refreshAndUpdateToken(currentAuth, client);
 			if (!refreshResult.success) {
 				return refreshResult.response;
 			}
+			currentAuth = refreshResult.auth;
 		}
 
 		const originalUrl = extractRequestUrl(input);

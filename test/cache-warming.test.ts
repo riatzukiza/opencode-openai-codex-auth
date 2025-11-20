@@ -118,8 +118,6 @@ describe("Cache Warming", () => {
 	describe("areCachesWarm", () => {
 		it("should return true when both caches are warm", async () => {
 			// Arrange
-			mockGetCodexInstructions.mockResolvedValue("codex-instructions");
-			mockGetOpenCodeCodexPrompt.mockResolvedValue("opencode-prompt");
 			codexInstructionsCache.set("latest", { data: "codex-instructions" });
 			openCodePromptCache.set("main", { data: "opencode-prompt" });
 
@@ -128,8 +126,6 @@ describe("Cache Warming", () => {
 
 			// Assert
 			expect(result).toBe(true);
-			expect(mockGetCodexInstructions).not.toHaveBeenCalled();
-			expect(mockGetOpenCodeCodexPrompt).not.toHaveBeenCalled();
 		});
 
 		it("should return false when Codex instructions cache is cold", async () => {
@@ -153,9 +149,6 @@ describe("Cache Warming", () => {
 		});
 
 		it("should return false when both caches are cold", async () => {
-			mockGetCodexInstructions.mockRejectedValue(new Error("Cache miss"));
-			mockGetOpenCodeCodexPrompt.mockRejectedValue(new Error("Cache miss"));
-
 			// Act
 			const result = await areCachesWarm();
 

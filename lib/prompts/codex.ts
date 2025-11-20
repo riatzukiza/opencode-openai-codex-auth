@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { recordCacheHit, recordCacheMiss } from "../cache/cache-metrics.js";
 import { codexInstructionsCache, getCodexCacheKey } from "../cache/session-cache.js";
-import { logError } from "../logger.js";
+import { logError, logWarn } from "../logger.js";
 import type { CacheMetadata, GitHubRelease } from "../types.js";
 import { CACHE_FILES, CACHE_TTL_MS } from "../utils/cache-config.js";
 import {
@@ -87,7 +87,18 @@ export async function getCodexInstructions(): Promise<string> {
 		return fileContent;
 	}
 
-	const latestTag = await getLatestReleaseTag();
+	let latestTag: string | undefined;
+	try {
+		latestTag = await getLatestReleaseTag();
+	} catch (error) {
+		// If we can't get the latest tag, fall back to cache or bundled version
+		logWarn("Failed to get latest release tag, falling back to cache/bundled", { error });
+		// Fall back to bundled instructions
+		const bundledContent = readFileSync(join(__dirname, "codex-instructions.md"), "utf8");
+		cacheSessionEntry(bundledContent, undefined, undefined);
+		return bundledContent;
+	}
+
 	const cacheKeyForLatest = getCodexCacheKey(cachedETag ?? undefined, latestTag);
 	const sessionForLatest = codexInstructionsCache.get(cacheKeyForLatest);
 	if (sessionForLatest) {

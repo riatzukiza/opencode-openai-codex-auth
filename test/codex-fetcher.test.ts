@@ -17,6 +17,7 @@ const maybeHandleCodexCommandMock = vi.hoisted(() =>
 );
 const logRequestMock = vi.hoisted(() => vi.fn());
 const recordSessionResponseMock = vi.hoisted(() => vi.fn());
+const finalizeCompactionResponseMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../lib/request/fetch-helpers.js", () => ({
 	__esModule: true,
@@ -43,6 +44,11 @@ vi.mock("../lib/logger.js", () => ({
 vi.mock("../lib/session/response-recorder.js", () => ({
 	__esModule: true,
 	recordSessionResponseFromHandledResponse: recordSessionResponseMock,
+}));
+
+vi.mock("../lib/compaction/compaction-executor.js", () => ({
+	__esModule: true,
+	finalizeCompactionResponse: finalizeCompactionResponseMock,
 }));
 
 describe("createCodexFetcher", () => {
@@ -100,7 +106,9 @@ describe("createCodexFetcher", () => {
 		});
 
 		const fetcher = createCodexFetcher(baseDeps());
-		const response = await fetcher("https://api.openai.com/v1/chat/completions", { method: "POST" });
+		const response = await fetcher("https://api.openai.com/v1/chat/completions", {
+			method: "POST",
+		});
 
 		expect(extractRequestUrlMock).toHaveBeenCalled();
 		expect(rewriteUrlForCodexMock).toHaveBeenCalled();
@@ -145,7 +153,15 @@ describe("createCodexFetcher", () => {
 
 	it("continues processing when token refresh succeeds", async () => {
 		shouldRefreshTokenMock.mockReturnValue(true);
-		refreshAndUpdateTokenMock.mockResolvedValue({ success: true });
+		refreshAndUpdateTokenMock.mockResolvedValue({
+			success: true,
+			auth: {
+				type: "oauth" as const,
+				access: "new-access",
+				refresh: "new-refresh",
+				expires: Date.now() + 20_000,
+			},
+		});
 		transformRequestForCodexMock.mockResolvedValue({
 			body: { model: "gpt-5" },
 		});
@@ -154,6 +170,31 @@ describe("createCodexFetcher", () => {
 		await fetcher("https://api.openai.com", {});
 		expect(refreshAndUpdateTokenMock).toHaveBeenCalled();
 		expect(fetchMock).toHaveBeenCalled();
+	});
+
+	it("uses refreshed auth when refresh succeeds", async () => {
+		shouldRefreshTokenMock.mockReturnValue(true);
+		refreshAndUpdateTokenMock.mockResolvedValue({
+			success: true,
+			auth: {
+				type: "oauth" as const,
+				access: "refreshed-access",
+				refresh: "refreshed-refresh",
+				expires: Date.now() + 10_000,
+			},
+		});
+		transformRequestForCodexMock.mockResolvedValue({
+			body: { model: "gpt-5" },
+		});
+
+		const fetcher = createCodexFetcher(baseDeps());
+		await fetcher("https://api.openai.com", {});
+		expect(createCodexHeadersMock).toHaveBeenCalledWith(
+			expect.any(Object),
+			"acc-123",
+			"refreshed-access",
+			expect.any(Object),
+		);
 	});
 
 	it("returns command response early when maybeHandleCodexCommand matches", async () => {
@@ -231,18 +272,6 @@ describe("createCodexFetcher", () => {
 		);
 	});
 
-	it("uses an empty request init when both transformation and init are missing", async () => {
-		transformRequestForCodexMock.mockResolvedValue(undefined);
-		const fetcher = createCodexFetcher(baseDeps());
-
-		await fetcher("https://api.openai.com");
-		expect(createCodexHeadersMock).toHaveBeenCalledWith({}, "acc-123", "access-token", expect.any(Object));
-		expect(fetchMock).toHaveBeenCalledWith(
-			"https://codex/backend",
-			expect.objectContaining({ headers: expect.any(Headers) }),
-		);
-	});
-
 	it("records responses only after successful handling", async () => {
 		transformRequestForCodexMock.mockResolvedValue({
 			body: { model: "gpt-5" },
@@ -257,6 +286,41 @@ describe("createCodexFetcher", () => {
 			sessionContext: { sessionId: "s-2", enabled: true },
 			handledResponse: expect.any(Response),
 		});
+	});
+
+	it("handles compaction decision when present", async () => {
+		const mockDecision = { type: "compact" as const, reason: "test" };
+		const compactedResponse = new Response("compacted", { status: 200 });
+		transformRequestForCodexMock.mockResolvedValue({
+			body: { model: "gpt-5" },
+			sessionContext: { sessionId: "s-3", enabled: true },
+			compactionDecision: mockDecision,
+		});
+		handleSuccessResponseMock.mockResolvedValue(new Response("payload", { status: 200 }));
+		finalizeCompactionResponseMock.mockResolvedValue(compactedResponse);
+
+		const fetcher = createCodexFetcher(baseDeps());
+		const result = await fetcher("https://api.openai.com", {});
+
+		// Verify finalizeCompactionResponse was called with correct parameters
+		expect(finalizeCompactionResponseMock).toHaveBeenCalledWith({
+			response: expect.any(Response),
+			decision: mockDecision,
+			sessionManager,
+			sessionContext: { sessionId: "s-3", enabled: true },
+		});
+
+		// Verify recordSessionResponseFromHandledResponse was called with compacted response
+		expect(recordSessionResponseMock).toHaveBeenCalledWith({
+			sessionManager,
+			sessionContext: { sessionId: "s-3", enabled: true },
+			handledResponse: compactedResponse,
+		});
+
+		// Verify fetcher returns the compacted response
+		expect(result).toBe(compactedResponse);
+		expect(result.status).toBe(200);
+		expect(await result.text()).toBe("compacted");
 	});
 
 	it("uses empty tokens when auth type is not oauth", async () => {

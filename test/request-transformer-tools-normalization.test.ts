@@ -8,7 +8,7 @@ async function runTransform(
 	instructions: string,
 	userConfig?: UserConfig,
 	codexMode = true,
-	options?: TransformRequestOptions,
+	options: TransformRequestOptions = {},
 ) {
 	const result = await transformRequestBody(body, instructions, userConfig, codexMode, options);
 	return result.body;

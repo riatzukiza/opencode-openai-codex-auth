@@ -7,6 +7,7 @@
 
 /**
  * Deep clone function that uses the best available method
+ * Note: Intended for JSON-serializable data (plain objects/arrays)
  * @param value - Value to clone
  * @returns Deep cloned value
  */
@@ -23,12 +24,18 @@ export function deepClone<T>(value: T): T {
 }
 
 /**
- * Clone an array of InputItems efficiently
+ * Clone an array of InputItems efficiently (expects a real array)
  * @param items - Array of InputItems to clone
  * @returns Cloned array
  */
-export function cloneInputItems<T>(items: T[]): T[] {
-	if (!Array.isArray(items) || items.length === 0) {
+export function cloneInputItems<T>(items?: T[] | null): T[] {
+	if (items == null) {
+		return [];
+	}
+	if (!Array.isArray(items)) {
+		throw new TypeError("cloneInputItems expects an array");
+	}
+	if (items.length === 0) {
 		return [];
 	}
 	return items.map((item) => deepClone(item));

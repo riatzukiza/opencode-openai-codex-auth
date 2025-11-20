@@ -27,42 +27,48 @@ export async function finalizeCompactionResponse({
 	sessionManager,
 	sessionContext,
 }: FinalizeOptions): Promise<Response> {
-	const text = await response.text();
-	const payload = JSON.parse(text) as any;
-	const summaryText = extractFirstAssistantText(payload) ?? "(no summary provided)";
-	const summaryMessage = createSummaryMessage(summaryText);
-	const summaryContent = typeof summaryMessage.content === "string" ? summaryMessage.content : "";
+	const responseClone = response.clone();
 
-	const metaNote =
-		decision.mode === "auto"
-			? `Auto compaction triggered (${decision.reason ?? "context limit"}). Review the summary below, then resend your last instruction.\n\n`
-			: "";
-	const finalText = `${metaNote}${summaryContent}`.trim();
+	try {
+		const text = await responseClone.text();
+		const payload = JSON.parse(text) as any;
+		const summaryText = extractFirstAssistantText(payload) ?? "(no summary provided)";
+		const summaryMessage = createSummaryMessage(summaryText);
+		const summaryContent = typeof summaryMessage.content === "string" ? summaryMessage.content : "";
 
-	rewriteAssistantOutput(payload, finalText);
-	payload.metadata = {
-		...(payload.metadata ?? {}),
-		codex_compaction: {
-			mode: decision.mode,
-			reason: decision.reason,
-			dropped_turns: decision.serialization.droppedTurns,
-			total_turns: decision.serialization.totalTurns,
-		},
-	};
+		const metaNote =
+			decision.mode === "auto"
+				? `Auto compaction triggered (${decision.reason ?? "context limit"}). Review the summary below, then resend your last instruction.\n\n`
+				: "";
+		const finalText = `${metaNote}${summaryContent}`.trim();
 
-	if (sessionManager && sessionContext) {
-		sessionManager.applyCompactionSummary(sessionContext, {
-			baseSystem: decision.preservedSystem,
-			summary: summaryContent,
+		rewriteAssistantOutput(payload, finalText);
+		payload.metadata = {
+			...(payload.metadata ?? {}),
+			codex_compaction: {
+				mode: decision.mode,
+				reason: decision.reason,
+				dropped_turns: decision.serialization.droppedTurns,
+				total_turns: decision.serialization.totalTurns,
+			},
+		};
+
+		if (sessionManager && sessionContext) {
+			sessionManager.applyCompactionSummary(sessionContext, {
+				baseSystem: decision.preservedSystem,
+				summary: summaryContent,
+			});
+		}
+
+		const headers = new Headers(response.headers);
+		return new Response(JSON.stringify(payload), {
+			status: response.status,
+			statusText: response.statusText,
+			headers,
 		});
+	} catch {
+		return response;
 	}
-
-	const headers = new Headers(response.headers);
-	return new Response(JSON.stringify(payload), {
-		status: response.status,
-		statusText: response.statusText,
-		headers,
-	});
 }
 
 function extractFirstAssistantText(payload: any): string | null {

@@ -5,6 +5,16 @@ class MockResponse {
 	headers = new Map<string, string>();
 	body = "";
 
+	writeHead(status: number, headers?: Record<string, string>) {
+		this.statusCode = status;
+		if (headers) {
+			for (const [key, value] of Object.entries(headers)) {
+				this.headers.set(key, value);
+			}
+		}
+		return this;
+	}
+
 	setHeader(key: string, value: string) {
 		this.headers.set(key, value);
 	}
@@ -56,6 +66,9 @@ const mockState = { server: null as MockServer | null };
 
 const mockServerFs = {
 	readFileSync: vi.fn(() => "<!DOCTYPE html><title>Success</title>"),
+	existsSync: vi.fn(() => true),
+	mkdirSync: vi.fn(),
+	writeFileSync: vi.fn(),
 };
 
 vi.mock("node:fs", () => ({

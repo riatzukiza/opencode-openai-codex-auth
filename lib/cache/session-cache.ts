@@ -65,9 +65,7 @@ export function createSessionCache<T>(ttlMs = 15 * 60 * 1000): SessionCache<T> {
 		}
 	};
 
-	const getSize = (): number => {
-		return cache.size;
-	};
+	const getSize = (): number => cache.size;
 
 	return { get, set, clear, clean, getSize };
 }

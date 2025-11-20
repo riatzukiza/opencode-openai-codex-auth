@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const fsMocks = {
 	writeFile: vi.fn(),
@@ -30,9 +30,9 @@ vi.mock("node:os", () => ({
 }));
 
 const originalEnv = { ...process.env };
-const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+let logSpy: ReturnType<typeof vi.spyOn>;
+let warnSpy: ReturnType<typeof vi.spyOn>;
+let errorSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
 	vi.resetModules();
@@ -52,9 +52,15 @@ beforeEach(() => {
 	fsMocks.appendFile.mockResolvedValue(undefined);
 	fsMocks.writeFile.mockResolvedValue(undefined);
 	fsMocks.stat.mockRejectedValue(Object.assign(new Error("no file"), { code: "ENOENT" }));
-	logSpy.mockClear();
-	warnSpy.mockClear();
-	errorSpy.mockClear();
+	logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+	warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+	errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+});
+
+afterEach(() => {
+	logSpy.mockRestore();
+	warnSpy.mockRestore();
+	errorSpy.mockRestore();
 });
 
 describe("logger", () => {
@@ -64,7 +70,8 @@ describe("logger", () => {
 		expect(LOGGING_ENABLED).toBe(true);
 	});
 
-	it("logRequest writes stage file and rolling log by default", async () => {
+	it("logRequest writes stage file and rolling log when enabled", async () => {
+		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = "1";
 		fsMocks.existsSync.mockReturnValue(false);
 		const { logRequest, flushRollingLogsForTest } = await import("../lib/logger.js");
 
@@ -88,7 +95,19 @@ describe("logger", () => {
 		expect(logSpy).not.toHaveBeenCalled();
 	});
 
-	it("logDebug appends to rolling log without printing to console by default", async () => {
+	it("logRequest skips disk writes when logging disabled", async () => {
+		fsMocks.existsSync.mockReturnValue(true);
+		const { logRequest, flushRollingLogsForTest } = await import("../lib/logger.js");
+
+		logRequest("disabled-stage", { foo: "bar" });
+		await flushRollingLogsForTest();
+
+		expect(fsMocks.writeFile).not.toHaveBeenCalled();
+		expect(fsMocks.appendFile).not.toHaveBeenCalled();
+	});
+
+	it("logDebug appends to rolling log only when enabled", async () => {
+		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = "1";
 		fsMocks.existsSync.mockReturnValue(true);
 		const { logDebug, flushRollingLogsForTest } = await import("../lib/logger.js");
 
@@ -109,23 +128,27 @@ describe("logger", () => {
 		expect(warnSpy).toHaveBeenCalledWith("[openhax/codex] warning");
 	});
 
-	it("logInfo does not mirror to console unless debug flag is set", async () => {
+	it("logInfo does not mirror to console in tests, even with debug flag", async () => {
+		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = "1";
 		fsMocks.existsSync.mockReturnValue(true);
 		const { logInfo, flushRollingLogsForTest } = await import("../lib/logger.js");
 		logInfo("info-message");
 		await flushRollingLogsForTest();
 		expect(logSpy).not.toHaveBeenCalled();
 
-		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = "1";
+		process.env.DEBUG_CODEX_PLUGIN = "1";
 		vi.resetModules();
 		fsMocks.existsSync.mockReturnValue(true);
-		const { logInfo: envLogInfo, flushRollingLogsForTest: flushEnabled } = await import("../lib/logger.js");
-		envLogInfo("info-message");
-		await flushEnabled();
+		const { logInfo: debugLogInfo, flushRollingLogsForTest: flushDebug } = await import("../lib/logger.js");
+		debugLogInfo("info-message");
+		await flushDebug();
 		expect(logSpy).not.toHaveBeenCalled();
+		// Disk logging still occurs when debug flag is set
+		expect(fsMocks.appendFile).toHaveBeenCalled();
 	});
 
 	it("persist failures log warnings and still append entries", async () => {
+		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = "1";
 		fsMocks.existsSync.mockReturnValue(true);
 		fsMocks.writeFile.mockRejectedValue(new Error("boom"));
 		const { logRequest, flushRollingLogsForTest } = await import("../lib/logger.js");
@@ -140,6 +163,7 @@ describe("logger", () => {
 	});
 
 	it("rotates logs when size exceeds limit", async () => {
+		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = "1";
 		process.env.CODEX_LOG_MAX_BYTES = "10";
 		process.env.CODEX_LOG_MAX_FILES = "2";
 		fsMocks.existsSync.mockReturnValue(true);
@@ -160,6 +184,7 @@ describe("logger", () => {
 	});
 
 	it("drops oldest buffered logs when queue overflows", async () => {
+		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = "1";
 		process.env.CODEX_LOG_QUEUE_MAX = "2";
 		fsMocks.existsSync.mockReturnValue(true);
 		const { logDebug, flushRollingLogsForTest } = await import("../lib/logger.js");

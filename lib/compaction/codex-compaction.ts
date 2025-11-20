@@ -1,6 +1,7 @@
 import { CODEX_COMPACTION_PROMPT, CODEX_SUMMARY_PREFIX } from "../prompts/codex-compaction.js";
 import type { InputItem } from "../types.js";
-import { deepClone } from "../utils/clone.js";
+import { cloneInputItems, deepClone } from "../utils/clone.js";
+import { extractTextFromItem } from "../utils/input-item-utils.js";
 
 const DEFAULT_TRANSCRIPT_CHAR_LIMIT = 12_000;
 const COMMAND_TRIGGERS = ["codex-compact", "compact", "codexcompact", "compactnow"];
@@ -123,24 +124,9 @@ export function extractTailAfterSummary(items: InputItem[] | undefined): InputIt
 		if (!item || item.role !== "user") continue;
 		const text = extractTextFromItem(item);
 		if (!text) continue;
-		return cloneRange(items.slice(index));
+		return cloneInputItems(items.slice(index));
 	}
 	return [];
-}
-
-function extractTextFromItem(item: InputItem): string {
-	if (!item) return "";
-	const content = item.content;
-	if (typeof content === "string") {
-		return content;
-	}
-	if (Array.isArray(content)) {
-		return content
-			.filter((part) => part && typeof part === "object" && (part as { type?: string }).type === "input_text")
-			.map((part) => (part as { text?: string }).text ?? "")
-			.join("\n");
-	}
-	return "";
 }
 
 function normalizeCommandTrigger(value: string): string {
@@ -163,8 +149,4 @@ function formatRole(role: string): string | null {
 
 function formatEntry(role: string, text: string): string {
 	return `## ${role}\n${text.trim()}\n`;
-}
-
-function cloneRange(range: InputItem[]): InputItem[] {
-	return range.map((item) => deepClone(item));
 }

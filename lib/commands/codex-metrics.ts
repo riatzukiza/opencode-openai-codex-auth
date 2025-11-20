@@ -131,7 +131,38 @@ function createStaticResponse(model: string | undefined, text: string, metadata:
 	const created = Math.floor(Date.now() / 1000);
 	const resolvedModel = model || "gpt-5";
 
-	const assistantMessage = {
+	const assistantMessage = buildAssistantMessage(commandName, messageId, text);
+	const responsePayload = buildResponsePayload(
+		resolvedModel,
+		outputTokens,
+		assistantMessage,
+		metadata,
+		responseId,
+		created,
+	);
+	const events = buildSseEvents(
+		responseId,
+		resolvedModel,
+		created,
+		messageId,
+		text,
+		assistantMessage,
+		responsePayload,
+	);
+
+	const stream = createSsePayload(events);
+	return new Response(stream, {
+		status: 200,
+		headers: {
+			"content-type": "text/event-stream; charset=utf-8",
+			"cache-control": "no-cache",
+			connection: "keep-alive",
+		},
+	});
+}
+
+function buildAssistantMessage(commandName: string, messageId: string, text: string) {
+	return {
 		id: messageId,
 		type: "message",
 		role: "assistant",
@@ -145,8 +176,17 @@ function createStaticResponse(model: string | undefined, text: string, metadata:
 			source: commandName,
 		},
 	};
+}
 
-	const responsePayload = {
+function buildResponsePayload(
+	resolvedModel: string,
+	outputTokens: number,
+	assistantMessage: { id: string },
+	metadata: CommandMetadata,
+	responseId: string,
+	created: number,
+) {
+	return {
 		id: responseId,
 		object: "response",
 		created,
@@ -161,9 +201,18 @@ function createStaticResponse(model: string | undefined, text: string, metadata:
 		output: [assistantMessage],
 		metadata,
 	};
+}
 
-	// Emit the same SSE event sequence that OpenAI's Responses API uses so CLI validators pass.
-	const events: Record<string, unknown>[] = [
+function buildSseEvents(
+	responseId: string,
+	resolvedModel: string,
+	created: number,
+	messageId: string,
+	text: string,
+	assistantMessage: { id: string },
+	responsePayload: Record<string, unknown>,
+): Array<Record<string, unknown>> {
+	return [
 		{
 			id: responseId,
 			type: "response.created",
@@ -203,16 +252,6 @@ function createStaticResponse(model: string | undefined, text: string, metadata:
 			response: responsePayload,
 		},
 	];
-
-	const stream = createSsePayload(events);
-	return new Response(stream, {
-		status: 200,
-		headers: {
-			"content-type": "text/event-stream; charset=utf-8",
-			"cache-control": "no-cache",
-			connection: "keep-alive",
-		},
-	});
 }
 
 function createSsePayload(events: Array<Record<string, unknown>>): string {

@@ -96,12 +96,22 @@ class CacheMetricsCollector {
 		metrics.hitRate = metrics.totalRequests > 0 ? (metrics.hits / metrics.totalRequests) * 100 : 0;
 	}
 
+	private cloneMetrics(): CacheMetricsCollection {
+		const cloneMetric = (metric: CacheMetrics): CacheMetrics => ({ ...metric });
+		return {
+			codexInstructions: cloneMetric(this.metrics.codexInstructions),
+			opencodePrompt: cloneMetric(this.metrics.opencodePrompt),
+			bridgeDecisions: cloneMetric(this.metrics.bridgeDecisions),
+			overall: cloneMetric(this.metrics.overall),
+		};
+	}
+
 	/**
 	 * Get current metrics
 	 * @returns Complete metrics collection
 	 */
 	getMetrics(): CacheMetricsCollection {
-		return { ...this.metrics };
+		return this.cloneMetrics();
 	}
 
 	/**

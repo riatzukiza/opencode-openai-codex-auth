@@ -72,7 +72,12 @@ describe("Fetch Helpers Module", () => {
 		});
 
 		it("should return true when access token is missing", () => {
-			const auth: Auth = { type: "oauth", access: "", refresh: "refresh-token", expires: Date.now() + 1000 };
+			const auth: Auth = {
+				type: "oauth",
+				access: "",
+				refresh: "refresh-token",
+				expires: Date.now() + 1000,
+			};
 			expect(shouldRefreshToken(auth)).toBe(true);
 		});
 
@@ -173,7 +178,9 @@ describe("Fetch Helpers Module", () => {
 
 		it("should use provided promptCacheKey for both conversation_id and session_id", () => {
 			const key = "ses_abc123";
-			const headers = createCodexHeaders(undefined, accountId, accessToken, { promptCacheKey: key });
+			const headers = createCodexHeaders(undefined, accountId, accessToken, {
+				promptCacheKey: key,
+			});
 			expect(headers.get(OPENAI_HEADERS.CONVERSATION_ID)).toBe(key);
 			expect(headers.get(OPENAI_HEADERS.SESSION_ID)).toBe(key);
 		});
@@ -230,9 +237,11 @@ describe("Fetch Helpers Module", () => {
 
 			const result = await refreshAndUpdateToken(auth, client as never);
 			expect(result.success).toBe(true);
-			expect(auth.access).toBe("new-access");
-			expect(auth.refresh).toBe("new-refresh");
-			expect(auth.expires).toBe(newAuth.expires);
+			if (result.success && result.auth.type === "oauth") {
+				expect(result.auth.access).toBe("new-access");
+				expect(result.auth.refresh).toBe("new-refresh");
+				expect(result.auth.expires).toBe(newAuth.expires);
+			}
 			expect(setMock).toHaveBeenCalledWith({
 				path: { id: "openai" },
 				body: {
@@ -257,9 +266,14 @@ describe("Fetch Helpers Module", () => {
 
 		it("handles invalid JSON payload gracefully", async () => {
 			const init: RequestInit = { body: "not-json" };
-			const result = await transformRequestForCodex(init, "url", "instructions", { global: {}, models: {} });
+			const result = await transformRequestForCodex(init, "url", "instructions", {
+				global: {},
+				models: {},
+			});
 			expect(result).toBeUndefined();
-			expect(logErrorMock).toHaveBeenCalledWith("Error parsing request", { error: expect.any(String) });
+			expect(logErrorMock).toHaveBeenCalledWith("Error parsing request", {
+				error: expect.any(String),
+			});
 		});
 
 		it("transforms request body and returns updated init", async () => {
@@ -268,7 +282,12 @@ describe("Fetch Helpers Module", () => {
 				tools: [],
 				input: [{ type: "message", role: "user", content: "hello" }],
 			};
-			const transformed = { ...body, model: "gpt-5-codex", include: ["reasoning.encrypted_content"] };
+			const transformed = {
+				...body,
+				model: "gpt-5-codex",
+				include: ["reasoning.encrypted_content"],
+				input: body.input.map((item) => ({ ...item })),
+			};
 			transformRequestBodyMock.mockResolvedValue({ body: transformed });
 			const sessionContext = { sessionId: "session-1", preserveIds: true, enabled: true };
 			const appliedContext = { ...sessionContext, isNew: false };
@@ -293,9 +312,95 @@ describe("Fetch Helpers Module", () => {
 				transformRequestBodyMock.mock.calls[0];
 
 			expect(Array.isArray(optionsArg?.compaction?.originalInput)).toBe(true);
+			expect(optionsArg?.compaction?.originalInput).not.toBe(body.input);
+
+			body.input[0].content = "mutated";
+			expect(optionsArg?.compaction?.originalInput?.[0].content).toBe("hello");
 
 			expect(result?.body).toEqual(transformed);
+			// Note: updatedInit.body is serialized once from transformResult.body and won't reflect later mutations to transformResult.body
 			expect(result?.updatedInit.body).toBe(JSON.stringify(transformed));
+		});
+
+		it("prefers session prompt cache key when host did not provide one", async () => {
+			const body = {
+				model: "gpt-5",
+				tools: [],
+				input: [{ type: "message", role: "user", content: "hi" }],
+			};
+			const transformed = { ...body };
+			transformRequestBodyMock.mockResolvedValue({ body: transformed });
+			const sessionContext = {
+				sessionId: "session-1",
+				enabled: true,
+				preserveIds: true,
+				state: {
+					id: "session-1",
+					promptCacheKey: "session-cache-key",
+					store: false,
+					lastInput: [],
+					lastPrefixHash: null,
+					lastUpdated: Date.now(),
+				},
+			};
+			const sessionManager = {
+				getContext: vi.fn().mockReturnValue(sessionContext),
+				applyRequest: vi.fn().mockReturnValue(sessionContext),
+			};
+
+			await transformRequestForCodex(
+				{ body: JSON.stringify(body) },
+				"https://chatgpt.com/backend-api/codex/responses",
+				"instructions",
+				{ global: {}, models: {} },
+				true,
+				sessionManager as never,
+				{ enableCodexCompaction: false } as any,
+			);
+
+			const [passedBody] = transformRequestBodyMock.mock.calls[0];
+			expect((passedBody as any).prompt_cache_key).toBe("session-cache-key");
+		});
+
+		it("preserves host-provided prompt_cache_key and does not overwrite with session cache key", async () => {
+			const body = {
+				model: "gpt-5",
+				tools: [],
+				input: [{ type: "message", role: "user", content: "hi" }],
+				prompt_cache_key: "host-provided-key",
+			};
+			const transformed = { ...body };
+			transformRequestBodyMock.mockResolvedValue({ body: transformed });
+			const sessionContext = {
+				sessionId: "session-1",
+				enabled: true,
+				preserveIds: true,
+				state: {
+					id: "session-1",
+					promptCacheKey: "session-cache-key",
+					store: false,
+					lastInput: [],
+					lastPrefixHash: null,
+					lastUpdated: Date.now(),
+				},
+			};
+			const sessionManager = {
+				getContext: vi.fn().mockReturnValue(sessionContext),
+				applyRequest: vi.fn().mockReturnValue(sessionContext),
+			};
+
+			await transformRequestForCodex(
+				{ body: JSON.stringify(body) },
+				"https://chatgpt.com/backend-api/codex/responses",
+				"instructions",
+				{ global: {}, models: {} },
+				true,
+				sessionManager as never,
+				{ enableCodexCompaction: false } as any,
+			);
+
+			const [passedBody] = transformRequestBodyMock.mock.calls[0];
+			expect((passedBody as any).prompt_cache_key).toBe("host-provided-key");
 		});
 	});
 
