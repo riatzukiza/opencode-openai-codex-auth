@@ -101,11 +101,11 @@ async function fetchInstructionsFromGithub(
 	const response = await fetch(url, { headers });
 
 	if (response.status === 304 && cacheFileExists) {
-		return readCachedInstructions(cacheFilePath, cachedETag || undefined, latestTag || undefined);
+		return readCachedInstructions(cacheFilePath, cachedETag || undefined, latestTag);
 	}
 
 	if (!response.ok) {
-		throw new Error(`HTTP ${response.status}`);
+		throw new Error(`HTTP ${response.status} fetching ${url}`);
 	}
 
 	const instructions = await response.text();
@@ -152,7 +152,7 @@ async function fetchInstructionsWithFallback(
 		logError("Failed to fetch instructions from GitHub", { error: err.message });
 
 		if (options.cacheFileExists) {
-			logError("Using cached instructions due to fetch failure");
+			logWarn("Using cached instructions due to fetch failure");
 			return readCachedInstructions(
 				options.cacheFilePath,
 				options.effectiveEtag || options.cachedETag || undefined,
@@ -160,7 +160,7 @@ async function fetchInstructionsWithFallback(
 			);
 		}
 
-		logError("Falling back to bundled instructions");
+		logWarn("Falling back to bundled instructions");
 		return loadBundledInstructions();
 	}
 }

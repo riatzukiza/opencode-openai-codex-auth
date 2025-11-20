@@ -23,15 +23,14 @@ export {
 export { getModelConfig, getReasoningConfig, normalizeModel } from "./model-config.js";
 
 export interface TransformRequestOptions {
-	/**
-	 * Preserve message IDs across transforms. Applied to normal flows and enforced after compaction builds.
-	 */
+	/** Preserve IDs only when conversation transforms run; may be a no-op when compaction skips them. */
 	preserveIds?: boolean;
 	/** Compaction settings and original input context used when building compaction prompts. */
 	compaction?: CompactionOptions;
 }
 
 export interface TransformResult {
+	/** Mutated request body (same instance passed into transformRequestBody). */
 	body: RequestBody;
 	compactionDecision?: CompactionDecision;
 }
