@@ -239,6 +239,23 @@ describe("filterInput", () => {
 		expect(result![0]).toHaveProperty("metadata");
 	});
 
+	it("preserves metadata when explicitly requested without preserving IDs", async () => {
+		const input: InputItem[] = [
+			{
+				id: "msg_456",
+				type: "message",
+				role: "developer",
+				content: "Summary saved to ~/.opencode/summary.md",
+				metadata: { source: "opencode-compaction" },
+			},
+		];
+		const result = filterInput(input, { preserveMetadata: true });
+
+		expect(result).toHaveLength(1);
+		expect(result![0]).not.toHaveProperty("id");
+		expect(result![0]).toHaveProperty("metadata");
+	});
+
 	it("should handle mixed items with and without IDs", async () => {
 		const input: InputItem[] = [
 			{ type: "message", role: "user", content: "1" },
@@ -614,6 +631,21 @@ describe("filterOpenCodeSystemPrompts", () => {
 		expect(result![1].role).toBe("user");
 	});
 
+	it("should use metadata flag to detect compaction prompts", async () => {
+		const input: InputItem[] = [
+			{
+				type: "message",
+				role: "developer",
+				content: "Summary saved to ~/.opencode/summary.md for inspection",
+				metadata: { source: "opencode-compaction" },
+			},
+			{ type: "message", role: "user", content: "continue" },
+		];
+		const result = await filterOpenCodeSystemPrompts(input);
+		expect(result).toHaveLength(1);
+		expect(result![0].role).toBe("user");
+	});
+
 	it("should return undefined for undefined input", async () => {
 		expect(await filterOpenCodeSystemPrompts(undefined)).toBeUndefined();
 	});
@@ -774,6 +806,29 @@ describe("transformRequestBody", () => {
 
 		expect(result1.prompt_cache_key).toBe("cache_meta-conv-789-fork-fork-x");
 		expect(result2.prompt_cache_key).toBe("cache_meta-conv-789-fork-fork-x");
+	});
+
+	it("filters metadata-tagged compaction prompts and strips metadata when IDs are not preserved", async () => {
+		const body: RequestBody = {
+			model: "gpt-5",
+			input: [
+				{
+					type: "message",
+					role: "developer",
+					content: "Summary saved to ~/.opencode/summary.md for inspection",
+					metadata: { source: "opencode-compaction" },
+				},
+				{ type: "message", role: "user", content: "continue" },
+			],
+		};
+
+		const transformedBody = await transformRequestBody(body, codexInstructions);
+		expect(transformedBody).toBeDefined();
+		const messages = transformedBody.input ?? [];
+
+		expect(messages.some((item) => (item as any).metadata)).toBe(false);
+		expect(JSON.stringify(messages)).not.toContain(".opencode/summary");
+		expect(messages.some((item) => item.role === "user" && (item as any).content === "continue")).toBe(true);
 	});
 
 	it("keeps bridge prompt across turns so prompt_cache_key stays stable", async () => {

@@ -52,10 +52,10 @@ async function transformInputForCodex(
 		logDebug(`Filtering ${originalIds.length} message IDs from input:`, originalIds);
 	}
 
-	body.input = filterInput(body.input, { preserveIds });
+	let workingInput = filterInput(body.input, { preserveIds, preserveMetadata: true });
 
 	if (!preserveIds) {
-		const remainingIds = (body.input || []).filter((item) => item.id).map((item) => item.id);
+		const remainingIds = (workingInput || []).filter((item) => item.id).map((item) => item.id);
 		if (remainingIds.length > 0) {
 			logWarn(`WARNING: ${remainingIds.length} IDs still present after filtering:`, remainingIds);
 		} else if (originalIds.length > 0) {
@@ -66,12 +66,20 @@ async function transformInputForCodex(
 	}
 
 	if (codexMode) {
-		body.input = await filterOpenCodeSystemPrompts(body.input);
-		body.input = addCodexBridgeMessage(body.input, hasNormalizedTools, sessionContext);
+		workingInput = await filterOpenCodeSystemPrompts(workingInput);
+		if (!preserveIds) {
+			workingInput = filterInput(workingInput, { preserveIds });
+		}
+		workingInput = addCodexBridgeMessage(workingInput, hasNormalizedTools, sessionContext);
+		body.input = workingInput;
 		return;
 	}
 
-	body.input = addToolRemapMessage(body.input, hasNormalizedTools);
+	if (!preserveIds) {
+		workingInput = filterInput(workingInput, { preserveIds });
+	}
+
+	body.input = addToolRemapMessage(workingInput, hasNormalizedTools);
 }
 
 export async function transformRequestBody(

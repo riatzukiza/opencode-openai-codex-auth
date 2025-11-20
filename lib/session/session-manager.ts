@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { SESSION_CONFIG } from "../constants.js";
 import { logDebug, logWarn } from "../logger.js";
+import { PROMPT_CACHE_FORK_KEYS } from "../request/prompt-cache.js";
 import type { CodexResponsePayload, InputItem, RequestBody, SessionContext, SessionState } from "../types.js";
 import { cloneInputItems, deepClone } from "../utils/clone.js";
 import { isAssistantMessage, isUserMessage } from "../utils/input-item-utils.js";
@@ -120,7 +121,6 @@ function extractConversationId(body: RequestBody): string | undefined {
 function extractForkIdentifier(body: RequestBody): string | undefined {
 	const metadata = body.metadata as Record<string, unknown> | undefined;
 	const bodyAny = body as Record<string, unknown>;
-	const forkKeys = ["forkId", "fork_id", "branchId", "branch_id"];
 	const normalize = (value: unknown): string | undefined => {
 		if (typeof value !== "string") {
 			return undefined;
@@ -129,7 +129,7 @@ function extractForkIdentifier(body: RequestBody): string | undefined {
 		return trimmed.length > 0 ? trimmed : undefined;
 	};
 
-	for (const key of forkKeys) {
+	for (const key of PROMPT_CACHE_FORK_KEYS) {
 		const fromMetadata = normalize(metadata?.[key]);
 		if (fromMetadata) {
 			return fromMetadata;

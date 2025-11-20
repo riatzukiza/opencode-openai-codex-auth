@@ -98,7 +98,7 @@ export function applyCompactionIfNeeded(
 	}
 
 	const preserveIds = compactionOptions.preserveIds ?? false;
-	body.input = filterInput(compactionBuild.items, { preserveIds });
+	body.input = filterInput(compactionBuild.items, { preserveIds, preserveMetadata: true });
 	delete (body as any).tools;
 	delete (body as any).tool_choice;
 	delete (body as any).parallel_tool_calls;

@@ -85,15 +85,18 @@ export function serializeConversation(
 }
 
 export function buildCompactionPromptItems(transcript: string): InputItem[] {
+	const compactionMetadata = { source: "opencode-compaction", opencodeCompaction: true };
 	const developer: InputItem = {
 		type: "message",
 		role: "developer",
 		content: CODEX_COMPACTION_PROMPT,
+		metadata: compactionMetadata,
 	};
 	const user: InputItem = {
 		type: "message",
 		role: "user",
 		content: transcript || "(conversation is empty)",
+		metadata: compactionMetadata,
 	};
 	return [developer, user];
 }

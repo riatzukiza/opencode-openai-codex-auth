@@ -17,11 +17,11 @@ const TOOL_REMAP_MESSAGE_HASH = generateContentHash(TOOL_REMAP_MESSAGE);
 
 export function filterInput(
 	input: InputItem[] | undefined,
-	options: { preserveIds?: boolean } = {},
+	options: { preserveIds?: boolean; preserveMetadata?: boolean } = {},
 ): InputItem[] | undefined {
 	if (!Array.isArray(input)) return input;
 
-	const { preserveIds = false } = options;
+	const { preserveIds = false, preserveMetadata = false } = options;
 
 	return input
 		.filter((item) => {
@@ -38,7 +38,7 @@ export function filterInput(
 				sanitized = itemWithoutId as InputItem;
 			}
 
-			if (!preserveIds && "metadata" in (sanitized as Record<string, unknown>)) {
+			if (!preserveIds && !preserveMetadata && "metadata" in (sanitized as Record<string, unknown>)) {
 				const { metadata: _metadata, ...rest } = sanitized as Record<string, unknown>;
 				sanitized = rest as InputItem;
 			}
@@ -97,6 +97,21 @@ export async function filterOpenCodeSystemPrompts(
 		/\.opencode\/.*summary/i,
 	];
 
+	const hasCompactionMetadataFlag = (item: InputItem): boolean => {
+		const rawMeta = (item as Record<string, unknown>)?.metadata ?? (item as Record<string, unknown>)?.meta;
+		if (!rawMeta || typeof rawMeta !== "object") return false;
+		const meta = rawMeta as Record<string, unknown>;
+		const metaAny = meta as Record<string, any>;
+		const source = metaAny.source as unknown;
+		if (typeof source === "string" && source.toLowerCase() === "opencode-compaction") {
+			return true;
+		}
+		if (metaAny.opencodeCompaction === true || metaAny.opencode_compaction === true) {
+			return true;
+		}
+		return false;
+	};
+
 	const matchesCompactionInstruction = (value: string): boolean =>
 		compactionInstructionPatterns.some((pattern) => pattern.test(value));
 
@@ -151,7 +166,8 @@ export async function filterOpenCodeSystemPrompts(
 			continue;
 		}
 
-		if (isOpenCodeCompactionPrompt(item)) {
+		const compactionMetadataFlagged = hasCompactionMetadataFlag(item);
+		if (compactionMetadataFlagged || isOpenCodeCompactionPrompt(item)) {
 			const sanitized = sanitizeOpenCodeCompactionPrompt(item);
 			if (sanitized) {
 				filteredInput.push(sanitized);
