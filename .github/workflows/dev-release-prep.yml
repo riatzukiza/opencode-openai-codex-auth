@@ -6,6 +6,8 @@ on:
       - closed
     branches:
       - dev
+    paths-ignore:
+      - "release/**"
 
 permissions:
   contents: write
@@ -16,7 +18,7 @@ concurrency:
 
 jobs:
   prepare:
-    if: github.event.pull_request.merged == true
+    if: github.event.pull_request.merged == true && !startsWith(github.event.pull_request.head.ref, 'release/')
     runs-on: ubuntu-latest
     env:
       OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
