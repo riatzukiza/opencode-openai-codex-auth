@@ -116,6 +116,9 @@ describe("OpenAIAuthPlugin", () => {
 		startLocalOAuthServerMock.mockReset();
 		openBrowserUrlMock.mockReset();
 		SessionManagerMock.mockReset();
+		sessionManagerInstance.getContext.mockReset();
+		sessionManagerInstance.applyRequest.mockReset();
+		sessionManagerInstance.recordResponse.mockReset();
 		logWarnMock.mockReset();
 		logErrorMock.mockReset();
 	});

@@ -165,12 +165,7 @@ function notifyToast(level: LogLevel, message: string, extra?: Record<string, un
 	});
 }
 
-function logToConsole(
-	level: LogLevel,
-	message: string,
-	extra?: Record<string, unknown>,
-	error?: unknown,
-): void {
+function logToConsole(level: LogLevel, message: string, extra?: Record<string, unknown>): void {
 	const isWarnOrError = level === "warn" || level === "error";
 	const shouldLogDebugOrInfo = CONSOLE_LOGGING_ENABLED && (level === "debug" || level === "info");
 	const shouldLog = isWarnOrError || shouldLogDebugOrInfo;
@@ -178,9 +173,17 @@ function logToConsole(
 		return;
 	}
 	const prefix = `[${PLUGIN_NAME}] ${message}`;
-	const details = extra ? `${prefix} ${JSON.stringify(extra)}` : prefix;
+	let details = prefix;
+	if (extra) {
+		try {
+			details = `${prefix} ${JSON.stringify(extra)}`;
+		} catch {
+			// Fallback to a best-effort representation instead of throwing from logging
+			details = `${prefix} ${String(extra)}`;
+		}
+	}
 	if (level === "error") {
-		console.error(details, error ?? "");
+		console.error(details);
 		return;
 	}
 	if (level === "warn") {

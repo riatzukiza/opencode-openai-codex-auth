@@ -323,7 +323,11 @@ export async function handleErrorResponse(response: Response): Promise<Response>
 	logError(`${response.status} error`, { body: enriched });
 
 	const headers = new Headers(response.headers);
-	headers.set("content-type", "application/json; charset=utf-8");
+	// Only set JSON content-type if we successfully enriched the response
+	// Otherwise preserve the original content-type for non-JSON responses
+	if (enriched !== raw) {
+		headers.set("content-type", "application/json; charset=utf-8");
+	}
 	return new Response(enriched, {
 		status: response.status,
 		statusText: response.statusText,
