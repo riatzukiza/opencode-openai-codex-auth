@@ -11,6 +11,10 @@ opencode.json
 tmp
 .codex-cache
 .nx/
+.obsidian/
 
 .stryker-tmp/
 .worktrees/
+.envrc
+.env
+

@@ -1,18 +1,18 @@
-name: Staging Release Prep
+name: Dev Release Prep
 
 on:
   pull_request:
     types:
       - closed
     branches:
-      - staging
+      - dev
 
 permissions:
   contents: write
   pull-requests: write
 
 concurrency:
-  group: staging-release
+  group: dev-release
 
 jobs:
   prepare:
@@ -22,7 +22,7 @@ jobs:
       OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
       OPENCODE_API_URL: ${{ secrets.OPENCODE_API_URL }}
     steps:
-      - name: Checkout staging
+      - name: Checkout dev
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.ref }}
@@ -125,33 +125,17 @@ jobs:
             git commit -m "$COMMIT_MSG"
           fi
 
-      - name: Create release tag
-        env:
-          NEXT_VERSION: ${{ steps.analyze.outputs.next_version }}
-          RELEASE_NOTES: ${{ steps.analyze.outputs.notes }}
-        run: |
-          if [ -z "$NEXT_VERSION" ]; then
-            echo "Next version is missing from analyzer output" >&2
-            exit 1
-          fi
-          TAG="v$NEXT_VERSION"
-          printf "%s\n" "$RELEASE_NOTES" > release-notes.md
-          git tag -a "$TAG" -F release-notes.md
-          rm -f release-notes.md
-
-      - name: Push release branch and tag
+      - name: Push release branch
         env:
           RELEASE_BRANCH: ${{ steps.branch.outputs.name }}
-          NEXT_VERSION: ${{ steps.analyze.outputs.next_version }}
         run: |
-          if [ -z "$RELEASE_BRANCH" ] || [ -z "$NEXT_VERSION" ]; then
-            echo "Missing release branch or next version" >&2
+          if [ -z "$RELEASE_BRANCH" ]; then
+            echo "Missing release branch" >&2
             exit 1
           fi
           git push origin "$RELEASE_BRANCH"
-          git push origin "v$NEXT_VERSION"
 
-      - name: Open release PR to staging
+      - name: Open release PR to dev
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -190,6 +174,30 @@ jobs:
           echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
           gh api repos/$REPO/pulls/$PR_NUMBER/requested_reviewers -f reviewers[]="coderabbitai"
           gh api graphql -f query='mutation($prId:ID!,$method:PullRequestMergeMethod!){enablePullRequestAutoMerge(input:{pullRequestId:$prId,mergeMethod:$method}){pullRequest{number autoMergeRequest{enabledBy{login}}}}}' -f prId="$PR_NODE_ID" -f method=SQUASH
+
+      - name: Create release tag
+        env:
+          NEXT_VERSION: ${{ steps.analyze.outputs.next_version }}
+          RELEASE_NOTES: ${{ steps.analyze.outputs.notes }}
+        run: |
+          if [ -z "$NEXT_VERSION" ]; then
+            echo "Next version is missing from analyzer output" >&2
+            exit 1
+          fi
+          TAG="v$NEXT_VERSION"
+          printf "%s\n" "$RELEASE_NOTES" > release-notes.md
+          git tag -a "$TAG" -F release-notes.md
+          rm -f release-notes.md
+
+      - name: Push release tag
+        env:
+          NEXT_VERSION: ${{ steps.analyze.outputs.next_version }}
+        run: |
+          if [ -z "$NEXT_VERSION" ]; then
+            echo "Missing next version for tag push" >&2
+            exit 1
+          fi
+          git push origin "v$NEXT_VERSION"
 
       - name: Open hotfix PR to main
         if: steps.labels.outputs.hotfix == 'true'

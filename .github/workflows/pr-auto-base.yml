@@ -20,20 +20,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Retarget PR to staging unless from staging
+      - name: Retarget PR to dev unless from dev
         run: |
           if [ -z "$PR_NUMBER" ]; then
             echo "PR number missing; cannot retarget" >&2
             exit 1
           fi
-          if [ "${GITHUB_BASE_REF}" = "staging" ]; then
-            echo "PR already targets staging."
+          if [ "${GITHUB_BASE_REF}" = "dev" ]; then
+            echo "PR already targets dev."
             exit 0
           fi
           BRANCH="${GITHUB_HEAD_REF}"
-          if [ "$BRANCH" = "staging" ]; then
-            echo "Staging PRs can target main."
+          if [ "$BRANCH" = "dev" ]; then
+            echo "Dev PRs can target main."
             exit 0
           fi
-          echo "Retargeting PR #$PR_NUMBER to staging"
-          gh pr edit "$PR_NUMBER" --base staging --repo "$GITHUB_REPOSITORY"
+          echo "Retargeting PR #$PR_NUMBER to dev"
+          gh pr edit "$PR_NUMBER" --base dev --repo "$GITHUB_REPOSITORY"

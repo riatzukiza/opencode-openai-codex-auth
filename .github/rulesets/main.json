@@ -1,0 +1,71 @@
+{
+  "id": 10223971,
+  "name": "main",
+  "target": "branch",
+  "source_type": "Repository",
+  "source": "open-hax/codex",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "exclude": [], "include": ["refs/heads/main"] } },
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          { "context": "Test (20.x)", "integration_id": 15368 },
+          { "context": "Test (22.x)", "integration_id": 15368 },
+          { "context": "Lint & Typecheck", "integration_id": 15368 },
+          { "context": "CodeRabbit", "integration_id": 347564 }
+        ]
+      }
+    },
+    {
+      "type": "copilot_code_review",
+      "parameters": { "review_on_push": true, "review_draft_pull_requests": true }
+    },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": false,
+        "required_reviewers": [],
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": true,
+        "automatic_copilot_code_review_enabled": true,
+        "allowed_merge_methods": ["merge", "squash", "rebase"]
+      }
+    },
+    { "type": "code_quality", "parameters": { "severity": "errors" } },
+    {
+      "type": "code_scanning",
+      "parameters": {
+        "code_scanning_tools": [
+          {
+            "tool": "CodeQL",
+            "security_alerts_threshold": "high_or_higher",
+            "alerts_threshold": "errors"
+          }
+        ]
+      }
+    },
+    {
+      "type": "copilot_code_review_analysis_tools",
+      "parameters": { "tools": [{ "name": "CodeQL" }, { "name": "ESLint" }] }
+    }
+  ],
+  "node_id": "RRS_lACqUmVwb3NpdG9yec5AmajgzgCcAWM",
+  "created_at": "2025-11-20T12:56:31.538-06:00",
+  "updated_at": "2025-11-20T13:34:49.695-06:00",
+  "bypass_actors": [
+    { "actor_id": null, "actor_type": "OrganizationAdmin", "bypass_mode": "always" }
+  ],
+  "current_user_can_bypass": "always",
+  "_links": {
+    "self": { "href": "https://api.github.com/repos/open-hax/codex/rulesets/10223971" },
+    "html": { "href": "https://github.com/open-hax/codex/rules/10223971" }
+  }
+}

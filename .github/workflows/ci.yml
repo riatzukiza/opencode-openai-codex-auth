@@ -107,7 +107,7 @@ jobs:
       - lint
       - test
     if: >-
-      ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'chore: release v') }}
+      ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (startsWith(github.event.head_commit.message, 'chore: release v') || startsWith(github.event.head_commit.message, 'hotfix: release v')) }}
     permissions:
       contents: write
     env:
