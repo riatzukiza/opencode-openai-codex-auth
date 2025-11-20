@@ -13,6 +13,11 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Retarget PR to staging unless from staging
         run: |
           if [ "${GITHUB_BASE_REF}" = "staging" ]; then

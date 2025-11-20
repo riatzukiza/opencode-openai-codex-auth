@@ -9,24 +9,28 @@ Before submitting contributions, please review these guidelines to ensure all ch
 All contributions MUST:
 
 ✅ **Maintain TOS Compliance**
+
 - Use only official OAuth authentication methods
 - Not facilitate violations of OpenAI's Terms of Service
 - Focus on legitimate personal productivity use cases
 - Include appropriate user warnings and disclaimers
 
 ✅ **Respect OpenAI's Systems**
+
 - No session token scraping or cookie extraction
 - No bypassing of rate limits or authentication controls
 - No reverse-engineering of undocumented APIs
 - Use only officially supported authentication flows
 
 ✅ **Proper Use Cases**
+
 - Personal development and coding assistance
 - Individual productivity enhancements
 - Terminal-based workflows
 - Educational purposes
 
 ❌ **Prohibited Features**
+
 - Commercial resale or multi-user authentication
 - Rate limit circumvention techniques
 - Session token scraping or extraction
@@ -43,13 +47,27 @@ All contributions MUST:
 
 ## Pull Request Process
 
-1. **Fork the repository** and create a feature branch
+1. **Fork the repository** and create a feature branch from `staging`
 2. **Write clear commit messages** explaining the "why" not just "what"
 3. **Include tests** for new functionality
 4. **Update documentation** (README.md, config examples, etc.)
 5. **Ensure compliance** with guidelines above
 6. **Test thoroughly** with actual ChatGPT Plus/Pro account
-7. **Submit PR** with clear description of changes
+7. **Submit PR** to `staging` with clear description of changes
+8. **Address review comments** - AI will automatically help generate fixes
+
+### Release Process
+
+All feature work targets the `staging` branch. When your PR merges to `staging`, it automatically:
+
+- Analyzes changes to determine release type (patch/minor/major)
+- Bumps the version in `package.json`
+- Creates an annotated git tag with release notes
+- Prepares for deployment to `main`
+
+For hotfixes, add the `hotfix` label to your PR before merging to trigger immediate release.
+
+See [Release Process Guide](docs/development/RELEASE_PROCESS.md) for complete details.
 
 ## Reporting Issues
 
@@ -64,6 +82,7 @@ When reporting issues, please:
 ### Issue Template
 
 Please include:
+
 ```
 **Issue Description:**
 [Clear description of the problem]
@@ -94,12 +113,14 @@ Please include:
 ## Feature Requests
 
 We welcome feature requests that:
+
 - Enhance personal productivity
 - Improve developer experience
 - Maintain compliance with OpenAI's terms
 - Align with the project's scope
 
 We will decline features that:
+
 - Violate or circumvent OpenAI's Terms of Service
 - Enable commercial resale or multi-user access
 - Bypass authentication or rate limiting
@@ -110,12 +131,14 @@ We will decline features that:
 ### Our Standards
 
 ✅ **Encouraged:**
+
 - Respectful and constructive communication
 - Focus on legitimate use cases
 - Transparency about limitations and compliance
 - Helping other users with proper usage
 
 ❌ **Not Acceptable:**
+
 - Requesting help with TOS violations
 - Promoting commercial misuse
 - Hostile or disrespectful behavior
@@ -124,6 +147,7 @@ We will decline features that:
 ## Questions?
 
 For questions about:
+
 - **Plugin usage:** Open a GitHub issue
 - **OpenAI's terms:** Contact OpenAI support
 - **Contributing:** Open a discussion thread
