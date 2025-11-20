@@ -16,12 +16,12 @@ const successHtml = fs.readFileSync(path.join(__dirname, "..", "oauth-success.ht
  */
 export function startLocalOAuthServer({ state }: { state: string }): Promise<OAuthServerInfo> {
 	const server = http.createServer((req, res) => {
-		const send = (status: number, message: string, headers?: Record<string, string>) => {
-			if (headers) {
-				res.writeHead(status, headers);
-			} else {
-				res.writeHead(status);
-			}
+		const send = (status: number, message: string, headers?: http.OutgoingHttpHeaders) => {
+			const finalHeaders = {
+				"Content-Type": "text/plain; charset=utf-8",
+				...headers,
+			};
+			res.writeHead(status, finalHeaders);
 			res.end(message);
 		};
 
