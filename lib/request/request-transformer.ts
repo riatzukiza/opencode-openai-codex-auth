@@ -596,6 +596,14 @@ function analyzeBridgeRequirement(
  * @param sessionContext - Optional session context for tracking bridge injection
  * @returns Input array with bridge message prepended if needed
  */
+function buildBridgeMessage(): InputItem {
+	return {
+		type: "message",
+		role: "developer",
+		content: [{ type: "input_text", text: CODEX_OPENCODE_BRIDGE }],
+	};
+}
+
 export function addCodexBridgeMessage(
 	input: InputItem[] | undefined,
 	hasTools: boolean,
@@ -621,16 +629,7 @@ export function addCodexBridgeMessage(
 		logDebug(
 			`Using cached bridge decision: ${cachedDecision.hash === generateContentHash("add") ? "add" : "skip"}`,
 		);
-		return cachedDecision.hash === generateContentHash("add")
-			? [
-					{
-						type: "message",
-						role: "developer",
-						content: [{ type: "input_text", text: CODEX_OPENCODE_BRIDGE }],
-					},
-					...input,
-				]
-			: input;
+		return cachedDecision.hash === generateContentHash("add") ? [buildBridgeMessage(), ...input] : input;
 	}
 
 	// Check if bridge prompt is already in conversation (fallback)
@@ -655,18 +654,7 @@ export function addCodexBridgeMessage(
 		sessionContext.state.bridgeInjected = true;
 	}
 
-	const bridgeMessage: InputItem = {
-		type: "message",
-		role: "developer",
-		content: [
-			{
-				type: "input_text",
-				text: CODEX_OPENCODE_BRIDGE,
-			},
-		],
-	};
-
-	return [bridgeMessage, ...input];
+	return [buildBridgeMessage(), ...input];
 }
 
 /**
@@ -962,7 +950,7 @@ export interface TransformRequestOptions {
 	};
 }
 
-interface TransformResult {
+export interface TransformResult {
 	body: RequestBody;
 	compactionDecision?: CompactionDecision;
 }
