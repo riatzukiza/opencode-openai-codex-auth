@@ -54,18 +54,16 @@
 ```mermaid
 flowchart TD
     A[Feature PR -> dev] -->|merge| B(dev-release-prep.yml)
-    B --> C[Analyze commits\n(next_version, notes, hotfix?)]
+    B --> C[Analyze commits<br/>(next_version, notes, hotfix?)]
     C --> D[Bump version on release/vX.Y.Z branch]
     D --> E[Push release branch]
-    E --> F[Open release PR -> dev\n(auto-merge, CodeRabbit review)]
+    E --> F[Open release PR -> dev<br/>(auto-merge, CodeRabbit review)]
     C -->|hotfix label| G[Open hotfix PR -> main]
     F -->|merge dev PR| H[Squash merge on dev]
     G -->|merge hotfix PR| H2[Squash merge on main]
     E --> J[Create tag vX.Y.Z on release branch]
     J --> K[Push tag vX.Y.Z]
-    H --> I[ci.yml release job
-publishes npm + GitHub Release
-when main commit starts chore|hotfix: release v]
+    H --> I[ci.yml release job publishes npm + GitHub Release when main commit starts chore|hotfix: release v]
     H2 --> I
     K --> I
 ```
