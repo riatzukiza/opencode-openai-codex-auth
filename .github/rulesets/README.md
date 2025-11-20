@@ -9,7 +9,7 @@ GH_TOKEN=<token_with_repo_admin> gh api repos/open-hax/codex/rulesets/10200441 >
 GH_TOKEN=<token_with_repo_admin> gh api repos/open-hax/codex/rulesets/10223971 > .github/rulesets/main.json
 ```
 
-After refreshing, commit changes. CI (`.github/workflows/ruleset-drift.yml`) fetches live rulesets and diffs against these snapshots; it fails on drift. Snapshots are stored in the same compact JSON format returned by `gh api` to avoid whitespace-only diffs.
+After refreshing, commit changes. CI (`.github/workflows/ruleset-drift.yml`) fetches live rulesets, normalizes with `jq -S .`, and diffs against these snapshots; it fails on structural drift.
 
 ## Notes
 

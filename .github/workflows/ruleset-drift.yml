@@ -29,7 +29,15 @@ jobs:
           gh api repos/${{ github.repository }}/rulesets/10200441 > /tmp/rulesets/release.json
           gh api repos/${{ github.repository }}/rulesets/10223971 > /tmp/rulesets/main.json
 
+      - name: Normalize JSON
+        run: |
+          mkdir -p /tmp/rulesets/normalized
+          jq -S . .github/rulesets/release.json > /tmp/rulesets/normalized/release.json
+          jq -S . /tmp/rulesets/release.json > /tmp/rulesets/normalized/release.live.json
+          jq -S . .github/rulesets/main.json > /tmp/rulesets/normalized/main.json
+          jq -S . /tmp/rulesets/main.json > /tmp/rulesets/normalized/main.live.json
+
       - name: Compare snapshots
         run: |
-          diff -u .github/rulesets/release.json /tmp/rulesets/release.json
-          diff -u .github/rulesets/main.json /tmp/rulesets/main.json
+          diff -u /tmp/rulesets/normalized/release.json /tmp/rulesets/normalized/release.live.json
+          diff -u /tmp/rulesets/normalized/main.json /tmp/rulesets/normalized/main.live.json
