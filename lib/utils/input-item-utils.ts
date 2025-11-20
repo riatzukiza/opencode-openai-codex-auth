@@ -50,7 +50,9 @@ export function formatRole(role: string): string {
 		"function_call",
 		"function_call_output",
 	];
-	return validRoles.includes(role) ? role : "";
+	const normalized = (role ?? "").trim();
+	if (!normalized) return "";
+	return validRoles.includes(normalized) ? normalized : normalized;
 }
 
 /**

@@ -74,7 +74,8 @@ export function logRequest(stage: string, data: Record<string, unknown>): void {
 		stage,
 		...data,
 	};
-	const filePath = persistRequestStage(stage, payload);
+	const shouldPersist = LOGGING_ENABLED || DEBUG_ENABLED;
+	const filePath = shouldPersist ? persistRequestStage(stage, payload) : undefined;
 	const extra: Record<string, unknown> = {
 		stage,
 		requestId: payload.requestId,
@@ -117,7 +118,10 @@ function emit(level: LogLevel, message: string, extra?: Record<string, unknown>)
 		message,
 		extra: sanitizedExtra,
 	};
-	appendRollingLog(entry);
+
+	if (LOGGING_ENABLED || DEBUG_ENABLED) {
+		appendRollingLog(entry);
+	}
 
 	if (loggerClient?.app) {
 		void loggerClient.app
