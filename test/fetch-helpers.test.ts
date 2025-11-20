@@ -318,7 +318,7 @@ describe("Fetch Helpers Module", () => {
 			expect(optionsArg?.compaction?.originalInput?.[0].content).toBe("hello");
 
 			expect(result?.body).toEqual(transformed);
-			// Note: updatedInit.body is serialized once and won't reflect later mutations to original body
+			// Note: updatedInit.body is serialized once from transformResult.body and won't reflect later mutations to transformResult.body
 			expect(result?.updatedInit.body).toBe(JSON.stringify(transformed));
 		});
 

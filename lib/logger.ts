@@ -8,7 +8,6 @@ export const LOGGING_ENABLED = process.env.ENABLE_PLUGIN_REQUEST_LOGGING === "1"
 const DEBUG_FLAG_ENABLED = process.env.DEBUG_CODEX_PLUGIN === "1";
 const DEBUG_ENABLED = DEBUG_FLAG_ENABLED || LOGGING_ENABLED;
 const IS_TEST_ENV = process.env.NODE_ENV === "test";
-const SKIP_IO = IS_TEST_ENV;
 const CONSOLE_LOGGING_ENABLED = DEBUG_FLAG_ENABLED && !IS_TEST_ENV;
 const LOG_DIR = getOpenCodePath("logs", "codex-plugin");
 const ROLLING_LOG_FILE = join(LOG_DIR, "codex-plugin.log");
@@ -169,7 +168,7 @@ function logToConsole(
 	error?: unknown,
 ): void {
 	const isWarnOrError = level === "warn" || level === "error";
-	const shouldLogDebugOrInfo = CONSOLE_LOGGING_ENABLED || (!IS_TEST_ENV && level === "info");
+	const shouldLogDebugOrInfo = CONSOLE_LOGGING_ENABLED && (level === "debug" || level === "info");
 	const shouldLog = isWarnOrError || shouldLogDebugOrInfo;
 	if (!shouldLog) {
 		return;
