@@ -1,0 +1,35 @@
+name: Ruleset Drift Check
+
+on:
+  pull_request:
+    branches:
+      - staging
+      - main
+  push:
+    branches:
+      - staging
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ruleset-drift:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Fetch live rulesets
+        run: |
+          mkdir -p /tmp/rulesets
+          gh api repos/${{ github.repository }}/rulesets/10200441 > /tmp/rulesets/release.json
+          gh api repos/${{ github.repository }}/rulesets/10223971 > /tmp/rulesets/main.json
+
+      - name: Compare snapshots
+        run: |
+          diff -u .github/rulesets/release.json /tmp/rulesets/release.json
+          diff -u .github/rulesets/main.json /tmp/rulesets/main.json

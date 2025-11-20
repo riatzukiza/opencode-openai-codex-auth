@@ -34,3 +34,16 @@
 ## Change Log
 
 - 2025-11-20: Reordered staging release workflow to push the release branch and open the PR before tagging/pushing the tag; widened `ci.yml` release guard to allow `hotfix: release v` commits on `main`.
+
+## Ruleset Review (2025-11-20)
+
+- `release` ruleset (ID 10200441): applies to default branch (`refs/heads/staging`), enforces non-FF, deletion block, strict required checks (Lint & Typecheck, Test 20.x/22.x, CodeRabbit), Copilot review on push, CodeQL/code-quality gates.
+- `main` ruleset (ID 10223971): applies to `refs/heads/main`, similar required checks but `strict_required_status_checks_policy` is false; allows merge/squash/rebase.
+- Snapshots added to `.github/rulesets/{release.json,main.json}` with a README on how to refresh via `gh api`.
+
+### Implications
+
+- Staging release PRs must satisfy strict required checks; auto-merge should succeed once CodeRabbit + CI pass.
+- Hotfix PRs into `main` rely on the `main` ruleset; strict status enforcement is off, so merging without all statuses passing remains possible unless GitHub auto-merge requires them. If we want parity, consider enabling strict required checks or folding `main` into the `release` ruleset targets.
+- If we move to tag-triggered releases, ensure tags are created from the merged commit that satisfied the applicable ruleset (staging or main) to keep enforcement consistent with published artifacts.
+- If we rename `staging` to `dev`, update the default branch and adjust workflows + `release` ruleset include target, then refresh snapshots.
