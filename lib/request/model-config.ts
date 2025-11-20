@@ -4,7 +4,10 @@ export function normalizeModel(model: string | undefined): string {
 	const fallback = "gpt-5.1";
 	if (!model) return fallback;
 
-	const lowered = model.toLowerCase();
+	const trimmed = model.trim();
+	if (!trimmed) return fallback;
+
+	const lowered = trimmed.toLowerCase();
 	const sanitized = lowered.replace(/\./g, "-").replace(/[\s_/]+/g, "-");
 
 	const contains = (needle: string) => sanitized.includes(needle);
@@ -36,7 +39,7 @@ export function normalizeModel(model: string | undefined): string {
 		return "gpt-5";
 	}
 
-	return fallback;
+	return sanitized;
 }
 
 export function getModelConfig(

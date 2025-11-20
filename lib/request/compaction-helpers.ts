@@ -6,6 +6,7 @@ import {
 	serializeConversation,
 } from "../compaction/codex-compaction.js";
 import type { CompactionDecision } from "../compaction/compaction-executor.js";
+import { filterInput } from "./input-filters.js";
 import type { InputItem, RequestBody } from "../types.js";
 import { cloneInputItems } from "../utils/clone.js";
 import { countConversationTurns } from "../utils/input-item-utils.js";
@@ -20,6 +21,7 @@ export interface CompactionOptions {
 	settings: CompactionSettings;
 	commandText: string | null;
 	originalInput: InputItem[];
+	preserveIds?: boolean;
 }
 
 function removeLastUserMessage(items: InputItem[]): InputItem[] {
@@ -97,7 +99,8 @@ export function applyCompactionIfNeeded(
 		return undefined;
 	}
 
-	body.input = compactionBuild.items;
+	const preserveIds = compactionOptions.preserveIds ?? false;
+	body.input = filterInput(compactionBuild.items, { preserveIds });
 	delete (body as any).tools;
 	delete (body as any).tool_choice;
 	delete (body as any).parallel_tool_calls;

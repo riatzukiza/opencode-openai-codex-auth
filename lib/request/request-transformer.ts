@@ -23,7 +23,11 @@ export {
 export { getModelConfig, getReasoningConfig, normalizeModel } from "./model-config.js";
 
 export interface TransformRequestOptions {
+	/**
+	 * Preserve message IDs across transforms. Applied to normal flows and enforced after compaction builds.
+	 */
 	preserveIds?: boolean;
+	/** Compaction settings and original input context used when building compaction prompts. */
 	compaction?: CompactionOptions;
 }
 
@@ -83,7 +87,10 @@ export async function transformRequestBody(
 	const normalizedModel = normalizeModel(body.model);
 	const preserveIds = options.preserveIds ?? false;
 
-	const compactionDecision = applyCompactionIfNeeded(body, options.compaction);
+	const compactionDecision = applyCompactionIfNeeded(
+		body,
+		options.compaction && { ...options.compaction, preserveIds },
+	);
 	const skipConversationTransforms = Boolean(compactionDecision);
 
 	const lookupModel = originalModel || normalizedModel;
