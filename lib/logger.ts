@@ -23,22 +23,18 @@ type LoggerOptions = {
 	directory?: string;
 };
 
-type OpencodeApp = {
-	notify?: (args: { title: string; body: string; level: string; extra?: Record<string, unknown> }) => void;
-	toast?: (args: { title: string; body: string; level: string; extra?: Record<string, unknown> }) => void;
+type OpencodeClientWithTui = OpencodeClient & {
+	tui?: {
+		showToast?: (args: { message: string; variant?: "success" | "error" | "warning" | "info" }) => void;
+	};
 };
 
-type OpencodeClientWithApp = OpencodeClient & {
-	app?: OpencodeApp;
-};
-
-function isOpencodeClientWithApp(client: unknown): client is OpencodeClientWithApp {
+function hasTuiShowToast(client: OpencodeClient): client is OpencodeClientWithTui {
 	return (
-		typeof client === "object" &&
-		client !== null &&
-		"app" in client &&
-		typeof (client as any).app === "object" &&
-		(client as any).app !== null
+		"tui" in client &&
+		typeof client.tui === "object" &&
+		client.tui !== null &&
+		typeof client.tui?.showToast === "function"
 	);
 }
 
@@ -142,7 +138,7 @@ function emit(level: LogLevel, message: string, extra?: Record<string, unknown>)
 		appendRollingLog(entry);
 	}
 
-	if (isOpencodeClientWithApp(loggerClient) && loggerClient.app) {
+	if (loggerClient?.app?.log) {
 		void loggerClient.app
 			.log({
 				body: entry,
@@ -175,24 +171,18 @@ function emit(level: LogLevel, message: string, extra?: Record<string, unknown>)
  * @param extra - Optional metadata to include with the notification payload.
  */
 function notifyToast(level: LogLevel, message: string, extra?: Record<string, unknown>): void {
-	if (!isOpencodeClientWithApp(loggerClient) || !loggerClient.app) return;
-	const app = loggerClient.app;
+	if (!loggerClient?.tui?.showToast) return;
 
-	const payload = {
-		title: level === "error" ? `${PLUGIN_NAME} error` : `${PLUGIN_NAME} warning`,
-		body: message,
-		level,
-		extra,
-	};
-	// For Opencode SDK compatibility, also allow notify({ title, body, level }) shape
-
-	const notify = typeof app.notify === "function" ? app.notify.bind(app) : undefined;
-	const toast = typeof app.toast === "function" ? app.toast.bind(app) : undefined;
-	const send = notify ?? toast;
-	if (!send) return;
+	const variant = level === "error" ? "error" : "warning";
 
 	try {
-		void send(payload);
+		void loggerClient.tui.showToast({
+			body: {
+				title: level === "error" ? `${PLUGIN_NAME} error` : `${PLUGIN_NAME} warning`,
+				message: `${PLUGIN_NAME}: ${message}`,
+				variant,
+			},
+		});
 	} catch (err: unknown) {
 		logToConsole("warn", "Failed to send plugin toast", { error: toErrorMessage(err) });
 	}
