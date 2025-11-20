@@ -13,6 +13,7 @@ jobs:
       pull-requests: write
     env:
       OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+      GH_TOKEN: ${{ secrets.PR_AUTOMATION_TOKEN }}
     steps:
       - name: Checkout PR head
         uses: actions/checkout@v4
@@ -20,11 +21,19 @@ jobs:
           fetch-depth: 0
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ env.GH_TOKEN }}
 
       - name: Verify OpenCode secret
         run: |
           if [ -z "$OPENCODE_API_KEY" ]; then
             echo "OPENCODE_API_KEY secret is required" >&2
+            exit 1
+          fi
+
+      - name: Validate PR automation token
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "PR_AUTOMATION_TOKEN is required to open PRs; org policy blocks GITHUB_TOKEN" >&2
             exit 1
           fi
 
@@ -53,7 +62,7 @@ jobs:
 
       - name: Run review-response agent
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ env.GH_TOKEN }}
         run: |
           opencode run \
             --agent review-response \
@@ -73,7 +82,7 @@ jobs:
       - name: Commit and push
         if: steps.diff.outputs.has_changes == 'true'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ env.GH_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -84,7 +93,7 @@ jobs:
       - name: Open pull request
         if: steps.diff.outputs.has_changes == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ env.GH_TOKEN }}
         run: |
           comment_url="${{ steps.context.outputs.comment_url }}"
           reviewer="${{ steps.context.outputs.reviewer }}"

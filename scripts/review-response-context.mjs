@@ -36,10 +36,10 @@ function main() {
 
 	const filePath = comment.path;
 	const reviewer = comment.user?.login ?? "unknown";
-	const branchSlug = `review/comment-${comment.id}`;
+	const baseRef = pr.base?.ref ?? "main";
+	const branchSlug = `review/${baseRef}-${comment.id}`;
 	const prNumber = pr.number;
 	const prTitle = pr.title ?? "";
-	const baseRef = pr.base?.ref ?? "main";
 	const baseSha = pr.base?.sha ?? "";
 	const headRef = pr.head?.ref ?? "";
 	const headSha = pr.head?.sha ?? "";
