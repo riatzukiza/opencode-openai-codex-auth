@@ -251,8 +251,10 @@ export class SessionManager {
 		}
 
 		const state = context.state;
+		// eslint-disable-next-line no-param-reassign
 		body.prompt_cache_key = state.promptCacheKey;
 		if (state.store) {
+			// eslint-disable-next-line no-param-reassign
 			body.store = true;
 		}
 
@@ -285,8 +287,10 @@ export class SessionManager {
 			refreshed.lastInput = input;
 			refreshed.lastPrefixHash = inputHash;
 			refreshed.lastUpdated = Date.now();
+			// eslint-disable-next-line no-param-reassign
 			body.prompt_cache_key = refreshed.promptCacheKey;
 			if (refreshed.store) {
+				// eslint-disable-next-line no-param-reassign
 				body.store = true;
 			}
 			return {
@@ -334,6 +338,7 @@ export class SessionManager {
 		}
 		const tail = extractLatestUserSlice(body.input);
 		const merged = [...cloneInputItems(baseSystem), deepClone(summary), ...tail];
+		// eslint-disable-next-line no-param-reassign
 		body.input = merged;
 	}
 

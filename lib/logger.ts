@@ -10,7 +10,6 @@ const DEBUG_ENABLED = DEBUG_FLAG_ENABLED || LOGGING_ENABLED;
 const CONSOLE_LOGGING_ENABLED = DEBUG_FLAG_ENABLED;
 const LOG_DIR = getOpenCodePath("logs", "codex-plugin");
 const ROLLING_LOG_FILE = join(LOG_DIR, "codex-plugin.log");
-const IS_TEST_ENV = process.env.VITEST === "1" || process.env.NODE_ENV === "test";
 
 const LOG_ROTATION_MAX_BYTES = Math.max(1, getEnvNumber("CODEX_LOG_MAX_BYTES", 5 * 1024 * 1024));
 const LOG_ROTATION_MAX_FILES = Math.max(1, getEnvNumber("CODEX_LOG_MAX_FILES", 5));

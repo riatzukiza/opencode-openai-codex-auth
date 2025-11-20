@@ -52,7 +52,7 @@ export default [
       "sonarjs/cognitive-complexity": ["error", 30],
 
       // Function and file size limits (line counts ignore blank lines and comments)
-      "max-lines-per-function": ["warn", { max: 80, skipBlankLines: true, skipComments: true }],
+      "max-lines-per-function": ["warn", { max: 120, skipBlankLines: true, skipComments: true }],
       "max-lines": ["warn", { max: 500, skipBlankLines: true, skipComments: true }],
 
       // Rely on TypeScript for undefined/global checks

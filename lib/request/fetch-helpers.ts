@@ -17,7 +17,7 @@ import {
 } from "../constants.js";
 import { logError, logRequest } from "../logger.js";
 import type { SessionManager } from "../session/session-manager.js";
-import type { InputItem, PluginConfig, RequestBody, SessionContext, UserConfig } from "../types.js";
+import type { PluginConfig, RequestBody, SessionContext, UserConfig } from "../types.js";
 import { cloneInputItems } from "../utils/clone.js";
 import { transformRequestBody } from "./request-transformer.js";
 import { convertSseToJson, ensureContentType } from "./response-handler.js";
@@ -66,13 +66,17 @@ export async function refreshAndUpdateToken(
 	});
 
 	// Update current auth reference if it's OAuth type
-	if (currentAuth.type === "oauth") {
-		currentAuth.access = refreshResult.access;
-		currentAuth.refresh = refreshResult.refresh;
-		currentAuth.expires = refreshResult.expires;
-	}
+	const updatedAuth =
+		currentAuth.type === "oauth"
+			? {
+					...currentAuth,
+					access: refreshResult.access,
+					refresh: refreshResult.refresh,
+					expires: refreshResult.expires,
+				}
+			: currentAuth;
 
-	return { success: true, auth: currentAuth };
+	return { success: true, auth: updatedAuth };
 }
 
 /**

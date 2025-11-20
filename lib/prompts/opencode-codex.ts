@@ -30,7 +30,7 @@ interface OpenCodeCacheMeta {
  * Check if legacy cache files exist and migrate them
  * @param cacheDir - Cache directory path
  */
-async function migrateLegacyCache(cacheDir: string): Promise<void> {
+async function migrateLegacyCache(): Promise<void> {
 	const legacyCachePath = getOpenCodePath("cache", LEGACY_CACHE_FILES.OPENCODE_CODEX);
 	const legacyMetaPath = getOpenCodePath("cache", LEGACY_CACHE_FILES.OPENCODE_CODEX_META);
 
@@ -108,7 +108,7 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 	recordCacheMiss("opencodePrompt");
 
 	// Check for and migrate legacy cache files only when session cache misses
-	await migrateLegacyCache(cacheDir);
+	await migrateLegacyCache();
 
 	// Try to load cached content and metadata
 	let cachedContent: string | null = null;
@@ -167,7 +167,10 @@ export async function getOpenCodeCodexPrompt(): Promise<string> {
 				};
 				await writeFile(cacheMetaPath, JSON.stringify(updatedMeta, null, 2), "utf-8");
 
-				openCodePromptCache.set("main", { data: cachedContent, etag: updatedMeta.etag || undefined });
+				openCodePromptCache.set("main", {
+					data: cachedContent,
+					etag: updatedMeta.etag || undefined,
+				});
 				return cachedContent;
 			}
 

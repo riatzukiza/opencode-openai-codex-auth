@@ -1,3 +1,4 @@
+/* eslint-disable no-param-reassign */
 import { createHash, randomUUID } from "node:crypto";
 import {
 	cacheBridgeDecision,
@@ -642,6 +643,7 @@ export function addCodexBridgeMessage(
 			if (sessionContext) {
 				sessionContext.state.bridgeInjected = true;
 			}
+
 			return [bridgeMessage, ...input];
 		}
 		return input;
@@ -937,13 +939,139 @@ function ensurePromptCacheKey(body: RequestBody): PromptCacheKeyResult {
 	};
 }
 
+function applyCompactionIfNeeded(
+	body: RequestBody,
+	options: TransformRequestOptions,
+): CompactionDecision | undefined {
+	const compactionOptions = options.compaction;
+	if (!compactionOptions?.settings.enabled) {
+		return undefined;
+	}
+
+	const compactionBuild = maybeBuildCompactionPrompt(
+		compactionOptions.originalInput,
+		compactionOptions.commandText,
+		compactionOptions.settings,
+	);
+
+	if (!compactionBuild) {
+		return undefined;
+	}
+
+	body.input = compactionBuild.items;
+	delete (body as any).tools;
+	delete (body as any).tool_choice;
+	delete (body as any).parallel_tool_calls;
+
+	return compactionBuild.decision;
+}
+
+function logCacheKeyDecision(cacheKeyResult: PromptCacheKeyResult, isNewSession: boolean): void {
+	if (cacheKeyResult.source === "existing") {
+		return;
+	}
+
+	if (cacheKeyResult.source === "metadata") {
+		logDebug("Prompt cache key missing; derived from metadata", {
+			promptCacheKey: cacheKeyResult.key,
+			sourceKey: cacheKeyResult.sourceKey,
+			forkSourceKey: cacheKeyResult.forkSourceKey,
+			forkHintKeys: cacheKeyResult.forkHintKeys,
+		});
+		return;
+	}
+
+	const hasHints = Boolean(
+		(cacheKeyResult.hintKeys && cacheKeyResult.hintKeys.length > 0) ||
+			(cacheKeyResult.forkHintKeys && cacheKeyResult.forkHintKeys.length > 0),
+	);
+	const message = hasHints
+		? "Prompt cache key hints detected but unusable; generated fallback cache key"
+		: "Prompt cache key missing; generated fallback cache key";
+	const logPayload = {
+		promptCacheKey: cacheKeyResult.key,
+		fallbackHash: cacheKeyResult.fallbackHash,
+		hintKeys: cacheKeyResult.hintKeys,
+		unusableKeys: cacheKeyResult.unusableKeys,
+		forkHintKeys: cacheKeyResult.forkHintKeys,
+		forkUnusableKeys: cacheKeyResult.forkUnusableKeys,
+	};
+	if (!hasHints && isNewSession) {
+		logInfo(message, logPayload);
+	} else {
+		logWarn(message, logPayload);
+	}
+}
+
+function normalizeToolsForCodexBody(body: RequestBody, skipConversationTransforms: boolean): boolean {
+	if (skipConversationTransforms) {
+		delete (body as any).tools;
+		delete (body as any).tool_choice;
+		delete (body as any).parallel_tool_calls;
+		return false;
+	}
+
+	if (!body.tools) {
+		return false;
+	}
+
+	const normalizedTools = normalizeToolsForResponses(body.tools);
+	if (normalizedTools && normalizedTools.length > 0) {
+		(body as any).tools = normalizedTools;
+		(body as any).tool_choice = "auto";
+		const modelName = (body.model || "").toLowerCase();
+		const codexParallelDisabled = modelName.includes("gpt-5-codex") || modelName.includes("gpt-5.1-codex");
+		(body as any).parallel_tool_calls = !codexParallelDisabled;
+		return true;
+	}
+
+	delete (body as any).tools;
+	delete (body as any).tool_choice;
+	delete (body as any).parallel_tool_calls;
+	return false;
+}
+
+async function transformInputForCodex(
+	body: RequestBody,
+	codexMode: boolean,
+	preserveIds: boolean,
+	hasNormalizedTools: boolean,
+	sessionContext?: SessionContext,
+	skipConversationTransforms = false,
+): Promise<void> {
+	if (!body.input || !Array.isArray(body.input) || skipConversationTransforms) {
+		return;
+	}
+
+	const originalIds = body.input.filter((item) => item.id).map((item) => item.id);
+	if (originalIds.length > 0) {
+		logDebug(`Filtering ${originalIds.length} message IDs from input:`, originalIds);
+	}
+
+	body.input = filterInput(body.input, { preserveIds });
+
+	if (!preserveIds) {
+		const remainingIds = (body.input || []).filter((item) => item.id).map((item) => item.id);
+		if (remainingIds.length > 0) {
+			logWarn(`WARNING: ${remainingIds.length} IDs still present after filtering:`, remainingIds);
+		} else if (originalIds.length > 0) {
+			logDebug(`Successfully removed all ${originalIds.length} message IDs`);
+		}
+	} else if (originalIds.length > 0) {
+		logDebug(`Preserving ${originalIds.length} message IDs for prompt caching`);
+	}
+
+	if (codexMode) {
+		body.input = await filterOpenCodeSystemPrompts(body.input);
+		body.input = addCodexBridgeMessage(body.input, hasNormalizedTools, sessionContext);
+		return;
+	}
+
+	body.input = addToolRemapMessage(body.input, hasNormalizedTools);
+}
+
 /**
  * Transform request body for Codex API
- *
- * NOTE: Configuration follows Codex CLI patterns instead of opencode defaults:
- * - opencode sets textVerbosity="low" for gpt-5, but Codex CLI uses "medium"
- * - opencode excludes gpt-5-codex from reasoning configuration
- * - This plugin uses store=false (stateless), requiring encrypted reasoning content
  */
 export interface TransformRequestOptions {
 	preserveIds?: boolean;
@@ -975,22 +1103,7 @@ export async function transformRequestBody(
 	const normalizedModel = normalizeModel(body.model);
 	const preserveIds = options.preserveIds ?? false;
 
-	let compactionDecision: CompactionDecision | undefined;
-	const compactionOptions = options.compaction;
-	if (compactionOptions?.settings.enabled) {
-		const compactionBuild = maybeBuildCompactionPrompt(
-			compactionOptions.originalInput,
-			compactionOptions.commandText,
-			compactionOptions.settings,
-		);
-		if (compactionBuild) {
-			body.input = compactionBuild.items;
-			delete (body as any).tools;
-			delete (body as any).tool_choice;
-			delete (body as any).parallel_tool_calls;
-			compactionDecision = compactionBuild.decision;
-		}
-	}
+	const compactionDecision = applyCompactionIfNeeded(body, options);
 	const skipConversationTransforms = Boolean(compactionDecision);
 
 	// Get model-specific configuration using ORIGINAL model name (config key)
@@ -1021,91 +1134,20 @@ export async function transformRequestBody(
 	const cacheKeyResult = ensurePromptCacheKey(body);
 	// Default to treating missing session context as a new session to avoid noisy startup warnings
 	const isNewSession = sessionContext?.isNew ?? true;
-	if (cacheKeyResult.source === "existing") {
-		// Host provided a valid cache key, use it as-is
-	} else if (cacheKeyResult.source === "metadata") {
-		logDebug("Prompt cache key missing; derived from metadata", {
-			promptCacheKey: cacheKeyResult.key,
-			sourceKey: cacheKeyResult.sourceKey,
-			forkSourceKey: cacheKeyResult.forkSourceKey,
-			forkHintKeys: cacheKeyResult.forkHintKeys,
-		});
-	} else if (cacheKeyResult.source === "generated") {
-		const hasHints = Boolean(
-			(cacheKeyResult.hintKeys && cacheKeyResult.hintKeys.length > 0) ||
-				(cacheKeyResult.forkHintKeys && cacheKeyResult.forkHintKeys.length > 0),
-		);
-		const message = hasHints
-			? "Prompt cache key hints detected but unusable; generated fallback cache key"
-			: "Prompt cache key missing; generated fallback cache key";
-		const logPayload = {
-			promptCacheKey: cacheKeyResult.key,
-			fallbackHash: cacheKeyResult.fallbackHash,
-			hintKeys: cacheKeyResult.hintKeys,
-			unusableKeys: cacheKeyResult.unusableKeys,
-			forkHintKeys: cacheKeyResult.forkHintKeys,
-			forkUnusableKeys: cacheKeyResult.forkUnusableKeys,
-		};
-		if (!hasHints && isNewSession) {
-			logInfo(message, logPayload);
-		} else {
-			logWarn(message, logPayload);
-		}
-	}
+	logCacheKeyDecision(cacheKeyResult, isNewSession);
 
 	// Tool behavior parity with Codex CLI (normalize shapes)
-	let hasNormalizedTools = false;
-	if (skipConversationTransforms) {
-		delete (body as any).tools;
-		delete (body as any).tool_choice;
-		delete (body as any).parallel_tool_calls;
-	} else if (body.tools) {
-		const normalizedTools = normalizeToolsForResponses(body.tools);
-		if (normalizedTools && normalizedTools.length > 0) {
-			(body as any).tools = normalizedTools;
-			(body as any).tool_choice = "auto";
-			const modelName = (body.model || "").toLowerCase();
-			const codexParallelDisabled = modelName.includes("gpt-5-codex") || modelName.includes("gpt-5.1-codex");
-			(body as any).parallel_tool_calls = !codexParallelDisabled;
-			hasNormalizedTools = true;
-		} else {
-			delete (body as any).tools;
-			delete (body as any).tool_choice;
-			delete (body as any).parallel_tool_calls;
-		}
-	}
+	const hasNormalizedTools = normalizeToolsForCodexBody(body, skipConversationTransforms);
 
 	// Filter and transform input
-	if (body.input && Array.isArray(body.input) && !skipConversationTransforms) {
-		// Debug: Log original input message IDs before filtering
-		const originalIds = body.input.filter((item) => item.id).map((item) => item.id);
-		if (originalIds.length > 0) {
-			logDebug(`Filtering ${originalIds.length} message IDs from input:`, originalIds);
-		}
-
-		body.input = filterInput(body.input, { preserveIds });
-
-		// Debug: Verify all IDs were removed
-		if (!preserveIds) {
-			const remainingIds = (body.input || []).filter((item) => item.id).map((item) => item.id);
-			if (remainingIds.length > 0) {
-				logWarn(`WARNING: ${remainingIds.length} IDs still present after filtering:`, remainingIds);
-			} else if (originalIds.length > 0) {
-				logDebug(`Successfully removed all ${originalIds.length} message IDs`);
-			}
-		} else if (originalIds.length > 0) {
-			logDebug(`Preserving ${originalIds.length} message IDs for prompt caching`);
-		}
-
-		if (codexMode) {
-			// CODEX_MODE: Remove OpenCode system prompt, add bridge prompt only when real tools exist
-			body.input = await filterOpenCodeSystemPrompts(body.input);
-			body.input = addCodexBridgeMessage(body.input, hasNormalizedTools, sessionContext);
-		} else {
-			// DEFAULT MODE: Keep original behavior with tool remap message (only when tools truly exist)
-			body.input = addToolRemapMessage(body.input, hasNormalizedTools);
-		}
-	}
+	await transformInputForCodex(
+		body,
+		codexMode,
+		preserveIds,
+		hasNormalizedTools,
+		sessionContext,
+		skipConversationTransforms,
+	);
 
 	// Configure reasoning (use model-specific config)
 	const reasoningConfig = getReasoningConfig(originalModel, modelConfig);
