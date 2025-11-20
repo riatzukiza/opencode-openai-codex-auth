@@ -135,9 +135,18 @@ jobs:
           fi
           git push origin "$RELEASE_BRANCH"
 
+      - name: Validate PR token
+        env:
+          PR_TOKEN: ${{ secrets.PR_AUTOMATION_TOKEN }}
+        run: |
+          if [ -z "$PR_TOKEN" ]; then
+            echo "PR_AUTOMATION_TOKEN is required to open PRs; org policy blocks GITHUB_TOKEN" >&2
+            exit 1
+          fi
+
       - name: Open release PR to dev
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PR_AUTOMATION_TOKEN }}
           REPO: ${{ github.repository }}
           RELEASE_BRANCH: ${{ steps.branch.outputs.name }}
           NEXT_VERSION: ${{ steps.analyze.outputs.next_version }}
@@ -202,7 +211,7 @@ jobs:
       - name: Open hotfix PR to main
         if: steps.labels.outputs.hotfix == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PR_AUTOMATION_TOKEN }}
           REPO: ${{ github.repository }}
           RELEASE_BRANCH: ${{ steps.branch.outputs.name }}
           NEXT_VERSION: ${{ steps.analyze.outputs.next_version }}
