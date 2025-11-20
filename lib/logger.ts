@@ -23,6 +23,25 @@ type LoggerOptions = {
 	directory?: string;
 };
 
+type OpencodeApp = {
+	notify?: (args: { title: string; body: string; level: string; extra?: Record<string, unknown> }) => void;
+	toast?: (args: { title: string; body: string; level: string; extra?: Record<string, unknown> }) => void;
+};
+
+type OpencodeClientWithApp = OpencodeClient & {
+	app?: OpencodeApp;
+};
+
+function isOpencodeClientWithApp(client: unknown): client is OpencodeClientWithApp {
+	return (
+		typeof client === "object" &&
+		client !== null &&
+		"app" in client &&
+		typeof (client as any).app === "object" &&
+		(client as any).app !== null
+	);
+}
+
 type RollingLogEntry = {
 	timestamp: string;
 	service: string;
@@ -123,7 +142,7 @@ function emit(level: LogLevel, message: string, extra?: Record<string, unknown>)
 		appendRollingLog(entry);
 	}
 
-	if (loggerClient?.app) {
+	if (isOpencodeClientWithApp(loggerClient) && loggerClient.app) {
 		void loggerClient.app
 			.log({
 				body: entry,
@@ -156,8 +175,8 @@ function emit(level: LogLevel, message: string, extra?: Record<string, unknown>)
  * @param extra - Optional metadata to include with the notification payload.
  */
 function notifyToast(level: LogLevel, message: string, extra?: Record<string, unknown>): void {
-	const app = (loggerClient as any)?.app;
-	if (!app) return;
+	if (!isOpencodeClientWithApp(loggerClient) || !loggerClient.app) return;
+	const app = loggerClient.app;
 
 	const payload = {
 		title: level === "error" ? `${PLUGIN_NAME} error` : `${PLUGIN_NAME} warning`,
@@ -172,9 +191,11 @@ function notifyToast(level: LogLevel, message: string, extra?: Record<string, un
 	const send = notify ?? toast;
 	if (!send) return;
 
-	void send(payload).catch((err: unknown) => {
+	try {
+		void send(payload);
+	} catch (err: unknown) {
 		logToConsole("warn", "Failed to send plugin toast", { error: toErrorMessage(err) });
-	});
+	}
 }
 
 /**
