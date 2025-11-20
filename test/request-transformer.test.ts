@@ -10,6 +10,7 @@ import {
 	addCodexBridgeMessage,
 	transformRequestBody as transformRequestBodyInternal,
 } from "../lib/request/request-transformer.js";
+import { CODEX_OPENCODE_BRIDGE } from "../lib/prompts/codex-opencode-bridge.js";
 import * as logger from "../lib/logger.js";
 import { SessionManager } from "../lib/session/session-manager.js";
 import type { RequestBody, SessionContext, UserConfig, InputItem } from "../lib/types.js";
@@ -683,6 +684,38 @@ describe("addCodexBridgeMessage", () => {
 		expect(result).toHaveLength(2);
 		expect(result?.[0].role).toBe("developer");
 		expect(result?.[1].role).toBe("user");
+		expect(sessionContext.state.bridgeInjected).toBe(true);
+	});
+
+	it("avoids duplicating bridge when already present in session", async () => {
+		const input: InputItem[] = [
+			{
+				type: "message",
+				role: "developer",
+				content: [{ type: "input_text", text: CODEX_OPENCODE_BRIDGE }],
+			},
+			{ type: "message", role: "user", content: "hello" },
+		];
+		const sessionContext: SessionContext = {
+			sessionId: "ses_bridge",
+			enabled: true,
+			preserveIds: true,
+			isNew: false,
+			state: {
+				id: "ses_bridge",
+				promptCacheKey: "ses_bridge",
+				store: false,
+				lastInput: [],
+				lastPrefixHash: null,
+				lastUpdated: Date.now(),
+				bridgeInjected: true,
+			},
+		};
+
+		const result = addCodexBridgeMessage(input, true, sessionContext);
+
+		expect(result).toEqual(input);
+		expect(result?.[0]).toEqual(input[0]);
 		expect(sessionContext.state.bridgeInjected).toBe(true);
 	});
 
