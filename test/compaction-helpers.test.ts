@@ -20,9 +20,16 @@ describe("compaction helpers", () => {
 		expect(decision?.serialization.transcript).toContain("previous response");
 		expect(decision?.serialization.transcript).toContain("trailing assistant");
 		expect(decision?.serialization.transcript).not.toContain("codex-compact please");
+
+		// Verify RequestBody mutations
+		expect(body.input).not.toEqual(originalInput);
+		expect(body.input?.some((item) => item.content === "/codex-compact please")).toBe(false);
+		expect((body as any).tools).toBeUndefined();
+		expect((body as any).tool_choice).toBeUndefined();
+		expect((body as any).parallel_tool_calls).toBeUndefined();
 	});
 
-	it("returns original items when no user message exists", () => {
+	it("applies compaction when no user message exists", () => {
 		const originalInput: InputItem[] = [
 			{
 				type: "message",
@@ -40,10 +47,16 @@ describe("compaction helpers", () => {
 
 		// No compaction should occur when there's no command text
 		expect(decision).toBeUndefined();
+		expect(decision?.serialization.totalTurns).toBe(1);
+		expect(decision?.serialization.transcript).toContain("system-only follow-up");
 		// Verify RequestBody mutations
 		expect(body.input).toBeDefined();
+		expect(body.input?.length).toBeGreaterThan(0);
+		expect(body.input).not.toEqual(originalInput);
 		expect(body.input).toEqual(originalInput);
+
 		expect((body as any).tools).toBeUndefined();
 		expect((body as any).tool_choice).toBeUndefined();
+		expect((body as any).parallel_tool_calls).toBeUndefined();
 	});
 });
