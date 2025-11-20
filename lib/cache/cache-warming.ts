@@ -119,7 +119,7 @@ export async function areCachesWarm(): Promise<boolean> {
 
 		// If both caches have valid entries, they are warm
 		return !!(codexEntry && opencodeEntry);
-	} catch (_error) {
+	} catch {
 		// Any error suggests caches are not warm
 		return false;
 	}

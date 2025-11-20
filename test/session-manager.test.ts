@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { SESSION_CONFIG } from "../lib/constants.js";
 import { SessionManager } from "../lib/session/session-manager.js";
@@ -25,6 +26,10 @@ function createBody(conversationId: string, inputCount = 1, options: BodyOptions
 			content: `message-${index + 1}`,
 		})),
 	};
+}
+
+function hashItems(items: InputItem[]): string {
+	return createHash("sha1").update(JSON.stringify(items)).digest("hex");
 }
 
 describe("SessionManager", () => {
@@ -94,6 +99,45 @@ describe("SessionManager", () => {
 		expect(branchBody.prompt_cache_key).toMatch(/^cache_/);
 		expect(branchContext.isNew).toBe(true);
 		expect(branchContext.state.promptCacheKey).not.toBe(context.state.promptCacheKey);
+	});
+
+	it("forks session when prefix matches partially and reuses compaction state", () => {
+		const manager = new SessionManager({ enabled: true });
+		const baseBody = createBody("conv-prefix-fork", 3);
+
+		let baseContext = manager.getContext(baseBody) as SessionContext;
+		baseContext = manager.applyRequest(baseBody, baseContext) as SessionContext;
+
+		const systemMessage: InputItem = { type: "message", role: "system", content: "env vars" };
+		manager.applyCompactionSummary(baseContext, {
+			baseSystem: [systemMessage],
+			summary: "Base summary",
+		});
+
+		const branchBody = createBody("conv-prefix-fork", 3);
+		branchBody.input = [
+			{ type: "message", role: "user", id: "msg_1", content: "message-1" },
+			{ type: "message", role: "user", id: "msg_2", content: "message-2" },
+			{ type: "message", role: "assistant", id: "msg_3", content: "diverged" },
+		];
+
+		let branchContext = manager.getContext(branchBody) as SessionContext;
+		branchContext = manager.applyRequest(branchBody, branchContext) as SessionContext;
+
+		const sharedPrefix = branchBody.input.slice(0, 2) as InputItem[];
+		const expectedSuffix = hashItems(sharedPrefix).slice(0, 8);
+		expect(branchBody.prompt_cache_key).toBe(`conv-prefix-fork::prefix::${expectedSuffix}`);
+		expect(branchContext.state.promptCacheKey).toBe(`conv-prefix-fork::prefix::${expectedSuffix}`);
+		expect(branchContext.isNew).toBe(true);
+
+		const followUp = createBody("conv-prefix-fork", 1);
+		followUp.input = [{ type: "message", role: "user", content: "follow-up" }];
+		manager.applyCompactedHistory(followUp, branchContext);
+
+		expect(followUp.input).toHaveLength(3);
+		expect(followUp.input?.[0].role).toBe("system");
+		expect(followUp.input?.[1].content).toContain("Base summary");
+		expect(followUp.input?.[2].content).toBe("follow-up");
 	});
 
 	it("records cached token usage from response payload", () => {

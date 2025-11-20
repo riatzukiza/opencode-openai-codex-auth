@@ -17,7 +17,7 @@ import {
 } from "../constants.js";
 import { logError, logRequest } from "../logger.js";
 import type { SessionManager } from "../session/session-manager.js";
-import type { InputItem, PluginConfig, RequestBody, SessionContext, UserConfig } from "../types.js";
+import type { PluginConfig, RequestBody, SessionContext, UserConfig } from "../types.js";
 import { cloneInputItems } from "../utils/clone.js";
 import { transformRequestBody } from "./request-transformer.js";
 import { convertSseToJson, ensureContentType } from "./response-handler.js";
@@ -65,14 +65,18 @@ export async function refreshAndUpdateToken(
 		},
 	});
 
-	// Update current auth reference if it's OAuth type
+	// Build updated auth snapshot for callers (avoid mutating the parameter)
+	let updatedAuth: Auth = currentAuth;
 	if (currentAuth.type === "oauth") {
-		currentAuth.access = refreshResult.access;
-		currentAuth.refresh = refreshResult.refresh;
-		currentAuth.expires = refreshResult.expires;
+		updatedAuth = {
+			...currentAuth,
+			access: refreshResult.access,
+			refresh: refreshResult.refresh,
+			expires: refreshResult.expires,
+		};
 	}
 
-	return { success: true, auth: currentAuth };
+	return { success: true, auth: updatedAuth };
 }
 
 /**
@@ -136,6 +140,12 @@ export async function transformRequestForCodex(
 		const manualCommand = compactionEnabled ? detectCompactionCommand(originalInput) : null;
 
 		const sessionContext = sessionManager?.getContext(body);
+		if (sessionContext?.state?.promptCacheKey) {
+			const hostProvided = (body as any).prompt_cache_key || (body as any).promptCacheKey;
+			if (!hostProvided) {
+				(body as any).prompt_cache_key = sessionContext.state.promptCacheKey;
+			}
+		}
 		if (compactionEnabled && !manualCommand) {
 			sessionManager?.applyCompactedHistory?.(body, sessionContext);
 		}
@@ -153,14 +163,21 @@ export async function transformRequestForCodex(
 		});
 
 		// Transform request body
-		const transformResult = await transformRequestBody(body, codexInstructions, userConfig, codexMode, {
-			preserveIds: sessionContext?.preserveIds,
-			compaction: {
-				settings: compactionSettings,
-				commandText: manualCommand,
-				originalInput,
+		const transformResult = await transformRequestBody(
+			body,
+			codexInstructions,
+			userConfig,
+			codexMode,
+			{
+				preserveIds: sessionContext?.preserveIds,
+				compaction: {
+					settings: compactionSettings,
+					commandText: manualCommand,
+					originalInput,
+				},
 			},
-		});
+			sessionContext,
+		);
 		const appliedContext =
 			sessionManager?.applyRequest(transformResult.body, sessionContext) ?? sessionContext;
 
@@ -178,9 +195,15 @@ export async function transformRequestForCodex(
 			body: transformResult.body as unknown as Record<string, unknown>,
 		});
 
+		// Serialize body once - callers must re-serialize if they mutate transformResult.body after this function returns
+		const updatedInit: RequestInit = {
+			...init,
+			body: JSON.stringify(transformResult.body),
+		};
+
 		return {
 			body: transformResult.body,
-			updatedInit: { ...init, body: JSON.stringify(transformResult.body) },
+			updatedInit,
 			sessionContext: appliedContext,
 			compactionDecision: transformResult.compactionDecision,
 		};

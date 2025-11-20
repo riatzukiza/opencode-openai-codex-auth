@@ -100,7 +100,9 @@ describe("createCodexFetcher", () => {
 		});
 
 		const fetcher = createCodexFetcher(baseDeps());
-		const response = await fetcher("https://api.openai.com/v1/chat/completions", { method: "POST" });
+		const response = await fetcher("https://api.openai.com/v1/chat/completions", {
+			method: "POST",
+		});
 
 		expect(extractRequestUrlMock).toHaveBeenCalled();
 		expect(rewriteUrlForCodexMock).toHaveBeenCalled();
@@ -145,7 +147,15 @@ describe("createCodexFetcher", () => {
 
 	it("continues processing when token refresh succeeds", async () => {
 		shouldRefreshTokenMock.mockReturnValue(true);
-		refreshAndUpdateTokenMock.mockResolvedValue({ success: true });
+		refreshAndUpdateTokenMock.mockResolvedValue({
+			success: true,
+			auth: {
+				type: "oauth" as const,
+				access: "new-access",
+				refresh: "new-refresh",
+				expires: Date.now() + 20_000,
+			},
+		});
 		transformRequestForCodexMock.mockResolvedValue({
 			body: { model: "gpt-5" },
 		});
@@ -154,6 +164,31 @@ describe("createCodexFetcher", () => {
 		await fetcher("https://api.openai.com", {});
 		expect(refreshAndUpdateTokenMock).toHaveBeenCalled();
 		expect(fetchMock).toHaveBeenCalled();
+	});
+
+	it("uses refreshed auth when refresh succeeds", async () => {
+		shouldRefreshTokenMock.mockReturnValue(true);
+		refreshAndUpdateTokenMock.mockResolvedValue({
+			success: true,
+			auth: {
+				type: "oauth" as const,
+				access: "refreshed-access",
+				refresh: "refreshed-refresh",
+				expires: Date.now() + 10_000,
+			},
+		});
+		transformRequestForCodexMock.mockResolvedValue({
+			body: { model: "gpt-5" },
+		});
+
+		const fetcher = createCodexFetcher(baseDeps());
+		await fetcher("https://api.openai.com", {});
+		expect(createCodexHeadersMock).toHaveBeenCalledWith(
+			expect.any(Object),
+			"acc-123",
+			"refreshed-access",
+			expect.any(Object),
+		);
 	});
 
 	it("returns command response early when maybeHandleCodexCommand matches", async () => {

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
 	normalizeModel,
 	getModelConfig,
@@ -10,7 +10,9 @@ import {
 	addCodexBridgeMessage,
 	transformRequestBody as transformRequestBodyInternal,
 } from "../lib/request/request-transformer.js";
-import type { RequestBody, UserConfig, InputItem } from "../lib/types.js";
+import * as logger from "../lib/logger.js";
+import { SessionManager } from "../lib/session/session-manager.js";
+import type { RequestBody, SessionContext, UserConfig, InputItem } from "../lib/types.js";
 
 const transformRequestBody = async (...args: Parameters<typeof transformRequestBodyInternal>) => {
 	const result = await transformRequestBodyInternal(...args);
@@ -627,6 +629,31 @@ describe("addCodexBridgeMessage", () => {
 		expect((result![0].content as any)[0].text).toContain("Codex in OpenCode");
 	});
 
+	it("reapplies bridge when session already injected to keep prefix stable", async () => {
+		const input: InputItem[] = [{ type: "message", role: "user", content: "next turn" }];
+		const sessionContext: SessionContext = {
+			sessionId: "ses_test",
+			enabled: true,
+			preserveIds: true,
+			isNew: false,
+			state: {
+				id: "ses_test",
+				promptCacheKey: "ses_test",
+				store: false,
+				lastInput: [],
+				lastPrefixHash: null,
+				lastUpdated: Date.now(),
+				bridgeInjected: true,
+			},
+		};
+		const result = addCodexBridgeMessage(input, true, sessionContext);
+
+		expect(result).toHaveLength(2);
+		expect(result?.[0].role).toBe("developer");
+		expect(result?.[1].role).toBe("user");
+		expect(sessionContext.state.bridgeInjected).toBe(true);
+	});
+
 	it("should not modify input when tools not present", async () => {
 		const input: InputItem[] = [{ type: "message", role: "user", content: "hello" }];
 		const result = addCodexBridgeMessage(input, false);
@@ -716,108 +743,53 @@ describe("transformRequestBody", () => {
 		expect(result2.prompt_cache_key).toBe("cache_meta-conv-789-fork-fork-x");
 	});
 
-	it("derives fork-aware prompt_cache_key when fork id is present in metadata", async () => {
-		const body: RequestBody = {
-			model: "gpt-5",
-			input: [],
-			metadata: { conversation_id: "meta-conv-123", forkId: "branch-1" },
+	it("keeps bridge prompt across turns so prompt_cache_key stays stable", async () => {
+		const sessionManager = new SessionManager({ enabled: true });
+		const baseInput: InputItem[] = [
+			{ type: "message", role: "user", content: "first" },
+			{ type: "message", role: "assistant", content: "reply" },
+		];
+
+		const firstBody: RequestBody = {
+			model: "gpt-5-codex",
+			input: baseInput,
+			tools: [{ name: "edit" }],
+			metadata: { conversation_id: "ses_turns" },
 		};
-		const result: any = await transformRequestBody(body, codexInstructions);
-		expect(result.prompt_cache_key).toBe("cache_meta-conv-123-fork-branch-1");
-	});
+		const sessionOne = sessionManager.getContext(firstBody)!;
+		const firstTransform = await transformRequestBodyInternal(
+			firstBody,
+			codexInstructions,
+			{ global: {}, models: {} },
+			true,
+			{ preserveIds: sessionOne.preserveIds },
+			sessionOne,
+		);
+		sessionManager.applyRequest(firstTransform.body, sessionOne);
+		const cacheKey = firstTransform.body.prompt_cache_key;
 
-	it("derives fork-aware prompt_cache_key when fork id is present in root", async () => {
-		const body: RequestBody = {
-			model: "gpt-5",
-			input: [],
-			metadata: { conversation_id: "meta-conv-123" },
-			forkId: "branch-2" as any,
-		} as any;
-		const result: any = await transformRequestBody(body, codexInstructions);
-		expect(result.prompt_cache_key).toBe("cache_meta-conv-123-fork-branch-2");
-	});
+		expect(firstTransform.body.input?.[0].role).toBe("developer");
 
-	it("reuses the same prompt_cache_key across non-structural overrides", async () => {
-		const baseMetadata = { conversation_id: "meta-conv-789", forkId: "fork-x" };
-		const body1: RequestBody = {
-			model: "gpt-5",
-			input: [],
-			metadata: { ...baseMetadata },
+		const secondBody: RequestBody = {
+			model: "gpt-5-codex",
+			input: [...baseInput, { type: "message", role: "user", content: "follow-up" }],
+			tools: [{ name: "edit" }],
+			metadata: { conversation_id: "ses_turns" },
 		};
-		const body2: RequestBody = {
-			model: "gpt-5",
-			input: [],
-			metadata: { ...baseMetadata },
-			// Soft overrides that should not change the cache key
-			max_output_tokens: 1024,
-			reasoning: { effort: "high" } as any,
-			text: { verbosity: "high" } as any,
-		};
+		const sessionTwo = sessionManager.getContext(secondBody)!;
+		const secondTransform = await transformRequestBodyInternal(
+			secondBody,
+			codexInstructions,
+			{ global: {}, models: {} },
+			true,
+			{ preserveIds: sessionTwo.preserveIds },
+			sessionTwo,
+		);
+		const appliedContext = sessionManager.applyRequest(secondTransform.body, sessionTwo);
 
-		const result1: any = await transformRequestBody(body1, codexInstructions);
-		const result2: any = await transformRequestBody(body2, codexInstructions);
-
-		expect(result1.prompt_cache_key).toBe("cache_meta-conv-789-fork-fork-x");
-		expect(result2.prompt_cache_key).toBe("cache_meta-conv-789-fork-fork-x");
-	});
-
-	it("derives fork-aware prompt_cache_key when fork id is present in root", async () => {
-		const body: RequestBody = {
-			model: "gpt-5",
-			input: [],
-			metadata: { conversation_id: "meta-conv-123" },
-			forkId: "branch-2" as any,
-		} as any;
-		const result: any = await transformRequestBody(body, codexInstructions);
-		expect(result.prompt_cache_key).toBe("cache_meta-conv-123-fork-branch-2");
-	});
-
-	it("reuses the same prompt_cache_key across non-structural overrides", async () => {
-		const baseMetadata = { conversation_id: "meta-conv-789", forkId: "fork-x" };
-		const body1: RequestBody = {
-			model: "gpt-5",
-			input: [],
-			metadata: { ...baseMetadata },
-		};
-		const body2: RequestBody = {
-			model: "gpt-5",
-			input: [],
-			metadata: { ...baseMetadata },
-			// Soft overrides that should not change the cache key
-			max_output_tokens: 1024,
-			reasoning: { effort: "high" } as any,
-			text: { verbosity: "high" } as any,
-		};
-
-		const result1: any = await transformRequestBody(body1, codexInstructions);
-		const result2: any = await transformRequestBody(body2, codexInstructions);
-
-		expect(result1.prompt_cache_key).toBe("cache_meta-conv-789-fork-fork-x");
-		expect(result2.prompt_cache_key).toBe("cache_meta-conv-789-fork-fork-x");
-	});
-
-	it("reuses the same prompt_cache_key across non-structural overrides", async () => {
-		const baseMetadata = { conversation_id: "meta-conv-789", forkId: "fork-x" };
-		const body1: RequestBody = {
-			model: "gpt-5",
-			input: [],
-			metadata: { ...baseMetadata },
-		};
-		const body2: RequestBody = {
-			model: "gpt-5",
-			input: [],
-			metadata: { ...baseMetadata },
-			// Soft overrides that should not change the cache key
-			max_output_tokens: 1024,
-			reasoning: { effort: "high" } as any,
-			text: { verbosity: "high" } as any,
-		};
-
-		const result1: any = await transformRequestBody(body1, codexInstructions);
-		const result2: any = await transformRequestBody(body2, codexInstructions);
-
-		expect(result1.prompt_cache_key).toBe("cache_meta-conv-789-fork-fork-x");
-		expect(result2.prompt_cache_key).toBe("cache_meta-conv-789-fork-fork-x");
+		expect(secondTransform.body.input?.[0].role).toBe("developer");
+		expect(secondTransform.body.prompt_cache_key).toBe(cacheKey);
+		expect(appliedContext?.isNew).toBe(false);
 	});
 
 	it("generates fallback prompt_cache_key when no identifiers exist", async () => {
@@ -828,6 +800,87 @@ describe("transformRequestBody", () => {
 		const result: any = await transformRequestBody(body, codexInstructions);
 		expect(typeof result.prompt_cache_key).toBe("string");
 		expect(result.prompt_cache_key).toMatch(/^cache_/);
+	});
+
+	it("logs fallback prompt cache key as info for new sessions", async () => {
+		const logWarnSpy = vi.spyOn(logger, "logWarn").mockImplementation(() => {});
+		const logInfoSpy = vi.spyOn(logger, "logInfo").mockImplementation(() => {});
+
+		const body: RequestBody = {
+			model: "gpt-5",
+			input: [],
+		};
+
+		const sessionContext: SessionContext = {
+			sessionId: "session-new",
+			enabled: true,
+			preserveIds: true,
+			isNew: true,
+			state: {
+				id: "session-new",
+				promptCacheKey: "session-new",
+				store: false,
+				lastInput: [],
+				lastPrefixHash: null,
+				lastUpdated: Date.now(),
+			},
+		};
+
+		await transformRequestBodyInternal(
+			body,
+			codexInstructions,
+			{ global: {}, models: {} },
+			true,
+			{},
+			sessionContext,
+		);
+
+		expect(logWarnSpy).not.toHaveBeenCalledWith(
+			"Prompt cache key missing; generated fallback cache key",
+			expect.anything(),
+		);
+
+		expect(logInfoSpy).toHaveBeenCalledWith(
+			"Prompt cache key missing; generated fallback cache key",
+			expect.objectContaining({
+				promptCacheKey: expect.stringMatching(/^cache_/),
+				fallbackHash: expect.any(String),
+			}),
+		);
+
+		logWarnSpy.mockRestore();
+		logInfoSpy.mockRestore();
+	});
+
+	it("logs fallback prompt cache key as info when session context is absent", async () => {
+		const logWarnSpy = vi.spyOn(logger, "logWarn").mockImplementation(() => {});
+		const logInfoSpy = vi.spyOn(logger, "logInfo").mockImplementation(() => {});
+
+		const body: RequestBody = {
+			model: "gpt-5",
+			input: [],
+		};
+
+		await transformRequestBodyInternal(
+			body,
+			codexInstructions,
+			{ global: {}, models: {} },
+			true,
+			{},
+			undefined,
+		);
+
+		expect(logWarnSpy).not.toHaveBeenCalled();
+		expect(logInfoSpy).toHaveBeenCalledWith(
+			"Prompt cache key missing; generated fallback cache key",
+			expect.objectContaining({
+				promptCacheKey: expect.stringMatching(/^cache_/),
+				fallbackHash: expect.any(String),
+			}),
+		);
+
+		logWarnSpy.mockRestore();
+		logInfoSpy.mockRestore();
 	});
 
 	it("should set required Codex fields", async () => {

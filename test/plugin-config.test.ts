@@ -47,7 +47,7 @@ describe("Plugin Configuration", () => {
 		it("should return default config when file does not exist", () => {
 			mockExistsSync.mockReturnValue(false);
 
-			const config = loadPluginConfig();
+			const config = loadPluginConfig({ forceReload: true });
 
 			expect(config).toEqual({
 				codexMode: true,
@@ -64,7 +64,7 @@ describe("Plugin Configuration", () => {
 			mockExistsSync.mockReturnValue(true);
 			mockReadFileSync.mockReturnValue(JSON.stringify({ codexMode: false, enablePromptCaching: true }));
 
-			const config = loadPluginConfig();
+			const config = loadPluginConfig({ forceReload: true });
 
 			expect(config).toEqual({
 				codexMode: false,
@@ -78,7 +78,7 @@ describe("Plugin Configuration", () => {
 			mockExistsSync.mockReturnValue(true);
 			mockReadFileSync.mockReturnValue(JSON.stringify({}));
 
-			const config = loadPluginConfig();
+			const config = loadPluginConfig({ forceReload: true });
 
 			expect(config).toEqual({
 				codexMode: true,
@@ -93,7 +93,7 @@ describe("Plugin Configuration", () => {
 			mockReadFileSync.mockReturnValue("invalid json");
 
 			const logWarnSpy = vi.spyOn(logger, "logWarn").mockImplementation(() => {});
-			const config = loadPluginConfig();
+			const config = loadPluginConfig({ forceReload: true });
 
 			expect(config).toEqual({
 				codexMode: true,
@@ -112,7 +112,7 @@ describe("Plugin Configuration", () => {
 			});
 
 			const logWarnSpy = vi.spyOn(logger, "logWarn").mockImplementation(() => {});
-			const config = loadPluginConfig();
+			const config = loadPluginConfig({ forceReload: true });
 
 			expect(config).toEqual({
 				codexMode: true,
@@ -121,6 +121,26 @@ describe("Plugin Configuration", () => {
 				autoCompactMinMessages: 8,
 			});
 			expect(logWarnSpy).toHaveBeenCalled();
+			logWarnSpy.mockRestore();
+		});
+
+		it("should memoize config to avoid duplicate filesystem lookups", () => {
+			mockExistsSync.mockReturnValue(false);
+
+			const logWarnSpy = vi.spyOn(logger, "logWarn").mockImplementation(() => {});
+			const firstLoad = loadPluginConfig({ forceReload: true });
+
+			logWarnSpy.mockClear();
+			mockExistsSync.mockClear();
+			mockReadFileSync.mockClear();
+
+			const secondLoad = loadPluginConfig();
+
+			expect(secondLoad).toEqual(firstLoad);
+			expect(logWarnSpy).not.toHaveBeenCalled();
+			expect(mockExistsSync).not.toHaveBeenCalled();
+			expect(mockReadFileSync).not.toHaveBeenCalled();
+
 			logWarnSpy.mockRestore();
 		});
 	});

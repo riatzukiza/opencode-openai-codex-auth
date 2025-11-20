@@ -450,18 +450,18 @@ When using [`config/full-opencode.json`](./config/full-opencode.json), you get t
 
 | CLI Model ID | TUI Display Name | Reasoning Effort | Best For |
 |--------------|------------------|-----------------|----------|
-| `gpt-5.1-codex-max` | GPT 5.1 Codex Max (OAuth) | Medium (Extra High optional) | Default flagship tier with optional `xhigh` reasoning for long, complex runs |
+| `gpt-5.1-codex-max` | GPT 5.1 Codex Max (OAuth) | Low/Medium/High/**Extra High** | Default flagship tier with `xhigh` reasoning for complex, multi-step problems |
 | `gpt-5.1-codex-low` | GPT 5.1 Codex Low (OAuth) | Low | Fast code generation on the newest Codex tier |
 | `gpt-5.1-codex-medium` | GPT 5.1 Codex Medium (OAuth) | Medium | Balanced code + tooling workflows |
 | `gpt-5.1-codex-high` | GPT 5.1 Codex High (OAuth) | High | Multi-step coding tasks with deep tool use |
 | `gpt-5.1-codex-mini-medium` | GPT 5.1 Codex Mini Medium (OAuth) | Medium | Budget-friendly Codex runs (200k/100k tokens) |
 | `gpt-5.1-codex-mini-high` | GPT 5.1 Codex Mini High (OAuth) | High | Cheaper Codex tier with maximum reasoning |
-| `gpt-5.1-none` | GPT 5.1 None (OAuth) | None | Latency-sensitive chat/tasks using the new "no reasoning" mode |
+| `gpt-5.1-none` | GPT 5.1 None (OAuth) | **None** | Latency-sensitive chat/tasks using the "no reasoning" mode |
 | `gpt-5.1-low` | GPT 5.1 Low (OAuth) | Low | Fast general-purpose chat with light reasoning |
 | `gpt-5.1-medium` | GPT 5.1 Medium (OAuth) | Medium | Default adaptive reasoning for everyday work |
 | `gpt-5.1-high` | GPT 5.1 High (OAuth) | High | Deep analysis when reliability matters most |
 
-> **Extra High reasoning:** `reasoningEffort: "xhigh"` is exclusive to `gpt-5.1-codex-max`. Other models automatically map that option to `high` so their API calls remain valid.
+> **Extra High reasoning:** `reasoningEffort: "xhigh"` provides maximum computational effort for complex, multi-step problems and is exclusive to `gpt-5.1-codex-max`. Other models automatically map that option to `high` so their API calls remain valid.
 
 #### Legacy GPT-5 lineup (still supported)
 
@@ -540,12 +540,14 @@ If you want to customize settings yourself, you can configure options at provide
 
 | Setting | GPT-5 / GPT-5.1 Values | GPT-5-Codex / Codex Mini Values | Plugin Default |
 |---------|-------------|-------------------|----------------|
-| `reasoningEffort` | `none`, `minimal`, `low`, `medium`, `high` | `low`, `medium`, `high`, `xhigh`* | `medium` |
+| `reasoningEffort` | `none`, `minimal`, `low`, `medium`, `high` | `low`, `medium`, `high`, `xhigh`† | `medium` |
 | `reasoningSummary` | `auto`, `detailed` | `auto`, `detailed` | `auto` |
 | `textVerbosity` | `low`, `medium`, `high` | `medium` only | `medium` |
 | `include` | Array of strings | Array of strings | `["reasoning.encrypted_content"]` |
 
 > **Note**: `minimal` effort is auto-normalized to `low` for gpt-5-codex (not supported by the API). `none` is only supported on GPT-5.1 general models; when used with legacy gpt-5 it is normalized to `minimal`. `xhigh` is exclusive to `gpt-5.1-codex-max`—other Codex presets automatically map it to `high`.
+> 
+> † **Extra High reasoning**: `reasoningEffort: "xhigh"` provides maximum computational effort for complex, multi-step problems and is only available on `gpt-5.1-codex-max`.
 
 #### Plugin-Level Settings
 

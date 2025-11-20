@@ -305,8 +305,8 @@ const parsedModel: ModelsDev.Model = {
 
 **Why this matters:**
 - Config keys mirror the Codex CLI's 5.1 presets, making it obvious which tier you're targeting.
-- `reasoningEffort: "none"` is only valid for GPT-5.1 general models—the plugin automatically downgrades unsupported values for Codex/Codex Mini.
-- `reasoningEffort: "xhigh"` is exclusive to `gpt-5.1-codex-max`; other models automatically clamp it to `high`.
+- `reasoningEffort: "none"` (No Reasoning) disables reasoning entirely for latency-sensitive tasks and is only valid for GPT-5.1 general models—the plugin automatically downgrades unsupported values for Codex/Codex Mini.
+- `reasoningEffort: "xhigh"` (Extra High) provides maximum computational effort for complex, multi-step problems and is exclusive to `gpt-5.1-codex-max`; other models automatically clamp it to `high`.
 - Legacy GPT-5, GPT-5-Codex, and Codex Mini presets automatically clamp unsupported values (`none` → `minimal`/`low`, `minimal` → `low` for Codex).
 - Mixing GPT-5.1 and GPT-5 presets inside the same config is fine—just keep config keys unique and let the plugin normalize them.
 

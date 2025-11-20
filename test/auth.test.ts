@@ -104,6 +104,19 @@ describe("Auth Module", () => {
 			expect(decoded?.["https://api.openai.com/auth"]?.chatgpt_account_id).toBe("account-123");
 		});
 
+		it("should decode base64url JWT payloads without padding", () => {
+			const payloadObject = { sub: "abc", env: "dev" };
+			const base64url = Buffer.from(JSON.stringify(payloadObject))
+				.toString("base64")
+				.replace(/\+/g, "-")
+				.replace(/\//g, "_")
+				.replace(/=+$/, "");
+			const token = `header.${base64url}.signature`;
+
+			const decoded = decodeJWT(token);
+			expect(decoded).toEqual(payloadObject);
+		});
+
 		it("should return null for invalid JWT", () => {
 			const result = decodeJWT("invalid-token");
 			expect(result).toBeNull();

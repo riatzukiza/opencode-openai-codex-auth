@@ -16,31 +16,34 @@ const successHtml = fs.readFileSync(path.join(__dirname, "..", "oauth-success.ht
  */
 export function startLocalOAuthServer({ state }: { state: string }): Promise<OAuthServerInfo> {
 	const server = http.createServer((req, res) => {
+		const send = (status: number, message: string, headers?: http.OutgoingHttpHeaders) => {
+			const finalHeaders = {
+				"Content-Type": "text/plain; charset=utf-8",
+				...headers,
+			};
+			res.writeHead(status, finalHeaders);
+			res.end(message);
+		};
+
 		try {
 			const url = new URL(req.url || "", "http://localhost");
 			if (url.pathname !== "/auth/callback") {
-				res.statusCode = 404;
-				res.end("Not found");
+				send(404, "Not found");
 				return;
 			}
 			if (url.searchParams.get("state") !== state) {
-				res.statusCode = 400;
-				res.end("State mismatch");
+				send(400, "State mismatch");
 				return;
 			}
 			const code = url.searchParams.get("code");
 			if (!code) {
-				res.statusCode = 400;
-				res.end("Missing authorization code");
+				send(400, "Missing authorization code");
 				return;
 			}
-			res.statusCode = 200;
-			res.setHeader("Content-Type", "text/html; charset=utf-8");
-			res.end(successHtml);
+			send(200, successHtml, { "Content-Type": "text/html; charset=utf-8" });
 			(server as http.Server & { _lastCode?: string })._lastCode = code;
 		} catch {
-			res.statusCode = 500;
-			res.end("Internal error");
+			send(500, "Internal error");
 		}
 	});
 
