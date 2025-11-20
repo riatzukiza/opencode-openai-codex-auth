@@ -50,6 +50,7 @@ describe("compaction helpers", () => {
 
 		// Verify RequestBody mutations
 		expect(body.input).toBeDefined();
+		expect(body.input).toEqual(originalInput);
 		expect((body as any).tools).toBeUndefined();
 		expect((body as any).tool_choice).toBeUndefined();
 	});
