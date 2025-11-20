@@ -153,14 +153,21 @@ export async function transformRequestForCodex(
 		});
 
 		// Transform request body
-		const transformResult = await transformRequestBody(body, codexInstructions, userConfig, codexMode, {
-			preserveIds: sessionContext?.preserveIds,
-			compaction: {
-				settings: compactionSettings,
-				commandText: manualCommand,
-				originalInput,
+		const transformResult = await transformRequestBody(
+			body,
+			codexInstructions,
+			userConfig,
+			codexMode,
+			{
+				preserveIds: sessionContext?.preserveIds,
+				compaction: {
+					settings: compactionSettings,
+					commandText: manualCommand,
+					originalInput,
+				},
 			},
-		});
+			sessionContext,
+		);
 		const appliedContext =
 			sessionManager?.applyRequest(transformResult.body, sessionContext) ?? sessionContext;
 
@@ -178,9 +185,17 @@ export async function transformRequestForCodex(
 			body: transformResult.body as unknown as Record<string, unknown>,
 		});
 
+		// Keep updatedInit.body in sync with any subsequent mutations to the transformed body
+		const updatedInit: RequestInit = { ...init };
+		Object.defineProperty(updatedInit, "body", {
+			configurable: true,
+			enumerable: true,
+			get: () => JSON.stringify(transformResult.body),
+		});
+
 		return {
 			body: transformResult.body,
-			updatedInit: { ...init, body: JSON.stringify(transformResult.body) },
+			updatedInit,
 			sessionContext: appliedContext,
 			compactionDecision: transformResult.compactionDecision,
 		};

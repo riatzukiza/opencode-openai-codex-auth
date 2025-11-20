@@ -13,7 +13,7 @@ import {
 	serializeConversation,
 } from "../compaction/codex-compaction.js";
 import type { CompactionDecision } from "../compaction/compaction-executor.js";
-import { logDebug, logWarn } from "../logger.js";
+import { logDebug, logInfo, logWarn } from "../logger.js";
 import { TOOL_REMAP_MESSAGE } from "../prompts/codex.js";
 import { CODEX_OPENCODE_BRIDGE } from "../prompts/codex-opencode-bridge.js";
 import { getOpenCodeCodexPrompt } from "../prompts/opencode-codex.js";
@@ -1011,6 +1011,7 @@ export async function transformRequestBody(
 
 	// Ensure prompt_cache_key is set using our robust logic
 	const cacheKeyResult = ensurePromptCacheKey(body);
+	const isNewSession = Boolean(sessionContext?.isNew);
 	if (cacheKeyResult.source === "existing") {
 		// Host provided a valid cache key, use it as-is
 	} else if (cacheKeyResult.source === "metadata") {
@@ -1025,19 +1026,22 @@ export async function transformRequestBody(
 			(cacheKeyResult.hintKeys && cacheKeyResult.hintKeys.length > 0) ||
 				(cacheKeyResult.forkHintKeys && cacheKeyResult.forkHintKeys.length > 0),
 		);
-		logWarn(
-			hasHints
-				? "Prompt cache key hints detected but unusable; generated fallback cache key"
-				: "Prompt cache key missing; generated fallback cache key",
-			{
-				promptCacheKey: cacheKeyResult.key,
-				fallbackHash: cacheKeyResult.fallbackHash,
-				hintKeys: cacheKeyResult.hintKeys,
-				unusableKeys: cacheKeyResult.unusableKeys,
-				forkHintKeys: cacheKeyResult.forkHintKeys,
-				forkUnusableKeys: cacheKeyResult.forkUnusableKeys,
-			},
-		);
+		const message = hasHints
+			? "Prompt cache key hints detected but unusable; generated fallback cache key"
+			: "Prompt cache key missing; generated fallback cache key";
+		const logPayload = {
+			promptCacheKey: cacheKeyResult.key,
+			fallbackHash: cacheKeyResult.fallbackHash,
+			hintKeys: cacheKeyResult.hintKeys,
+			unusableKeys: cacheKeyResult.unusableKeys,
+			forkHintKeys: cacheKeyResult.forkHintKeys,
+			forkUnusableKeys: cacheKeyResult.forkUnusableKeys,
+		};
+		if (!hasHints && isNewSession) {
+			logInfo(message, logPayload);
+		} else {
+			logWarn(message, logPayload);
+		}
 	}
 
 	// Tool behavior parity with Codex CLI (normalize shapes)

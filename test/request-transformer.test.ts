@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
 	normalizeModel,
 	getModelConfig,
@@ -10,7 +10,8 @@ import {
 	addCodexBridgeMessage,
 	transformRequestBody as transformRequestBodyInternal,
 } from "../lib/request/request-transformer.js";
-import type { RequestBody, UserConfig, InputItem } from "../lib/types.js";
+import * as logger from "../lib/logger.js";
+import type { RequestBody, SessionContext, UserConfig, InputItem } from "../lib/types.js";
 
 const transformRequestBody = async (...args: Parameters<typeof transformRequestBodyInternal>) => {
 	const result = await transformRequestBodyInternal(...args);
@@ -724,6 +725,57 @@ describe("transformRequestBody", () => {
 		const result: any = await transformRequestBody(body, codexInstructions);
 		expect(typeof result.prompt_cache_key).toBe("string");
 		expect(result.prompt_cache_key).toMatch(/^cache_/);
+	});
+
+	it("logs fallback prompt cache key as info for new sessions", async () => {
+		const logWarnSpy = vi.spyOn(logger, "logWarn").mockImplementation(() => {});
+		const logInfoSpy = vi.spyOn(logger, "logInfo").mockImplementation(() => {});
+
+		const body: RequestBody = {
+			model: "gpt-5",
+			input: [],
+		};
+
+		const sessionContext: SessionContext = {
+			sessionId: "session-new",
+			enabled: true,
+			preserveIds: true,
+			isNew: true,
+			state: {
+				id: "session-new",
+				promptCacheKey: "session-new",
+				store: false,
+				lastInput: [],
+				lastPrefixHash: null,
+				lastUpdated: Date.now(),
+			},
+		};
+
+		await transformRequestBodyInternal(
+			body,
+			codexInstructions,
+			{ global: {}, models: {} },
+			true,
+			{},
+			sessionContext,
+		);
+
+		expect(logWarnSpy).not.toHaveBeenCalledWith(
+			"Prompt cache key missing; generated fallback cache key",
+			expect.anything(),
+		);
+		expect(logWarnSpy).not.toHaveBeenCalled();
+
+		expect(logInfoSpy).toHaveBeenCalledWith(
+			"Prompt cache key missing; generated fallback cache key",
+			expect.objectContaining({
+				promptCacheKey: expect.stringMatching(/^cache_/),
+				fallbackHash: expect.any(String),
+			}),
+		);
+
+		logWarnSpy.mockRestore();
+		logInfoSpy.mockRestore();
 	});
 
 	it("should set required Codex fields", async () => {
