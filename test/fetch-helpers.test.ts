@@ -72,7 +72,12 @@ describe("Fetch Helpers Module", () => {
 		});
 
 		it("should return true when access token is missing", () => {
-			const auth: Auth = { type: "oauth", access: "", refresh: "refresh-token", expires: Date.now() + 1000 };
+			const auth: Auth = {
+				type: "oauth",
+				access: "",
+				refresh: "refresh-token",
+				expires: Date.now() + 1000,
+			};
 			expect(shouldRefreshToken(auth)).toBe(true);
 		});
 
@@ -173,7 +178,9 @@ describe("Fetch Helpers Module", () => {
 
 		it("should use provided promptCacheKey for both conversation_id and session_id", () => {
 			const key = "ses_abc123";
-			const headers = createCodexHeaders(undefined, accountId, accessToken, { promptCacheKey: key });
+			const headers = createCodexHeaders(undefined, accountId, accessToken, {
+				promptCacheKey: key,
+			});
 			expect(headers.get(OPENAI_HEADERS.CONVERSATION_ID)).toBe(key);
 			expect(headers.get(OPENAI_HEADERS.SESSION_ID)).toBe(key);
 		});
@@ -257,9 +264,14 @@ describe("Fetch Helpers Module", () => {
 
 		it("handles invalid JSON payload gracefully", async () => {
 			const init: RequestInit = { body: "not-json" };
-			const result = await transformRequestForCodex(init, "url", "instructions", { global: {}, models: {} });
+			const result = await transformRequestForCodex(init, "url", "instructions", {
+				global: {},
+				models: {},
+			});
 			expect(result).toBeUndefined();
-			expect(logErrorMock).toHaveBeenCalledWith("Error parsing request", { error: expect.any(String) });
+			expect(logErrorMock).toHaveBeenCalledWith("Error parsing request", {
+				error: expect.any(String),
+			});
 		});
 
 		it("transforms request body and returns updated init", async () => {
@@ -268,7 +280,12 @@ describe("Fetch Helpers Module", () => {
 				tools: [],
 				input: [{ type: "message", role: "user", content: "hello" }],
 			};
-			const transformed = { ...body, model: "gpt-5-codex", include: ["reasoning.encrypted_content"] };
+			const transformed = {
+				...body,
+				model: "gpt-5-codex",
+				include: ["reasoning.encrypted_content"],
+				input: body.input.map((item) => ({ ...item })),
+			};
 			transformRequestBodyMock.mockResolvedValue({ body: transformed });
 			const sessionContext = { sessionId: "session-1", preserveIds: true, enabled: true };
 			const appliedContext = { ...sessionContext, isNew: false };
@@ -299,6 +316,7 @@ describe("Fetch Helpers Module", () => {
 			expect(optionsArg?.compaction?.originalInput?.[0].content).toBe("hello");
 
 			expect(result?.body).toEqual(transformed);
+			// Note: updatedInit.body is serialized once and won't reflect later mutations to original body
 			expect(result?.updatedInit.body).toBe(JSON.stringify(transformed));
 		});
 
