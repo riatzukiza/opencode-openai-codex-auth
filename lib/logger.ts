@@ -198,11 +198,23 @@ function notifyToast(level: LogLevel, message: string, _extra?: Record<string, u
 function wrapToastMessage(message: string, maxWidth = 72): string {
 	if (message.length <= maxWidth) return message;
 
-	const words = message.split(/\s+/).filter(Boolean);
+	const expandedWords = message
+		.split(/\s+/)
+		.filter(Boolean)
+		.flatMap((word) => {
+			if (word.length <= maxWidth) return word;
+
+			const chunks: string[] = [];
+			for (let index = 0; index < word.length; index += maxWidth) {
+				chunks.push(word.slice(index, index + maxWidth));
+			}
+			return chunks;
+		});
+
 	const lines: string[] = [];
 	let current = "";
 
-	for (const word of words) {
+	for (const word of expandedWords) {
 		if (current.length === 0) {
 			current = word;
 			continue;
