@@ -91,5 +91,9 @@ export default [
         vi: "readonly",
       },
     },
+    rules: {
+      "max-lines-per-function": "off",
+      "max-lines": "off",
+    },
   },
 ];

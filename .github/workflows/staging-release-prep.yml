@@ -9,7 +9,7 @@ on:
 
 permissions:
   contents: write
-  pull-requests: read
+  pull-requests: write
 
 concurrency:
   group: staging-release
@@ -79,21 +79,39 @@ jobs:
             echo "hotfix=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Configure git user
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Bump version on staging
+      - name: Prepare release branch name
+        id: branch
         env:
           NEXT_VERSION: ${{ steps.analyze.outputs.next_version }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          IS_HOTFIX: ${{ steps.labels.outputs.hotfix }}
         run: |
           if [ -z "$NEXT_VERSION" ]; then
             echo "Next version is missing from analyzer output" >&2
             exit 1
           fi
+          BRANCH="release/v$NEXT_VERSION"
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            SUFFIX=$(date +%Y%m%d%H%M%S)
+            BRANCH="${BRANCH}-${SUFFIX}"
+          fi
+          echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Configure git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version on release branch
+        env:
+          NEXT_VERSION: ${{ steps.analyze.outputs.next_version }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          IS_HOTFIX: ${{ steps.labels.outputs.hotfix }}
+          RELEASE_BRANCH: ${{ steps.branch.outputs.name }}
+        run: |
+          if [ -z "$NEXT_VERSION" ] || [ -z "$RELEASE_BRANCH" ]; then
+            echo "Next version or release branch is missing from analyzer output" >&2
+            exit 1
+          fi
+          git checkout -b "$RELEASE_BRANCH"
           pnpm version "$NEXT_VERSION" --no-git-tag-version
           git add package.json pnpm-lock.yaml
           if [ -n "$PR_NUMBER" ]; then
@@ -106,25 +124,105 @@ jobs:
           else
             git commit -m "$COMMIT_MSG"
           fi
-          printf "%s\n" "${{ steps.analyze.outputs.notes }}" > release-notes.md
-          git tag -a "v$NEXT_VERSION" -F release-notes.md
 
-      - name: Push staging release commit and tag
+      - name: Create release tag
         env:
           NEXT_VERSION: ${{ steps.analyze.outputs.next_version }}
+          RELEASE_NOTES: ${{ steps.analyze.outputs.notes }}
         run: |
-          git push origin HEAD:staging
+          if [ -z "$NEXT_VERSION" ]; then
+            echo "Next version is missing from analyzer output" >&2
+            exit 1
+          fi
+          TAG="v$NEXT_VERSION"
+          printf "%s\n" "$RELEASE_NOTES" > release-notes.md
+          git tag -a "$TAG" -F release-notes.md
+          rm -f release-notes.md
+
+      - name: Push release branch and tag
+        env:
+          RELEASE_BRANCH: ${{ steps.branch.outputs.name }}
+          NEXT_VERSION: ${{ steps.analyze.outputs.next_version }}
+        run: |
+          if [ -z "$RELEASE_BRANCH" ] || [ -z "$NEXT_VERSION" ]; then
+            echo "Missing release branch or next version" >&2
+            exit 1
+          fi
+          git push origin "$RELEASE_BRANCH"
           git push origin "v$NEXT_VERSION"
 
-      - name: Promote hotfix to main
-        if: steps.labels.outputs.hotfix == 'true'
+      - name: Open release PR to staging
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RELEASE_BRANCH: ${{ steps.branch.outputs.name }}
+          NEXT_VERSION: ${{ steps.analyze.outputs.next_version }}
+          HOTFIX: ${{ steps.labels.outputs.hotfix }}
+          BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+          SOURCE_PR: ${{ github.event.pull_request.number }}
+          RELEASE_NOTES: ${{ steps.analyze.outputs.notes }}
         run: |
-          git fetch origin main
-          if git rev-parse --verify main >/dev/null 2>&1; then
-            git checkout main
-          else
-            git checkout -b main origin/main
+          if [ -z "$NEXT_VERSION" ] || [ -z "$RELEASE_BRANCH" ]; then
+            echo "Missing data to open PR" >&2
+            exit 1
           fi
-          git merge --ff-only staging
-          git push origin main
-          git checkout staging
+          PR_TITLE="chore: release v$NEXT_VERSION"
+          BODY=$(printf '## Release v%s\n\n- Source PR: #%s\n- Hotfix: %s\n\n### Release notes\n%s\n' "$NEXT_VERSION" "$SOURCE_PR" "$HOTFIX" "$RELEASE_NOTES")
+          jq -n \
+            --arg title "$PR_TITLE" \
+            --arg head "$RELEASE_BRANCH" \
+            --arg base "$BASE_BRANCH" \
+            --arg body "$BODY" \
+            '{title:$title, head:$head, base:$base, body:$body}' > /tmp/pr.json
+          curl -s -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/pulls" \
+            -d @/tmp/pr.json | tee /tmp/pr-response.json
+          PR_URL=$(jq -r '.html_url' /tmp/pr-response.json)
+          PR_NUMBER=$(jq -r '.number' /tmp/pr-response.json)
+          PR_NODE_ID=$(jq -r '.node_id' /tmp/pr-response.json)
+          if [ -z "$PR_URL" ] || [ "$PR_URL" = "null" ] || [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ] || [ -z "$PR_NODE_ID" ] || [ "$PR_NODE_ID" = "null" ]; then
+            echo "Failed to create PR" >&2
+            cat /tmp/pr-response.json >&2
+            exit 1
+          fi
+          echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+          gh api repos/$REPO/pulls/$PR_NUMBER/requested_reviewers -f reviewers[]="coderabbitai"
+          gh api graphql -f query='mutation($prId:ID!,$method:PullRequestMergeMethod!){enablePullRequestAutoMerge(input:{pullRequestId:$prId,mergeMethod:$method}){pullRequest{number autoMergeRequest{enabledBy{login}}}}}' -f prId="$PR_NODE_ID" -f method=SQUASH
+
+      - name: Open hotfix PR to main
+        if: steps.labels.outputs.hotfix == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RELEASE_BRANCH: ${{ steps.branch.outputs.name }}
+          NEXT_VERSION: ${{ steps.analyze.outputs.next_version }}
+          RELEASE_NOTES: ${{ steps.analyze.outputs.notes }}
+        run: |
+          if [ -z "$RELEASE_BRANCH" ]; then
+            echo "Release branch name is missing" >&2
+            exit 1
+          fi
+          PR_TITLE="hotfix: release v$NEXT_VERSION to main"
+          BODY=$(printf '## Hotfix release v%s\n\nThis PR promotes the hotfix release branch to main.\n\n### Release notes\n%s\n' "$NEXT_VERSION" "$RELEASE_NOTES")
+          jq -n \
+            --arg title "$PR_TITLE" \
+            --arg head "$RELEASE_BRANCH" \
+            --arg base "main" \
+            --arg body "$BODY" \
+            '{title:$title, head:$head, base:$base, body:$body}' > /tmp/hotfix.json
+          curl -s -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/pulls" \
+            -d @/tmp/hotfix.json | tee /tmp/hotfix-response.json
+          HOTFIX_NUMBER=$(jq -r '.number' /tmp/hotfix-response.json)
+          HOTFIX_NODE=$(jq -r '.node_id' /tmp/hotfix-response.json)
+          if [ -z "$HOTFIX_NUMBER" ] || [ "$HOTFIX_NUMBER" = "null" ] || [ -z "$HOTFIX_NODE" ] || [ "$HOTFIX_NODE" = "null" ]; then
+            echo "Failed to create hotfix PR" >&2
+            cat /tmp/hotfix-response.json >&2
+            exit 1
+          fi
+          gh api repos/$REPO/pulls/$HOTFIX_NUMBER/requested_reviewers -f reviewers[]="coderabbitai"
+          gh api graphql -f query='mutation($prId:ID!,$method:PullRequestMergeMethod!){enablePullRequestAutoMerge(input:{pullRequestId:$prId,mergeMethod:$method}){pullRequest{number autoMergeRequest{enabledBy{login}}}}}' -f prId="$HOTFIX_NODE" -f method=SQUASH

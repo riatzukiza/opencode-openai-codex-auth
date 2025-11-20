@@ -34,9 +34,9 @@ describe("normalizeModel", () => {
 		expect(normalizeModel("gpt-5-nano")).toBe("gpt-5");
 	});
 
-	it("should return gpt-5.1 as default for unknown models", async () => {
-		expect(normalizeModel("unknown-model")).toBe("gpt-5.1");
-		expect(normalizeModel("gpt-4")).toBe("gpt-5.1");
+	it("should preserve unknown models without remapping", async () => {
+		expect(normalizeModel("unknown-model")).toBe("unknown-model");
+		expect(normalizeModel("gpt-4")).toBe("gpt-4");
 	});
 
 	it("should return gpt-5.1 for undefined", async () => {
