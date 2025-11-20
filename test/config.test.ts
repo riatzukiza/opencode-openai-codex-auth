@@ -129,6 +129,18 @@ describe("Configuration Parsing", () => {
 			});
 			expect(high.effort).toBe("high");
 		});
+
+		it("defaults gpt-5.1 to none when no overrides are provided", () => {
+			const result = getReasoningConfig("gpt-5.1", {});
+			expect(result.effort).toBe("none");
+			expect(result.summary).toBe("auto");
+		});
+
+		it("normalizes none to low for gpt-5.1-codex", () => {
+			const result = getReasoningConfig("gpt-5.1-codex", { reasoningEffort: "none" });
+			expect(result.effort).toBe("low");
+			expect(result.summary).toBe("auto");
+		});
 	});
 
 	describe("Model-specific behavior", () => {

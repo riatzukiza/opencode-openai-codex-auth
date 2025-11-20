@@ -32,7 +32,7 @@ pnpm run test:coverage
 
 ## Test Coverage
 
-### auth.test.ts (27 tests)
+### auth.test.ts
 
 Tests OAuth authentication functionality:
 
@@ -42,7 +42,7 @@ Tests OAuth authentication functionality:
 - Authorization flow creation with PKCE
 - URL parameter validation
 
-### config.test.ts (16 tests)
+### config.test.ts
 
 Tests configuration parsing and merging:
 
@@ -53,7 +53,7 @@ Tests configuration parsing and merging:
 - Reasoning effort normalization (minimal → low for codex)
 - Lightweight model detection (nano, mini)
 
-### request-transformer.test.ts (123 tests)
+### request-transformer.test.ts
 
 Tests request body transformations:
 
@@ -65,7 +65,7 @@ Tests request body transformations:
 - Encrypted reasoning content inclusion
 - Unsupported parameter removal
 
-### response-handler.test.ts (10 tests)
+### response-handler.test.ts
 
 Tests SSE to JSON conversion:
 
@@ -75,7 +75,7 @@ Tests SSE to JSON conversion:
 - Empty stream handling
 - Status preservation
 
-### logger.test.ts (7 tests)
+### logger.test.ts
 
 Tests logging functionality:
 
@@ -86,7 +86,7 @@ Tests logging functionality:
 ## Test Philosophy
 
 1. **Comprehensive Coverage**: Each module has extensive tests covering normal cases, edge cases, and error conditions
-2. **Fast Execution**: All tests run in < 250ms
+2. **Fast Execution**: Tests are designed to stay quick; actual timings may vary
 3. **No External Dependencies**: Tests use mocked data and don't make real API calls
 4. **Type Safety**: All tests are written in TypeScript with full type checking
 

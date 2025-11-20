@@ -293,6 +293,10 @@ describe("Fetch Helpers Module", () => {
 				transformRequestBodyMock.mock.calls[0];
 
 			expect(Array.isArray(optionsArg?.compaction?.originalInput)).toBe(true);
+			expect(optionsArg?.compaction?.originalInput).not.toBe(body.input);
+
+			body.input[0].content = "mutated";
+			expect(optionsArg?.compaction?.originalInput?.[0].content).toBe("hello");
 
 			expect(result?.body).toEqual(transformed);
 			expect(result?.updatedInit.body).toBe(JSON.stringify(transformed));
