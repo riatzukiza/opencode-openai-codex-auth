@@ -17,7 +17,7 @@ const successHtml = fs.readFileSync(path.join(__dirname, "..", "oauth-success.ht
  * @returns An object containing:
  *  - `port`: the bound port number (1455),
  *  - `close()`: a function that closes the server,
- *  - `waitForCode(expectedState?)`: a function that waits up to ~60 seconds for an authorization code; returns `{ code: string }` when a code is captured (and matches the configured state), or `null` if no code is received within the timeout.
+ *  - `waitForCode(...)`: waits up to ~60 seconds for an authorization code; validation always uses the configured `options.state` (the optional argument is accepted only for API symmetry); returns `{ code: string }` when a code matching that state is captured, or `null` on timeout.
  */
 export function startLocalOAuthServer({ state }: { state: string }): Promise<OAuthServerInfo> {
 	const server = http.createServer((req, res) => {
