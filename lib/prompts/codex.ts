@@ -197,7 +197,12 @@ export async function getCodexInstructions(): Promise<string> {
 	try {
 		latestTag = await getLatestReleaseTag();
 	} catch (error) {
-		logWarn("Failed to get latest release tag, falling back to cache/bundled", { error });
+		logWarn("Failed to get latest release tag; falling back to existing cache or bundled copy", {
+			error,
+		});
+		if (cacheFileExists) {
+			return readCachedInstructions(cacheFilePath, cachedETag || undefined, cachedTag || undefined);
+		}
 		return loadBundledInstructions();
 	}
 
