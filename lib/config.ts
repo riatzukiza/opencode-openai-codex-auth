@@ -1,5 +1,5 @@
-import type { PluginConfig } from "./types.js";
 import { logWarn } from "./logger.js";
+import type { PluginConfig } from "./types.js";
 import { getOpenCodePath, safeReadFile } from "./utils/file-system-utils.js";
 
 const CONFIG_PATH = getOpenCodePath("openhax-codex-config.json");
@@ -12,7 +12,11 @@ const CONFIG_PATH = getOpenCodePath("openhax-codex-config.json");
 const DEFAULT_CONFIG: PluginConfig = {
 	codexMode: true,
 	enablePromptCaching: true,
+	enableCodexCompaction: true,
+	autoCompactMinMessages: 8,
 };
+
+let cachedPluginConfig: PluginConfig | undefined;
 
 /**
  * Load plugin configuration from ~/.opencode/openhax-codex-config.json
@@ -20,27 +24,40 @@ const DEFAULT_CONFIG: PluginConfig = {
  *
  * @returns Plugin configuration
  */
-export function loadPluginConfig(): PluginConfig {
+export function loadPluginConfig(options: { forceReload?: boolean } = {}): PluginConfig {
+	const { forceReload } = options;
+
+	if (forceReload) {
+		cachedPluginConfig = undefined;
+	}
+
+	if (cachedPluginConfig) {
+		return cachedPluginConfig;
+	}
+
 	try {
 		const fileContent = safeReadFile(CONFIG_PATH);
 		if (!fileContent) {
 			logWarn("Plugin config file not found, using defaults", { path: CONFIG_PATH });
-			return DEFAULT_CONFIG;
+			cachedPluginConfig = DEFAULT_CONFIG;
+			return cachedPluginConfig;
 		}
 
 		const userConfig = JSON.parse(fileContent) as Partial<PluginConfig>;
 
 		// Merge with defaults
-		return {
+		cachedPluginConfig = {
 			...DEFAULT_CONFIG,
 			...userConfig,
 		};
+		return cachedPluginConfig;
 	} catch (error) {
 		logWarn("Failed to load plugin config", {
 			path: CONFIG_PATH,
 			error: (error as Error).message,
 		});
-		return DEFAULT_CONFIG;
+		cachedPluginConfig = DEFAULT_CONFIG;
+		return cachedPluginConfig;
 	}
 }
 

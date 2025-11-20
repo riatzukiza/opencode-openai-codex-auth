@@ -1,10 +1,9 @@
 /**
  * Cache metrics collection utilities
- * 
+ *
  * Tracks cache performance metrics including hit rates, miss rates,
  * and overall cache efficiency for monitoring and optimization.
  */
-
 
 /**
  * Cache metrics interface
@@ -33,9 +32,23 @@ export interface CacheMetricsCollection {
  */
 class CacheMetricsCollector {
 	private metrics: CacheMetricsCollection = {
-		codexInstructions: { hits: 0, misses: 0, evictions: 0, totalRequests: 0, hitRate: 0, lastReset: Date.now() },
+		codexInstructions: {
+			hits: 0,
+			misses: 0,
+			evictions: 0,
+			totalRequests: 0,
+			hitRate: 0,
+			lastReset: Date.now(),
+		},
 		opencodePrompt: { hits: 0, misses: 0, evictions: 0, totalRequests: 0, hitRate: 0, lastReset: Date.now() },
-		bridgeDecisions: { hits: 0, misses: 0, evictions: 0, totalRequests: 0, hitRate: 0, lastReset: Date.now() },
+		bridgeDecisions: {
+			hits: 0,
+			misses: 0,
+			evictions: 0,
+			totalRequests: 0,
+			hitRate: 0,
+			lastReset: Date.now(),
+		},
 		overall: { hits: 0, misses: 0, evictions: 0, totalRequests: 0, hitRate: 0, lastReset: Date.now() },
 	};
 
@@ -43,33 +56,33 @@ class CacheMetricsCollector {
 	 * Record a cache hit
 	 * @param cacheType - Type of cache
 	 */
-	recordHit(cacheType: keyof Omit<CacheMetricsCollection, 'overall'>): void {
+	recordHit(cacheType: keyof Omit<CacheMetricsCollection, "overall">): void {
 		this.metrics[cacheType].hits++;
 		this.metrics[cacheType].totalRequests++;
 		this.metrics.overall.hits++;
 		this.metrics.overall.totalRequests++;
 		this.updateHitRate(cacheType);
-		this.updateHitRate('overall');
+		this.updateHitRate("overall");
 	}
 
 	/**
 	 * Record a cache miss
 	 * @param cacheType - Type of cache
 	 */
-	recordMiss(cacheType: keyof Omit<CacheMetricsCollection, 'overall'>): void {
+	recordMiss(cacheType: keyof Omit<CacheMetricsCollection, "overall">): void {
 		this.metrics[cacheType].misses++;
 		this.metrics[cacheType].totalRequests++;
 		this.metrics.overall.misses++;
 		this.metrics.overall.totalRequests++;
 		this.updateHitRate(cacheType);
-		this.updateHitRate('overall');
+		this.updateHitRate("overall");
 	}
 
 	/**
 	 * Record a cache eviction
 	 * @param cacheType - Type of cache
 	 */
-	recordEviction(cacheType: keyof Omit<CacheMetricsCollection, 'overall'>): void {
+	recordEviction(cacheType: keyof Omit<CacheMetricsCollection, "overall">): void {
 		this.metrics[cacheType].evictions++;
 		this.metrics.overall.evictions++;
 	}
@@ -80,9 +93,17 @@ class CacheMetricsCollector {
 	 */
 	private updateHitRate(cacheType: keyof CacheMetricsCollection): void {
 		const metrics = this.metrics[cacheType];
-		metrics.hitRate = metrics.totalRequests > 0 
-			? (metrics.hits / metrics.totalRequests) * 100 
-			: 0;
+		metrics.hitRate = metrics.totalRequests > 0 ? (metrics.hits / metrics.totalRequests) * 100 : 0;
+	}
+
+	private cloneMetrics(): CacheMetricsCollection {
+		const cloneMetric = (metric: CacheMetrics): CacheMetrics => ({ ...metric });
+		return {
+			codexInstructions: cloneMetric(this.metrics.codexInstructions),
+			opencodePrompt: cloneMetric(this.metrics.opencodePrompt),
+			bridgeDecisions: cloneMetric(this.metrics.bridgeDecisions),
+			overall: cloneMetric(this.metrics.overall),
+		};
 	}
 
 	/**
@@ -90,7 +111,7 @@ class CacheMetricsCollector {
 	 * @returns Complete metrics collection
 	 */
 	getMetrics(): CacheMetricsCollection {
-		return { ...this.metrics };
+		return this.cloneMetrics();
 	}
 
 	/**
@@ -99,22 +120,22 @@ class CacheMetricsCollector {
 	 */
 	getMetricsSummary(): string {
 		const summary = [];
-		
+
 		for (const [cacheName, metrics] of Object.entries(this.metrics)) {
-			if (cacheName === 'overall') continue;
-			
+			if (cacheName === "overall") continue;
+
 			summary.push(
 				`${cacheName}: ${metrics.hits}/${metrics.totalRequests} ` +
-				`(${metrics.hitRate.toFixed(1)}% hit rate, ${metrics.evictions} evictions)`
+					`(${metrics.hitRate.toFixed(1)}% hit rate, ${metrics.evictions} evictions)`,
 			);
 		}
-		
+
 		summary.push(
 			`overall: ${this.metrics.overall.hits}/${this.metrics.overall.totalRequests} ` +
-			`(${this.metrics.overall.hitRate.toFixed(1)}% hit rate)`
+				`(${this.metrics.overall.hitRate.toFixed(1)}% hit rate)`,
 		);
-		
-		return summary.join(' | ');
+
+		return summary.join(" | ");
 	}
 
 	/**
@@ -140,7 +161,8 @@ class CacheMetricsCollector {
 	 * @param resetIntervalMs - Reset interval in milliseconds
 	 * @returns True if metrics should be reset
 	 */
-	shouldReset(resetIntervalMs = 60 * 60 * 1000): boolean { // Default 1 hour
+	shouldReset(resetIntervalMs = 60 * 60 * 1000): boolean {
+		// Default 1 hour
 		return Date.now() - this.metrics.overall.lastReset > resetIntervalMs;
 	}
 }
@@ -152,7 +174,7 @@ const metricsCollector = new CacheMetricsCollector();
  * Record a cache hit
  * @param cacheType - Type of cache
  */
-export function recordCacheHit(cacheType: keyof Omit<CacheMetricsCollection, 'overall'>): void {
+export function recordCacheHit(cacheType: keyof Omit<CacheMetricsCollection, "overall">): void {
 	metricsCollector.recordHit(cacheType);
 }
 
@@ -160,7 +182,7 @@ export function recordCacheHit(cacheType: keyof Omit<CacheMetricsCollection, 'ov
  * Record a cache miss
  * @param cacheType - Type of cache
  */
-export function recordCacheMiss(cacheType: keyof Omit<CacheMetricsCollection, 'overall'>): void {
+export function recordCacheMiss(cacheType: keyof Omit<CacheMetricsCollection, "overall">): void {
 	metricsCollector.recordMiss(cacheType);
 }
 
@@ -168,7 +190,7 @@ export function recordCacheMiss(cacheType: keyof Omit<CacheMetricsCollection, 'o
  * Record a cache eviction
  * @param cacheType - Type of cache
  */
-export function recordCacheEviction(cacheType: keyof Omit<CacheMetricsCollection, 'overall'>): void {
+export function recordCacheEviction(cacheType: keyof Omit<CacheMetricsCollection, "overall">): void {
 	metricsCollector.recordEviction(cacheType);
 }
 
@@ -216,22 +238,22 @@ export function getCachePerformanceReport(): {
 } {
 	const metrics = getCacheMetrics();
 	const summary = getCacheMetricsSummary();
-	
+
 	const recommendations: string[] = [];
-	
+
 	// Analyze performance and generate recommendations
 	if (metrics.overall.hitRate < 70) {
 		recommendations.push("Consider increasing cache TTL for better hit rates");
 	}
-	
+
 	if (metrics.overall.evictions > 100) {
 		recommendations.push("High eviction count - consider increasing cache size limits");
 	}
-	
+
 	if (metrics.overall.totalRequests < 10) {
 		recommendations.push("Low cache usage - metrics may not be representative");
 	}
-	
+
 	return {
 		summary,
 		details: metrics,

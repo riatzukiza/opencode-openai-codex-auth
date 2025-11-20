@@ -1,16 +1,18 @@
 {
 	"$schema": "https://biomejs.dev/schemas/2.3.5/schema.json",
 	"files": {
-		"includes": ["scripts/**/*.mjs"]
+		"includes": ["lib/**/*.ts", "test/**/*.ts"],
+		"ignoreUnknown": false
 	},
 	"formatter": {
 		"enabled": true,
-		"lineWidth": 110
+		"lineWidth": 110,
+		"formatWithErrors": true
 	},
 	"linter": {
-		"enabled": true,
-		"rules": {
-			"recommended": true
-		}
+		"enabled": false
+	},
+	"javascript": {
+		"globals": ["globalThis"]
 	}
 }

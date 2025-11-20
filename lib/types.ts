@@ -1,4 +1,4 @@
-import type { Auth, Provider, Model } from "@opencode-ai/sdk";
+import type { Auth, Model, Provider } from "@opencode-ai/sdk";
 
 /**
  * Plugin configuration from ~/.opencode/openhax-codex-config.json
@@ -16,6 +16,22 @@ export interface PluginConfig {
 	 * @default true
 	 */
 	enablePromptCaching?: boolean;
+
+	/**
+	 * Enable Codex-style compaction commands inside the plugin
+	 * @default true
+	 */
+	enableCodexCompaction?: boolean;
+
+	/**
+	 * Optional auto-compaction token limit (approximate tokens)
+	 */
+	autoCompactTokenLimit?: number;
+
+	/**
+	 * Minimum number of conversation messages before auto-compacting
+	 */
+	autoCompactMinMessages?: number;
 }
 
 /**
@@ -34,7 +50,7 @@ export interface UserConfig {
  * Configuration options for reasoning and text settings
  */
 export interface ConfigOptions {
-	reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high";
+	reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
 	reasoningSummary?: "auto" | "concise" | "detailed";
 	textVerbosity?: "low" | "medium" | "high";
 	include?: string[];
@@ -44,7 +60,7 @@ export interface ConfigOptions {
  * Reasoning configuration for requests
  */
 export interface ReasoningConfig {
-	effort: "none" | "minimal" | "low" | "medium" | "high";
+	effort: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
 	summary: "auto" | "concise" | "detailed";
 }
 
@@ -54,7 +70,7 @@ export interface ReasoningConfig {
 export interface OAuthServerInfo {
 	port: number;
 	close: () => void;
-	waitForCode: (state: string) => Promise<{ code: string } | null>;
+	waitForCode: (_state?: string) => Promise<{ code: string } | null>;
 }
 
 /**
@@ -135,10 +151,10 @@ export interface RequestBody {
 	instructions?: string;
 	input?: InputItem[];
 	tools?: unknown;
-    /** OpenAI Responses API tool selection policy */
-    tool_choice?: string | { type?: string };
-    /** Whether the model may call tools in parallel during a single turn */
-    parallel_tool_calls?: boolean;
+	/** OpenAI Responses API tool selection policy */
+	tool_choice?: string | { type?: string };
+	/** Whether the model may call tools in parallel during a single turn */
+	parallel_tool_calls?: boolean;
 	reasoning?: Partial<ReasoningConfig>;
 	text?: {
 		verbosity?: "low" | "medium" | "high";
@@ -173,6 +189,8 @@ export interface SessionState {
 	lastUpdated: number;
 	lastCachedTokens?: number;
 	bridgeInjected?: boolean; // Track whether Codex-OpenCode bridge prompt was added
+	compactionBaseSystem?: InputItem[];
+	compactionSummaryItem?: InputItem;
 }
 
 /**

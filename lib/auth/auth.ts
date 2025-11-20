@@ -1,7 +1,7 @@
-import { generatePKCE } from "@openauthjs/openauth/pkce";
 import { randomBytes } from "node:crypto";
-import type { PKCEPair, AuthorizationFlow, TokenResult, ParsedAuthInput, JWTPayload } from "../types.js";
+import { generatePKCE } from "@openauthjs/openauth/pkce";
 import { logError } from "../logger.js";
+import type { AuthorizationFlow, JWTPayload, ParsedAuthInput, PKCEPair, TokenResult } from "../types.js";
 
 // OAuth constants (from openai/codex)
 /* Stryker disable StringLiteral */
@@ -87,11 +87,7 @@ export async function exchangeAuthorizationCode(
 		refresh_token?: string;
 		expires_in?: number;
 	};
-	if (
-		!json?.access_token ||
-		!json?.refresh_token ||
-		typeof json?.expires_in !== "number"
-	) {
+	if (!json?.access_token || !json?.refresh_token || typeof json?.expires_in !== "number") {
 		logError("Token response missing fields", json);
 		return { type: "failed" };
 	}
@@ -113,7 +109,9 @@ export function decodeJWT(token: string): JWTPayload | null {
 		const parts = token.split(".");
 		if (parts.length !== 3) return null;
 		const payload = parts[1];
-		const decoded = Buffer.from(payload, "base64").toString("utf-8");
+		const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+		const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+		const decoded = Buffer.from(padded, "base64").toString("utf-8");
 		return JSON.parse(decoded) as JWTPayload;
 	} catch {
 		return null;
@@ -151,11 +149,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<TokenRes
 			refresh_token?: string;
 			expires_in?: number;
 		};
-		if (
-			!json?.access_token ||
-			!json?.refresh_token ||
-			typeof json?.expires_in !== "number"
-		) {
+		if (!json?.access_token || !json?.refresh_token || typeof json?.expires_in !== "number") {
 			logError("Token refresh response missing fields", json);
 			return { type: "failed" };
 		}

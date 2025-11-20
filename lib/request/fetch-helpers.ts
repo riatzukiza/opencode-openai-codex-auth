@@ -3,23 +3,24 @@
  * These functions break down the complex fetch logic into manageable, testable units
  */
 
-import type { Auth } from "@opencode-ai/sdk";
-import type { OpencodeClient } from "@opencode-ai/sdk";
+import type { Auth, OpencodeClient } from "@opencode-ai/sdk";
 import { refreshAccessToken } from "../auth/auth.js";
-import { logRequest, logError } from "../logger.js";
+import { detectCompactionCommand } from "../compaction/codex-compaction.js";
+import type { CompactionDecision } from "../compaction/compaction-executor.js";
+import {
+	ERROR_MESSAGES,
+	HTTP_STATUS,
+	LOG_STAGES,
+	OPENAI_HEADER_VALUES,
+	OPENAI_HEADERS,
+	URL_PATHS,
+} from "../constants.js";
+import { logError, logRequest } from "../logger.js";
+import type { SessionManager } from "../session/session-manager.js";
+import type { PluginConfig, RequestBody, SessionContext, UserConfig } from "../types.js";
+import { cloneInputItems } from "../utils/clone.js";
 import { transformRequestBody } from "./request-transformer.js";
 import { convertSseToJson, ensureContentType } from "./response-handler.js";
-import type { UserConfig, RequestBody, SessionContext } from "../types.js";
-import { SessionManager } from "../session/session-manager.js";
-import {
-	PLUGIN_NAME,
-	HTTP_STATUS,
-	OPENAI_HEADERS,
-	OPENAI_HEADER_VALUES,
-	URL_PATHS,
-	ERROR_MESSAGES,
-	LOG_STAGES,
-} from "../constants.js";
 
 /**
  * Determines if the current auth token needs to be refreshed
@@ -39,9 +40,7 @@ export function shouldRefreshToken(auth: Auth): boolean {
 export async function refreshAndUpdateToken(
 	currentAuth: Auth,
 	client: OpencodeClient,
-): Promise<
-	{ success: true; auth: Auth } | { success: false; response: Response }
-> {
+): Promise<{ success: true; auth: Auth } | { success: false; response: Response }> {
 	const refreshToken = currentAuth.type === "oauth" ? currentAuth.refresh : "";
 	const refreshResult = await refreshAccessToken(refreshToken);
 
@@ -49,10 +48,9 @@ export async function refreshAndUpdateToken(
 		logError(ERROR_MESSAGES.TOKEN_REFRESH_FAILED);
 		return {
 			success: false,
-			response: new Response(
-				JSON.stringify({ error: "Token refresh failed" }),
-				{ status: HTTP_STATUS.UNAUTHORIZED },
-			),
+			response: new Response(JSON.stringify({ error: "Token refresh failed" }), {
+				status: HTTP_STATUS.UNAUTHORIZED,
+			}),
 		};
 	}
 
@@ -67,14 +65,18 @@ export async function refreshAndUpdateToken(
 		},
 	});
 
-	// Update current auth reference if it's OAuth type
+	// Build updated auth snapshot for callers (avoid mutating the parameter)
+	let updatedAuth: Auth = currentAuth;
 	if (currentAuth.type === "oauth") {
-		currentAuth.access = refreshResult.access;
-		currentAuth.refresh = refreshResult.refresh;
-		currentAuth.expires = refreshResult.expires;
+		updatedAuth = {
+			...currentAuth,
+			access: refreshResult.access,
+			refresh: refreshResult.refresh,
+			expires: refreshResult.expires,
+		};
 	}
 
-	return { success: true, auth: currentAuth };
+	return { success: true, auth: updatedAuth };
 }
 
 /**
@@ -113,13 +115,40 @@ export async function transformRequestForCodex(
 	userConfig: UserConfig,
 	codexMode = true,
 	sessionManager?: SessionManager,
-): Promise<{ body: RequestBody; updatedInit: RequestInit; sessionContext?: SessionContext } | undefined> {
+	pluginConfig?: PluginConfig,
+): Promise<
+	| {
+			body: RequestBody;
+			updatedInit: RequestInit;
+			sessionContext?: SessionContext;
+			compactionDecision?: CompactionDecision;
+	  }
+	| undefined
+> {
 	if (!init?.body) return undefined;
 
 	try {
 		const body = JSON.parse(init.body as string) as RequestBody;
 		const originalModel = body.model;
+		const originalInput = cloneInputItems(body.input ?? []);
+		const compactionEnabled = pluginConfig?.enableCodexCompaction !== false;
+		const compactionSettings = {
+			enabled: compactionEnabled,
+			autoLimitTokens: pluginConfig?.autoCompactTokenLimit,
+			autoMinMessages: pluginConfig?.autoCompactMinMessages ?? 8,
+		};
+		const manualCommand = compactionEnabled ? detectCompactionCommand(originalInput) : null;
+
 		const sessionContext = sessionManager?.getContext(body);
+		if (sessionContext?.state?.promptCacheKey) {
+			const hostProvided = (body as any).prompt_cache_key || (body as any).promptCacheKey;
+			if (!hostProvided) {
+				(body as any).prompt_cache_key = sessionContext.state.promptCacheKey;
+			}
+		}
+		if (compactionEnabled && !manualCommand) {
+			sessionManager?.applyCompactedHistory?.(body, sessionContext);
+		}
 
 		// Log original request
 		logRequest(LOG_STAGES.BEFORE_TRANSFORM, {
@@ -134,33 +163,49 @@ export async function transformRequestForCodex(
 		});
 
 		// Transform request body
-		const transformedBody = await transformRequestBody(
+		const transformResult = await transformRequestBody(
 			body,
 			codexInstructions,
 			userConfig,
 			codexMode,
-			{ preserveIds: sessionContext?.preserveIds },
+			{
+				preserveIds: sessionContext?.preserveIds,
+				compaction: {
+					settings: compactionSettings,
+					commandText: manualCommand,
+					originalInput,
+				},
+			},
+			sessionContext,
 		);
-		const appliedContext = sessionManager?.applyRequest(transformedBody, sessionContext) ?? sessionContext;
+		const appliedContext =
+			sessionManager?.applyRequest(transformResult.body, sessionContext) ?? sessionContext;
 
 		// Log transformed request
 		logRequest(LOG_STAGES.AFTER_TRANSFORM, {
 			url,
 			originalModel,
-			normalizedModel: transformedBody.model,
-			hasTools: !!transformedBody.tools,
-			hasInput: !!transformedBody.input,
-			inputLength: transformedBody.input?.length,
-			reasoning: transformedBody.reasoning as unknown,
-			textVerbosity: transformedBody.text?.verbosity,
-			include: transformedBody.include,
-			body: transformedBody as unknown as Record<string, unknown>,
+			normalizedModel: transformResult.body.model,
+			hasTools: !!transformResult.body.tools,
+			hasInput: !!transformResult.body.input,
+			inputLength: transformResult.body.input?.length,
+			reasoning: transformResult.body.reasoning as unknown,
+			textVerbosity: transformResult.body.text?.verbosity,
+			include: transformResult.body.include,
+			body: transformResult.body as unknown as Record<string, unknown>,
 		});
 
+		// Serialize body once - callers must re-serialize if they mutate transformResult.body after this function returns
+		const updatedInit: RequestInit = {
+			...init,
+			body: JSON.stringify(transformResult.body),
+		};
+
 		return {
-			body: transformedBody,
-			updatedInit: { ...init, body: JSON.stringify(transformedBody) },
+			body: transformResult.body,
+			updatedInit,
 			sessionContext: appliedContext,
+			compactionDecision: transformResult.compactionDecision,
 		};
 	} catch (e) {
 		logError(ERROR_MESSAGES.REQUEST_PARSE_ERROR, {
@@ -203,9 +248,10 @@ export function createCodexHeaders(
 }
 
 /**
- * Handles error responses from the Codex API
- * @param response - Error response from API
- * @returns Response with error details
+ * Enriches a Codex API error Response with structured error details and rate-limit metadata.
+ *
+ * @param response - The original error Response from a Codex API request
+ * @returns A Response with the same status and statusText whose body is either the original raw body or a JSON object containing an `error` object with `message`, optional `friendly_message`, optional `rate_limits`, and `status`. When the body is enriched, the response `Content-Type` is set to `application/json; charset=utf-8`.
  */
 export async function handleErrorResponse(response: Response): Promise<Response> {
 	const raw = await response.text();
@@ -248,10 +294,11 @@ export async function handleErrorResponse(response: Response): Promise<Response>
 			message = err.message ?? friendly_message;
 		} else {
 			// Preserve original error message for non-usage-limit errors
-			message = err.message
-				?? parsed?.error?.message
-				?? (typeof parsed === "string" ? parsed : undefined)
-				?? `Request failed with status ${response.status}.`;
+			message =
+				err.message ??
+				parsed?.error?.message ??
+				(typeof parsed === "string" ? parsed : undefined) ??
+				`Request failed with status ${response.status}.`;
 		}
 
 		const enhanced = {
@@ -277,7 +324,11 @@ export async function handleErrorResponse(response: Response): Promise<Response>
 	logError(`${response.status} error`, { body: enriched });
 
 	const headers = new Headers(response.headers);
-	headers.set("content-type", "application/json; charset=utf-8");
+	// Only set JSON content-type if we successfully enriched the response
+	// Otherwise preserve the original content-type for non-JSON responses
+	if (enriched !== raw) {
+		headers.set("content-type", "application/json; charset=utf-8");
+	}
 	return new Response(enriched, {
 		status: response.status,
 		statusText: response.statusText,
@@ -292,10 +343,7 @@ export async function handleErrorResponse(response: Response): Promise<Response>
  * @param hasTools - Whether the request included tools
  * @returns Processed response (SSE→JSON for non-tool, stream for tool requests)
  */
-export async function handleSuccessResponse(
-	response: Response,
-	hasTools: boolean,
-): Promise<Response> {
+export async function handleSuccessResponse(response: Response, hasTools: boolean): Promise<Response> {
 	const responseHeaders = ensureContentType(response.headers);
 
 	// For non-tool requests (compact/summarize), convert streaming SSE to JSON

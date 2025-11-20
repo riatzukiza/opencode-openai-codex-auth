@@ -1,46 +1,54 @@
-import http from "node:http";
 import fs from "node:fs";
+import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { OAuthServerInfo } from "../types.js";
 import { logError } from "../logger.js";
+import type { OAuthServerInfo } from "../types.js";
 
 // Resolve path to oauth-success.html (one level up from auth/ subfolder)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const successHtml = fs.readFileSync(path.join(__dirname, "..", "oauth-success.html"), "utf-8");
 
 /**
- * Start a small local HTTP server that waits for /auth/callback and returns the code
- * @param options - OAuth state for validation
- * @returns Promise that resolves to server info
+ * Start a local HTTP listener that captures the OAuth authorization code from /auth/callback.
+ *
+ * @param options - Configuration object.
+ * @param options.state - Expected `state` query parameter value used to validate the callback.
+ * @returns An object containing:
+ *  - `port`: the bound port number (1455),
+ *  - `close()`: a function that closes the server,
+ *  - `waitForCode(...)`: waits up to ~60 seconds for an authorization code; validation always uses the configured `options.state` (the optional argument is accepted only for API symmetry); returns `{ code: string }` when a code matching that state is captured, or `null` on timeout.
  */
 export function startLocalOAuthServer({ state }: { state: string }): Promise<OAuthServerInfo> {
 	const server = http.createServer((req, res) => {
+		const send = (status: number, message: string, headers?: http.OutgoingHttpHeaders) => {
+			const finalHeaders = {
+				"Content-Type": "text/plain; charset=utf-8",
+				...headers,
+			};
+			res.writeHead(status, finalHeaders);
+			res.end(message);
+		};
+
 		try {
 			const url = new URL(req.url || "", "http://localhost");
 			if (url.pathname !== "/auth/callback") {
-				res.statusCode = 404;
-				res.end("Not found");
+				send(404, "Not found");
 				return;
 			}
 			if (url.searchParams.get("state") !== state) {
-				res.statusCode = 400;
-				res.end("State mismatch");
+				send(400, "State mismatch");
 				return;
 			}
 			const code = url.searchParams.get("code");
 			if (!code) {
-				res.statusCode = 400;
-				res.end("Missing authorization code");
+				send(400, "Missing authorization code");
 				return;
 			}
-			res.statusCode = 200;
-			res.setHeader("Content-Type", "text/html; charset=utf-8");
-			res.end(successHtml);
+			send(200, successHtml, { "Content-Type": "text/html; charset=utf-8" });
 			(server as http.Server & { _lastCode?: string })._lastCode = code;
 		} catch {
-			res.statusCode = 500;
-			res.end("Internal error");
+			send(500, "Internal error");
 		}
 	});
 
@@ -50,7 +58,7 @@ export function startLocalOAuthServer({ state }: { state: string }): Promise<OAu
 				resolve({
 					port: 1455,
 					close: () => server.close(),
-					waitForCode: async () => {
+					waitForCode: async (_expectedState?: string) => {
 						const poll = () => new Promise<void>((r) => setTimeout(r, 100));
 						for (let i = 0; i < 600; i++) {
 							const lastCode = (server as http.Server & { _lastCode?: string })._lastCode;

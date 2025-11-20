@@ -1,16 +1,26 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 class MockResponse {
 	statusCode = 200;
 	headers = new Map<string, string>();
-	body = '';
+	body = "";
+
+	writeHead(status: number, headers?: Record<string, string>) {
+		this.statusCode = status;
+		if (headers) {
+			for (const [key, value] of Object.entries(headers)) {
+				this.headers.set(key, value);
+			}
+		}
+		return this;
+	}
 
 	setHeader(key: string, value: string) {
 		this.headers.set(key, value);
 	}
 
 	end(data?: string) {
-		this.body = data ?? '';
+		this.body = data ?? "";
 	}
 }
 
@@ -30,7 +40,7 @@ class MockServer {
 	}
 
 	on(event: string, cb: (err: Error) => void) {
-		if (event === 'error') {
+		if (event === "error") {
 			this.errorHandler = cb;
 		}
 		return this;
@@ -55,22 +65,25 @@ class MockServer {
 const mockState = { server: null as MockServer | null };
 
 const mockServerFs = {
-	readFileSync: vi.fn(() => '<!DOCTYPE html><title>Success</title>'),
+	readFileSync: vi.fn(() => "<!DOCTYPE html><title>Success</title>"),
+	existsSync: vi.fn(() => true),
+	mkdirSync: vi.fn(),
+	writeFileSync: vi.fn(),
 };
 
-vi.mock('node:fs', () => ({
+vi.mock("node:fs", () => ({
 	default: mockServerFs,
 	...mockServerFs,
 }));
 
-vi.mock('node:http', async () => {
-	const actual = await vi.importActual<typeof import('node:http')>('node:http');
+vi.mock("node:http", async () => {
+	const actual = await vi.importActual<typeof import("node:http")>("node:http");
 	const mocked = {
 		...actual,
 		createServer: (handler: (req: { url?: string }, res: MockResponse) => void) => {
 			const server = new MockServer(handler);
 			mockState.server = server;
-			return server as unknown as import('node:http').Server;
+			return server as unknown as import("node:http").Server;
 		},
 	};
 	return {
@@ -79,38 +92,38 @@ vi.mock('node:http', async () => {
 	};
 });
 
-describe('OAuth Server', () => {
-  beforeEach(() => {
-    mockState.server = null;
-  });
+describe("OAuth Server", () => {
+	beforeEach(() => {
+		mockState.server = null;
+	});
 
 	afterEach(() => {
 		vi.useRealTimers();
 	});
 
-	it('serves success page and captures authorization code', async () => {
-		const { startLocalOAuthServer } = await import('../lib/auth/server.js');
-		const serverInfo = await startLocalOAuthServer({ state: 'state-123' });
-		const response = mockState.server?.trigger('/auth/callback?code=CODE-42&state=state-123');
+	it("serves success page and captures authorization code", async () => {
+		const { startLocalOAuthServer } = await import("../lib/auth/server.js");
+		const serverInfo = await startLocalOAuthServer({ state: "state-123" });
+		const response = mockState.server?.trigger("/auth/callback?code=CODE-42&state=state-123");
 		expect(response?.statusCode).toBe(200);
-		expect(response?.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
-		expect(response?.body).toContain('<title>Success</title>');
+		expect(response?.headers.get("Content-Type")).toBe("text/html; charset=utf-8");
+		expect(response?.body).toContain("<title>Success</title>");
 
-		const result = await serverInfo.waitForCode('state-123');
-		expect(result).toEqual({ code: 'CODE-42' });
+		const result = await serverInfo.waitForCode("state-123");
+		expect(result).toEqual({ code: "CODE-42" });
 		serverInfo.close();
 		expect(mockState.server?.closed).toBe(true);
 	});
 
-	it('returns null when state mismatch prevents code capture', async () => {
+	it("returns null when state mismatch prevents code capture", async () => {
 		vi.useFakeTimers();
-		const { startLocalOAuthServer } = await import('../lib/auth/server.js');
-		const serverInfo = await startLocalOAuthServer({ state: 'expected' });
-		const response = mockState.server?.trigger('/auth/callback?code=ignored&state=wrong');
+		const { startLocalOAuthServer } = await import("../lib/auth/server.js");
+		const serverInfo = await startLocalOAuthServer({ state: "expected" });
+		const response = mockState.server?.trigger("/auth/callback?code=ignored&state=wrong");
 		expect(response?.statusCode).toBe(400);
-		expect(response?.body).toContain('State mismatch');
+		expect(response?.body).toContain("State mismatch");
 
-		const waitPromise = serverInfo.waitForCode('expected');
+		const waitPromise = serverInfo.waitForCode("expected");
 		await vi.advanceTimersByTimeAsync(60000);
 		const result = await waitPromise;
 		expect(result).toBeNull();

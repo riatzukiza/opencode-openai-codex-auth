@@ -361,9 +361,19 @@ Advanced plugin settings in `~/.opencode/openhax-codex-config.json`:
 
 ```json
 {
-  "codexMode": true
+  "codexMode": true,
+  "enableCodexCompaction": true,
+  "autoCompactTokenLimit": 12000,
+  "autoCompactMinMessages": 8
 }
 ```
+
+### Log file management
+
+Control local request/rolling log growth:
+- `CODEX_LOG_MAX_BYTES` (default: 5_242_880) - rotate when the rolling log exceeds this many bytes.
+- `CODEX_LOG_MAX_FILES` (default: 5) - number of rotated log files to retain (plus the active log).
+- `CODEX_LOG_QUEUE_MAX` (default: 1000) - maximum buffered log entries before oldest entries are dropped.
 
 ### CODEX_MODE
 
@@ -382,6 +392,24 @@ Advanced plugin settings in `~/.opencode/openhax-codex-config.json`:
 CODEX_MODE=0 opencode run "task"  # Temporarily disable
 CODEX_MODE=1 opencode run "task"  # Temporarily enable
 ```
+
+### enableCodexCompaction
+
+Controls whether the plugin exposes Codex-style compaction commands.
+
+- `true` (default): `/codex-compact` is available and auto-compaction heuristics may run if enabled.
+- `false`: Compaction commands are ignored and OpenCode's own prompts pass through untouched.
+
+Disable only if you prefer OpenCode's host-side compaction or while debugging prompt differences.
+
+### autoCompactTokenLimit / autoCompactMinMessages
+
+Configures the optional auto-compaction heuristic.
+
+- `autoCompactTokenLimit`: Approximate token budget (based on character count ÷ 4). When unset, auto-compaction never triggers.
+- `autoCompactMinMessages`: Minimum number of conversation turns before auto-compaction is considered (default `8`).
+
+When the limit is reached, the plugin injects a Codex summary, stores it for future turns, and replies: “Auto compaction triggered… Review the summary then resend your last instruction.”
 
 ### Prompt caching
 
@@ -431,7 +459,7 @@ DEBUG_CODEX_PLUGIN=1 opencode run "test" --model=openai/your-model-name
 
 Look for:
 ```
-[openai-codex-plugin] Model config lookup: "your-model-name" → normalized to "gpt-5-codex" for API {
+[openhax/codex] Model config lookup: "your-model-name" → normalized to "gpt-5-codex" for API {
   hasModelSpecificConfig: true,
   resolvedConfig: { ... }
 }

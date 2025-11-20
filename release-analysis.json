@@ -1,0 +1,16 @@
+{
+  "baseRef": null,
+  "headRef": "52cdc3a2013091b525078c6007e535b1acd57f1c",
+  "releaseType": "minor",
+  "nextVersion": "0.1.0",
+  "summary": "The head introduces additive features (GPT-5.1 presets, Codex Mini support) and other enhancements without breaking existing APIs or behavior; thus, a minor version bump is appropriate.",
+  "highlights": [
+    "feat(models): add GPT-5.1 presets and reasoning-none",
+    "feat(auth): Add Codex Mini support",
+    "docs: sync README with GPT-5.1 presets and reasoning-none"
+  ],
+  "breakingChanges": [
+    "No breaking changes detected; API compatibility preserved."
+  ],
+  "releaseNotes": "## Summary\nThe head introduces additive features (GPT-5.1 presets, Codex Mini support) and other enhancements without breaking existing APIs or behavior; thus, a minor version bump is appropriate.\n\n### Release Type\n- MINOR (auto-detected)\n\n### Highlights\n- feat(models): add GPT-5.1 presets and reasoning-none\n- feat(auth): Add Codex Mini support\n- docs: sync README with GPT-5.1 presets and reasoning-none\n\n### Breaking Changes\n- No breaking changes detected; API compatibility preserved."
+}

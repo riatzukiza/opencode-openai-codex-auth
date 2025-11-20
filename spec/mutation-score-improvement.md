@@ -60,3 +60,19 @@
 - Definition of done for this pass:
   - Overall mutation score ≥ 60 with a comfortable buffer (current score **63.69%**).
   - No new flaky or slow tests introduced.
+
+
+## 2025-11-19 Update
+
+- Latest `pnpm test:mutation` run fails with mutation score **57.26%** (threshold 60). Survivors cluster in `lib/request/request-transformer.ts` (341 survived / 171 no-cov), `lib/utils/input-item-utils.ts` (mutation score ~21%; 7 survived / 56 no-cov), and `lib/commands/codex-metrics.ts` (mutation score ~43%; 94 survived / 79 no-cov) where the inspect command path is untested.
+- No new relevant issues or PRs identified beyond previously noted #36 and #37.
+- Target files & lines for this pass:
+  - `lib/utils/input-item-utils.ts:16-125` — text extraction, role formatting, and conversation helpers lack direct tests.
+  - `lib/utils/clone.ts:13-44` — structuredClone branch vs JSON fallback and array cloning guards.
+  - `lib/commands/codex-metrics.ts:36-215,263-414` — inspect command handling, trigger normalization, and SSE payload formatting currently uncovered.
+- Definition of done:
+  - Add deterministic tests covering input-item helpers (string vs array content, role validation, turn counting), clone utilities (primitive passthrough, structuredClone usage, empty-array guard), and inspect command responses (trigger variants, include metadata, fallback model).
+  - Achieve mutation score ≥ 60 and ensure `pnpm test` passes.
+- Requirements & considerations:
+  - Keep new tests fast and deterministic (reuse mocks for cache warm snapshot, avoid network/disk writes).
+  - Preserve existing behavior; focus on pinning current outputs and newline/formatting semantics during assertions.

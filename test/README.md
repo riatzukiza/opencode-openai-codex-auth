@@ -1,6 +1,6 @@
 # Test Suite
 
-This directory contains the comprehensive test suite for the OpenAI Codex OAuth plugin.
+This directory contains the comprehensive test suite for `@openhax/codex`, the OpenHax Codex OAuth plugin.
 
 ## Test Structure
 
@@ -18,30 +18,34 @@ test/
 
 ```bash
 # Run all tests once
-npm test
+pnpm test
 
 # Watch mode (re-run on file changes)
-npm run test:watch
+pnpm run test:watch
 
 # Visual test UI
-npm run test:ui
+pnpm run test:ui
 
 # Generate coverage report
-npm run test:coverage
+pnpm run test:coverage
 ```
 
 ## Test Coverage
 
-### auth.test.ts (16 tests)
+### auth.test.ts
+
 Tests OAuth authentication functionality:
+
 - State generation and uniqueness
 - Authorization input parsing (URL, code#state, query string formats)
 - JWT decoding and payload extraction
 - Authorization flow creation with PKCE
 - URL parameter validation
 
-### config.test.ts (13 tests)
+### config.test.ts
+
 Tests configuration parsing and merging:
+
 - Global configuration application
 - Per-model configuration overrides
 - Mixed configuration (global + per-model)
@@ -49,8 +53,10 @@ Tests configuration parsing and merging:
 - Reasoning effort normalization (minimal → low for codex)
 - Lightweight model detection (nano, mini)
 
-### request-transformer.test.ts (30 tests)
+### request-transformer.test.ts
+
 Tests request body transformations:
+
 - Model name normalization (all variants → gpt-5 or gpt-5-codex)
 - Input filtering (removing stored conversation history)
 - Tool remap message injection
@@ -59,16 +65,20 @@ Tests request body transformations:
 - Encrypted reasoning content inclusion
 - Unsupported parameter removal
 
-### response-handler.test.ts (10 tests)
+### response-handler.test.ts
+
 Tests SSE to JSON conversion:
+
 - Content-type header management
 - SSE stream parsing (response.done, response.completed)
 - Malformed JSON handling
 - Empty stream handling
 - Status preservation
 
-### logger.test.ts (5 tests)
+### logger.test.ts
+
 Tests logging functionality:
+
 - LOGGING_ENABLED constant
 - logRequest function parameter handling
 - Complex data structure support
@@ -76,13 +86,14 @@ Tests logging functionality:
 ## Test Philosophy
 
 1. **Comprehensive Coverage**: Each module has extensive tests covering normal cases, edge cases, and error conditions
-2. **Fast Execution**: All tests run in < 250ms
+2. **Fast Execution**: Tests are designed to stay quick; actual timings may vary
 3. **No External Dependencies**: Tests use mocked data and don't make real API calls
 4. **Type Safety**: All tests are written in TypeScript with full type checking
 
 ## CI/CD Integration
 
 Tests automatically run in GitHub Actions on:
+
 - Every push to main
 - Every pull request
 
@@ -95,11 +106,12 @@ When adding new functionality:
 1. Create or update the relevant test file
 2. Follow the existing pattern using vitest's `describe` and `it` blocks
 3. Ensure tests are isolated and don't depend on external state
-4. Run `npm test` to verify all tests pass
-5. Run `npm run typecheck` to ensure TypeScript types are correct
+4. Run `pnpm test` to verify all tests pass
+5. Run `pnpm run typecheck` to ensure TypeScript types are correct
 
 ## Example Configurations
 
 See the `config/` directory for working configuration examples:
-- `minimal-opencode.json`: Simplest setup with defaults
-- `full-opencode.json`: Complete example with all model variants
+
+- `config/minimal-opencode.json`: Simplest setup with defaults
+- `config/full-opencode.json`: Complete example with all model variants

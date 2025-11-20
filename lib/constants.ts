@@ -4,7 +4,7 @@
  */
 
 /** Plugin identifier for logging and error messages */
-export const PLUGIN_NAME = "openai-codex-plugin";
+export const PLUGIN_NAME = "openhax/codex";
 
 /** Base URL for ChatGPT backend API */
 export const CODEX_BASE_URL = "https://chatgpt.com/backend-api";
@@ -72,4 +72,32 @@ export const AUTH_LABELS = {
 	OAUTH: "ChatGPT Plus/Pro (Codex Subscription)",
 	API_KEY: "Manually enter API Key",
 	INSTRUCTIONS: "A browser window should open. Complete login to finish.",
+} as const;
+
+/** Session and cache management constants */
+export const SESSION_CONFIG = {
+	/** Session idle timeout in milliseconds (30 minutes) */
+	IDLE_TTL_MS: 30 * 60 * 1000,
+	/** Maximum number of sessions to keep in memory */
+	MAX_ENTRIES: 100,
+} as const;
+
+/** Conversation cache management constants */
+export const CONVERSATION_CONFIG = {
+	/** Conversation entry TTL in milliseconds (4 hours) */
+	ENTRY_TTL_MS: 4 * 60 * 60 * 1000,
+	/** Maximum number of conversation entries to keep */
+	MAX_ENTRIES: 1000,
+} as const;
+
+/** Cache warming and performance constants */
+export const PERFORMANCE_CONFIG = {
+	/** Maximum number of recent sessions to return in metrics */
+	MAX_RECENT_SESSIONS: 5,
+	/** OAuth server port */
+	OAUTH_PORT: 1455,
+	/** OAuth server poll timeout in iterations */
+	OAUTH_POLL_TIMEOUT: 600,
+	/** OAuth server poll interval in milliseconds */
+	OAUTH_POLL_INTERVAL: 100,
 } as const;

@@ -1,14 +1,14 @@
 /**
  * Cache warming utilities
- * 
+ *
  * Pre-populates caches during plugin initialization to improve
  * first-request performance and avoid cold start delays.
  */
 
+import { logDebug, logWarn } from "../logger.js";
 import { getCodexInstructions } from "../prompts/codex.js";
 import { getOpenCodeCodexPrompt } from "../prompts/opencode-codex.js";
-import { logDebug, logWarn } from "../logger.js";
-import { codexInstructionsCache, openCodePromptCache, cleanupExpiredCaches } from "./session-cache.js";
+import { cleanupExpiredCaches, codexInstructionsCache, openCodePromptCache } from "./session-cache.js";
 
 /**
  * Cache warming result with metadata
@@ -24,7 +24,7 @@ export interface CacheWarmResult {
 /**
  * Warm up essential caches during plugin startup
  * This improves first-request performance significantly
- * 
+ *
  * @returns Promise<CacheWarmResult> - Warming results with timing
  */
 let lastCacheWarmResult: CacheWarmResult | undefined;
@@ -39,7 +39,7 @@ export async function warmCachesOnStartup(): Promise<CacheWarmResult> {
 	};
 
 	logDebug("Starting cache warming on startup");
-	
+
 	// Clean up expired entries first to prevent memory buildup
 	try {
 		cleanupExpiredCaches();
@@ -58,7 +58,9 @@ export async function warmCachesOnStartup(): Promise<CacheWarmResult> {
 			logDebug("Codex instructions cache warmed successfully");
 		} catch (error) {
 			if (!firstError) firstError = error instanceof Error ? error : new Error(String(error));
-			logWarn(`Failed to warm Codex instructions cache: ${error instanceof Error ? error.message : String(error)}`);
+			logWarn(
+				`Failed to warm Codex instructions cache: ${error instanceof Error ? error.message : String(error)}`,
+			);
 		}
 
 		// Warm OpenCode prompt cache (used for filtering)
@@ -68,25 +70,28 @@ export async function warmCachesOnStartup(): Promise<CacheWarmResult> {
 			logDebug("OpenCode prompt cache warmed successfully");
 		} catch (error) {
 			if (!firstError) firstError = error instanceof Error ? error : new Error(String(error));
-			logWarn(`Failed to warm OpenCode prompt cache: ${error instanceof Error ? error.message : String(error)}`);
+			logWarn(
+				`Failed to warm OpenCode prompt cache: ${error instanceof Error ? error.message : String(error)}`,
+			);
 		}
 
 		// Consider successful if at least one cache warmed
 		result.success = result.codexInstructionsWarmed || result.opencodePromptWarmed;
-		
+
 		// Set error to first encountered error if complete failure
 		if (!result.success && firstError) {
 			result.error = firstError.message;
 		}
-
 	} catch (error) {
 		result.error = error instanceof Error ? error.message : String(error);
 		logWarn(`Cache warming failed: ${result.error}`);
 	} finally {
 		result.duration = Date.now() - startTime;
-		
+
 		if (result.success) {
-			logDebug(`Cache warming completed in ${result.duration}ms (Codex: ${result.codexInstructionsWarmed}, OpenCode: ${result.opencodePromptWarmed})`);
+			logDebug(
+				`Cache warming completed in ${result.duration}ms (Codex: ${result.codexInstructionsWarmed}, OpenCode: ${result.opencodePromptWarmed})`,
+			);
 		} else {
 			logWarn(`Cache warming failed after ${result.duration}ms`);
 		}
@@ -99,22 +104,22 @@ export async function warmCachesOnStartup(): Promise<CacheWarmResult> {
 /**
  * Check if caches are already warm (have valid entries)
  * Used to avoid redundant warming operations
- * 
+ *
  * This function checks session cache directly without triggering network requests,
  * avoiding race conditions where cache warming might be called unnecessarily.
- * 
+ *
  * @returns Promise<boolean> - True if caches appear to be warm
  */
 export async function areCachesWarm(): Promise<boolean> {
 	try {
 		// Check session cache directly without triggering network requests
 		// This prevents race conditions where full functions might fetch from network
-		const codexEntry = codexInstructionsCache.get('latest');
-		const opencodeEntry = openCodePromptCache.get('main');
-		
+		const codexEntry = codexInstructionsCache.get("latest");
+		const opencodeEntry = openCodePromptCache.get("main");
+
 		// If both caches have valid entries, they are warm
 		return !!(codexEntry && opencodeEntry);
-	} catch (error) {
+	} catch {
 		// Any error suggests caches are not warm
 		return false;
 	}
@@ -122,7 +127,7 @@ export async function areCachesWarm(): Promise<boolean> {
 
 /**
  * Get cache warming statistics for monitoring
- * 
+ *
  * @returns Promise<object> - Cache status information
  */
 export interface CacheWarmSnapshot {

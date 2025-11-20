@@ -1,13 +1,13 @@
 /**
  * File System Utilities
- * 
+ *
  * Common file system operations used across the codebase
  * Provides standardized path handling and directory management
  */
 
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
+import { join } from "node:path";
 
 /**
  * OpenCode directory base path
@@ -39,11 +39,7 @@ export function ensureDirectory(dirPath: string): void {
  * @param content - Content to write
  * @param encoding - File encoding (default: "utf8")
  */
-export function safeWriteFile(
-	filePath: string,
-	content: string,
-	encoding: BufferEncoding = "utf8"
-): void {
+export function safeWriteFile(filePath: string, content: string, encoding: BufferEncoding = "utf8"): void {
 	const dirPath = filePath.substring(0, filePath.lastIndexOf("/"));
 	if (dirPath) {
 		ensureDirectory(dirPath);
@@ -57,10 +53,7 @@ export function safeWriteFile(
  * @param encoding - File encoding (default: "utf8")
  * @returns File content or null if file doesn't exist
  */
-export function safeReadFile(
-	filePath: string,
-	encoding: BufferEncoding = "utf8"
-): string | null {
+export function safeReadFile(filePath: string, encoding: BufferEncoding = "utf8"): string | null {
 	try {
 		return existsSync(filePath) ? readFileSync(filePath, encoding) : null;
 	} catch {

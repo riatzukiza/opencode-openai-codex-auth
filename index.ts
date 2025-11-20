@@ -127,6 +127,7 @@ export const OpenAIAuthPlugin: Plugin = async ({ client, directory }: PluginInpu
 					codexMode,
 					sessionManager,
 					codexInstructions: CODEX_INSTRUCTIONS,
+					pluginConfig,
 				});
 
 				return {

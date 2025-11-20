@@ -285,6 +285,11 @@ const parsedModel: ModelsDev.Model = {
 
 ```json
 {
+  "gpt-5.1-codex-max": {
+    "id": "gpt-5.1-codex-max",
+    "name": "GPT 5.1 Codex Max (OAuth)",
+    "options": { "reasoningEffort": "medium" }
+  },
   "gpt-5.1-codex-low": {
     "id": "gpt-5.1-codex",
     "name": "GPT 5.1 Codex Low (OAuth)",
@@ -300,36 +305,11 @@ const parsedModel: ModelsDev.Model = {
 
 **Why this matters:**
 - Config keys mirror the Codex CLI's 5.1 presets, making it obvious which tier you're targeting.
-- `reasoningEffort: "none"` is only valid for GPT-5.1 general models—the plugin automatically downgrades unsupported values for Codex/Codex Mini.
-- Legacy GPT-5 entries can stick around for backwards compatibility, but new installs should prefer the 5.1 naming.
-
----
-
-### Example 4: If We Made Config Key = ID ❌
-
-```json
-{
-  "gpt-5-codex": {
-    "id": "gpt-5-codex",
-    "name": "GPT 5 Codex Low (OAuth)",
-    "options": { "reasoningEffort": "low" }
-  },
-  "gpt-5-codex": {  // ❌ DUPLICATE KEY ERROR!
-    "id": "gpt-5-codex",
-    "name": "GPT 5 Codex High (OAuth)",
-    "options": { "reasoningEffort": "high" }
-  }
-}
-```
-
-**Problem:** JavaScript objects can't have duplicate keys!
-
-**Result:** ❌ Can't have multiple variants
-
-### Reasoning Effort quick notes
-- `reasoningEffort: "none"` is exclusive to GPT-5.1 general models and maps to the new "no reasoning" mode introduced by OpenAI.
+- `reasoningEffort: "none"` (No Reasoning) disables reasoning entirely for latency-sensitive tasks and is only valid for GPT-5.1 general models—the plugin automatically downgrades unsupported values for Codex/Codex Mini.
+- `reasoningEffort: "xhigh"` (Extra High) provides maximum computational effort for complex, multi-step problems and is exclusive to `gpt-5.1-codex-max`; other models automatically clamp it to `high`.
 - Legacy GPT-5, GPT-5-Codex, and Codex Mini presets automatically clamp unsupported values (`none` → `minimal`/`low`, `minimal` → `low` for Codex).
 - Mixing GPT-5.1 and GPT-5 presets inside the same config is fine—just keep config keys unique and let the plugin normalize them.
+
 
 ---
 

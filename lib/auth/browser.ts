@@ -29,7 +29,7 @@ export function openBrowserUrl(url: string): void {
 			stdio: "ignore",
 			shell: process.platform === "win32",
 		});
-	} catch (error) {
+	} catch {
 		// Silently fail - user can manually open the URL from instructions
 	}
 }

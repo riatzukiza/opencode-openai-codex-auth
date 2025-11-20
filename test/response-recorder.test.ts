@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { isCodexResponsePayload, recordSessionResponseFromHandledResponse } from "../lib/session/response-recorder.js";
-import type { SessionContext } from "../lib/types.js";
+import {
+	isCodexResponsePayload,
+	recordSessionResponseFromHandledResponse,
+} from "../lib/session/response-recorder.js";
 import type { SessionManager } from "../lib/session/session-manager.js";
+import type { SessionContext } from "../lib/types.js";
 
 const logDebugMock = vi.hoisted(() => vi.fn());
 
@@ -114,7 +117,6 @@ describe("recordSessionResponseFromHandledResponse", () => {
 });
 
 describe("isCodexResponsePayload", () => {
-
 	it("returns false for null payloads", () => {
 		expect(isCodexResponsePayload(null)).toBe(false);
 		expect(isCodexResponsePayload(undefined)).toBe(false);
@@ -129,14 +131,10 @@ describe("isCodexResponsePayload", () => {
 	});
 
 	it("rejects non-numeric cached token fields", () => {
-		expect(
-			isCodexResponsePayload({ usage: { cached_tokens: "invalid" } }),
-		).toBe(false);
+		expect(isCodexResponsePayload({ usage: { cached_tokens: "invalid" } })).toBe(false);
 	});
 
 	it("accepts payloads with numeric cached tokens", () => {
-		expect(
-			isCodexResponsePayload({ usage: { cached_tokens: 10 } }),
-		).toBe(true);
+		expect(isCodexResponsePayload({ usage: { cached_tokens: 10 } })).toBe(true);
 	});
 });

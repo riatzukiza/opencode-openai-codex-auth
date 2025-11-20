@@ -1,4 +1,5 @@
-import { logRequest, LOGGING_ENABLED, logError } from "../logger.js";
+import { PLUGIN_NAME } from "../constants.js";
+import { LOGGING_ENABLED, logError, logRequest } from "../logger.js";
 import type { SSEEventData } from "../types.js";
 
 /**
@@ -7,18 +8,18 @@ import type { SSEEventData } from "../types.js";
  * @returns Final response object or null if not found
  */
 function parseSseStream(sseText: string): unknown | null {
-	const lines = sseText.split('\n');
+	const lines = sseText.split("\n");
 
 	for (const line of lines) {
-		if (line.startsWith('data: ')) {
+		if (line.startsWith("data: ")) {
 			try {
 				const data = JSON.parse(line.substring(6)) as SSEEventData;
 
 				// Look for response.done event with final data
-				if (data.type === 'response.done' || data.type === 'response.completed') {
+				if (data.type === "response.done" || data.type === "response.completed") {
 					return data.response;
 				}
-			} catch (e) {
+			} catch {
 				// Skip malformed JSON
 			}
 		}
@@ -35,11 +36,11 @@ function parseSseStream(sseText: string): unknown | null {
  */
 export async function convertSseToJson(response: Response, headers: Headers): Promise<Response> {
 	if (!response.body) {
-		throw new Error('[openai-codex-plugin] Response has no body');
+		throw new Error(`${PLUGIN_NAME} Response has no body`);
 	}
 	const reader = response.body.getReader();
 	const decoder = new TextDecoder();
-	let fullText = '';
+	let fullText = "";
 
 	try {
 		// Consume the entire stream
@@ -70,14 +71,13 @@ export async function convertSseToJson(response: Response, headers: Headers): Pr
 
 		// Return as plain JSON (not SSE)
 		const jsonHeaders = new Headers(headers);
-		jsonHeaders.set('content-type', 'application/json; charset=utf-8');
+		jsonHeaders.set("content-type", "application/json; charset=utf-8");
 
 		return new Response(JSON.stringify(finalResponse), {
 			status: response.status,
 			statusText: response.statusText,
 			headers: jsonHeaders,
 		});
-
 	} catch (error) {
 		logError("Error converting SSE stream", {
 			error: error instanceof Error ? error.message : String(error),
@@ -95,8 +95,8 @@ export async function convertSseToJson(response: Response, headers: Headers): Pr
 export function ensureContentType(headers: Headers): Headers {
 	const responseHeaders = new Headers(headers);
 
-	if (!responseHeaders.has('content-type')) {
-		responseHeaders.set('content-type', 'text/event-stream; charset=utf-8');
+	if (!responseHeaders.has("content-type")) {
+		responseHeaders.set("content-type", "text/event-stream; charset=utf-8");
 	}
 
 	return responseHeaders;

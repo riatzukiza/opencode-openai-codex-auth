@@ -1,9 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { maybeHandleCodexCommand } from "../lib/commands/codex-metrics.js";
-import type { RequestBody } from "../lib/types.js";
-import { SessionManager } from "../lib/session/session-manager.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetCacheMetrics } from "../lib/cache/cache-metrics.js";
-import { getCacheWarmSnapshot } from "../lib/cache/cache-warming.js";
+import { maybeHandleCodexCommand } from "../lib/commands/codex-metrics.js";
+import { SessionManager } from "../lib/session/session-manager.js";
+import type { RequestBody } from "../lib/types.js";
 
 vi.mock("../lib/cache/cache-warming.js", () => ({
 	getCacheWarmSnapshot: vi.fn(() => ({
@@ -96,9 +95,7 @@ describe("maybeHandleCodexCommand", () => {
 		const conversationBody: RequestBody = {
 			model: "gpt-5",
 			metadata: { conversation_id: "metrics-session" },
-			input: [
-				{ type: "message", role: "user", content: "seed" },
-			],
+			input: [{ type: "message", role: "user", content: "seed" }],
 		};
 		const context = manager.getContext(conversationBody);
 		if (context) {
@@ -170,9 +167,7 @@ describe("maybeHandleCodexCommand", () => {
 	it("handles user message with empty content", () => {
 		const body: RequestBody = {
 			model: "gpt-5",
-			input: [
-				{ type: "message", role: "user", content: "" },
-			],
+			input: [{ type: "message", role: "user", content: "" }],
 		};
 		const result = maybeHandleCodexCommand(body);
 		expect(result).toBeUndefined();
@@ -181,9 +176,7 @@ describe("maybeHandleCodexCommand", () => {
 	it("handles user message with null content", () => {
 		const body: RequestBody = {
 			model: "gpt-5",
-			input: [
-				{ type: "message", role: "user", content: null },
-			],
+			input: [{ type: "message", role: "user", content: null }],
 		};
 		const result = maybeHandleCodexCommand(body);
 		expect(result).toBeUndefined();
@@ -220,9 +213,7 @@ describe("maybeHandleCodexCommand", () => {
 				{
 					type: "message",
 					role: "user",
-					content: [
-						{ type: "image", image_url: "url" },
-					],
+					content: [{ type: "image", image_url: "url" }],
 				},
 			],
 		};
@@ -254,28 +245,28 @@ describe("maybeHandleCodexCommand", () => {
 		const body = buildBody("/codex-metrics");
 		const response = maybeHandleCodexCommand(body);
 		expect(response).toBeInstanceOf(Response);
-		
+
 		const { payload } = await readCommandPayload(response!);
-		expect(payload).toHaveProperty('id');
-		expect(payload).toHaveProperty('object', 'response');
-		expect(payload).toHaveProperty('created');
-		expect(payload).toHaveProperty('model', 'gpt-5-codex');
-		expect(payload).toHaveProperty('status', 'completed');
-		expect(payload).toHaveProperty('usage');
-		expect(payload).toHaveProperty('output');
-		expect(payload).toHaveProperty('metadata');
-		
-		expect(payload.usage).toHaveProperty('input_tokens', 0);
-		expect(payload.usage).toHaveProperty('output_tokens');
-		expect(payload.usage).toHaveProperty('reasoning_tokens', 0);
-		expect(payload.usage).toHaveProperty('total_tokens');
-		
+		expect(payload).toHaveProperty("id");
+		expect(payload).toHaveProperty("object", "response");
+		expect(payload).toHaveProperty("created");
+		expect(payload).toHaveProperty("model", "gpt-5-codex");
+		expect(payload).toHaveProperty("status", "completed");
+		expect(payload).toHaveProperty("usage");
+		expect(payload).toHaveProperty("output");
+		expect(payload).toHaveProperty("metadata");
+
+		expect(payload.usage).toHaveProperty("input_tokens", 0);
+		expect(payload.usage).toHaveProperty("output_tokens");
+		expect(payload.usage).toHaveProperty("reasoning_tokens", 0);
+		expect(payload.usage).toHaveProperty("total_tokens");
+
 		expect(Array.isArray(payload.output)).toBe(true);
-		expect(payload.output[0]).toHaveProperty('id');
-		expect(payload.output[0]).toHaveProperty('type', 'message');
-		expect(payload.output[0]).toHaveProperty('role', 'assistant');
-		expect(payload.output[0]).toHaveProperty('content');
-		expect(payload.output[0]).toHaveProperty('metadata');
+		expect(payload.output[0]).toHaveProperty("id");
+		expect(payload.output[0]).toHaveProperty("type", "message");
+		expect(payload.output[0]).toHaveProperty("role", "assistant");
+		expect(payload.output[0]).toHaveProperty("content");
+		expect(payload.output[0]).toHaveProperty("metadata");
 	});
 
 	it("estimates tokens correctly for short text", async () => {
@@ -308,7 +299,7 @@ describe("maybeHandleCodexCommand", () => {
 		const managerWithoutMetrics = {
 			getMetrics: undefined,
 		} as any;
-		
+
 		const body = buildBody("/codex-metrics");
 		const response = maybeHandleCodexCommand(body, { sessionManager: managerWithoutMetrics });
 		const { payload } = await readCommandPayload(response!);
@@ -319,18 +310,18 @@ describe("maybeHandleCodexCommand", () => {
 		const body = buildBody("/codex-metrics");
 		const response = maybeHandleCodexCommand(body);
 		const { payload } = await readCommandPayload(response!);
-		expect(payload.metadata.cacheWarmStatus).toHaveProperty('codexInstructions');
-		expect(payload.metadata.cacheWarmStatus).toHaveProperty('opencodePrompt');
+		expect(payload.metadata.cacheWarmStatus).toHaveProperty("codexInstructions");
+		expect(payload.metadata.cacheWarmStatus).toHaveProperty("opencodePrompt");
 	});
 
 	it("generates unique IDs for response and messages", async () => {
 		const body = buildBody("/codex-metrics");
 		const response1 = maybeHandleCodexCommand(body);
 		const response2 = maybeHandleCodexCommand(body);
-		
+
 		const { payload: payload1 } = await readCommandPayload(response1!);
 		const { payload: payload2 } = await readCommandPayload(response2!);
-		
+
 		expect(payload1.id).not.toBe(payload2.id);
 		expect(payload1.output[0].id).not.toBe(payload2.output[0].id);
 	});
@@ -338,7 +329,7 @@ describe("maybeHandleCodexCommand", () => {
 	it("sets correct content type header", () => {
 		const body = buildBody("/codex-metrics");
 		const response = maybeHandleCodexCommand(body);
-		expect(response?.headers.get('content-type')).toBe('text/event-stream; charset=utf-8');
+		expect(response?.headers.get("content-type")).toBe("text/event-stream; charset=utf-8");
 	});
 
 	it("handles model undefined in body", async () => {

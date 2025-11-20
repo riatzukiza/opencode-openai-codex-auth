@@ -48,14 +48,17 @@ This plugin enables opencode to use OpenAI's Codex backend via ChatGPT Plus/Pro 
 
 ### Built-in Codex Commands
 
-These commands are typed as normal chat messages (no slash required). The plugin intercepts them before any network call, so they **do not** send prompts to OpenAI:
+These commands are typed as normal chat messages (no slash required). `codex-metrics`/`codex-inspect` run entirely inside the plugin. `codex-compact` issues a Codex summarization request, stores the summary, and trims future turns to keep prompts short.
 
 | Command | Aliases | Description |
 |---------|---------|-------------|
 | `codex-metrics` | `?codex-metrics`, `codexmetrics`, `/codex-metrics`* | Shows cache stats, recent prompt-cache sessions, and cache-warm status |
 | `codex-inspect` | `?codex-inspect`, `codexinspect`, `/codex-inspect`* | Dumps the pending request configuration (model, prompt cache key, tools, reasoning/text settings) |
+| `codex-compact` | `/codex-compact`, `compact`, `codexcompact` | Runs the Codex CLI compaction flow: summarizes the current conversation, replies with the summary, and resets Codex-side context to that summary |
 
-> \*Slash-prefixed variants only work in environments that allow arbitrary `/` commands. In the opencode TUI, stick to `codex-metrics` / `codex-inspect` so the message is treated as normal chat text.
+> \*Slash-prefixed variants only work in environments that allow arbitrary `/` commands. In the opencode TUI, stick to `codex-metrics` / `codex-inspect` / `codex-compact` so the message is treated as normal chat text.
+
+**Auto compaction:** Configure `autoCompactTokenLimit`/`autoCompactMinMessages` in `~/.opencode/openhax-codex-config.json` to run compaction automatically when conversations grow long. When triggered, the plugin replies with the Codex summary and a note reminding you to resend the paused instruction; subsequent turns start from that summary instead of the entire backlog.
 
 ### How Caching Works
 
@@ -90,6 +93,22 @@ For the complete experience with all reasoning variants matching the official Co
         "store": false
       },
       "models": {
+        "gpt-5.1-codex-max": {
+          "name": "GPT 5.1 Codex Max (OAuth)",
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
+          "options": {
+            "reasoningEffort": "medium",
+            "reasoningSummary": "auto",
+            "textVerbosity": "medium",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        },
         "gpt-5.1-codex-low": {
           "name": "GPT 5.1 Codex Low (OAuth)",
           "limit": {
@@ -419,7 +438,7 @@ For the complete experience with all reasoning variants matching the official Co
    **Global config**: `~/.config/opencode/opencode.json`
    **Project config**: `<project>/.opencode.json`
 
-   This now gives you 20 model variants: the new GPT-5.1 lineup (recommended) plus every legacy gpt-5 preset for backwards compatibility.
+   This now gives you 21 model variants: the refreshed GPT-5.1 lineup (with Codex Max as the default) plus every legacy gpt-5 preset for backwards compatibility.
 
    All appear in the opencode model selector as "GPT 5.1 Codex Low (OAuth)", "GPT 5 High (OAuth)", etc.
 
@@ -431,15 +450,18 @@ When using [`config/full-opencode.json`](./config/full-opencode.json), you get t
 
 | CLI Model ID | TUI Display Name | Reasoning Effort | Best For |
 |--------------|------------------|-----------------|----------|
+| `gpt-5.1-codex-max` | GPT 5.1 Codex Max (OAuth) | Low/Medium/High/**Extra High** | Default flagship tier with `xhigh` reasoning for complex, multi-step problems |
 | `gpt-5.1-codex-low` | GPT 5.1 Codex Low (OAuth) | Low | Fast code generation on the newest Codex tier |
 | `gpt-5.1-codex-medium` | GPT 5.1 Codex Medium (OAuth) | Medium | Balanced code + tooling workflows |
 | `gpt-5.1-codex-high` | GPT 5.1 Codex High (OAuth) | High | Multi-step coding tasks with deep tool use |
 | `gpt-5.1-codex-mini-medium` | GPT 5.1 Codex Mini Medium (OAuth) | Medium | Budget-friendly Codex runs (200k/100k tokens) |
 | `gpt-5.1-codex-mini-high` | GPT 5.1 Codex Mini High (OAuth) | High | Cheaper Codex tier with maximum reasoning |
-| `gpt-5.1-none` | GPT 5.1 None (OAuth) | None | Latency-sensitive chat/tasks using the new "no reasoning" mode |
+| `gpt-5.1-none` | GPT 5.1 None (OAuth) | **None** | Latency-sensitive chat/tasks using the "no reasoning" mode |
 | `gpt-5.1-low` | GPT 5.1 Low (OAuth) | Low | Fast general-purpose chat with light reasoning |
 | `gpt-5.1-medium` | GPT 5.1 Medium (OAuth) | Medium | Default adaptive reasoning for everyday work |
 | `gpt-5.1-high` | GPT 5.1 High (OAuth) | High | Deep analysis when reliability matters most |
+
+> **Extra High reasoning:** `reasoningEffort: "xhigh"` provides maximum computational effort for complex, multi-step problems and is exclusive to `gpt-5.1-codex-max`. Other models automatically map that option to `high` so their API calls remain valid.
 
 #### Legacy GPT-5 lineup (still supported)
 
@@ -502,7 +524,7 @@ These defaults match the official Codex CLI behavior and can be customized (see 
 ### Recommended: Use Pre-Configured File
 
 The easiest way to get started is to use [`config/full-opencode.json`](./config/full-opencode.json), which provides:
-- 20 pre-configured model variants matching the latest Codex CLI presets (GPT-5.1 + GPT-5)
+- 21 pre-configured model variants matching the latest Codex CLI presets (GPT-5.1 Codex Max + GPT-5.1 + GPT-5)
 - Optimal settings for each reasoning level
 - All variants visible in the opencode model selector
 
@@ -518,12 +540,14 @@ If you want to customize settings yourself, you can configure options at provide
 
 | Setting | GPT-5 / GPT-5.1 Values | GPT-5-Codex / Codex Mini Values | Plugin Default |
 |---------|-------------|-------------------|----------------|
-| `reasoningEffort` | `none`, `minimal`, `low`, `medium`, `high` | `low`, `medium`, `high` | `medium` |
+| `reasoningEffort` | `none`, `minimal`, `low`, `medium`, `high` | `low`, `medium`, `high`, `xhigh`† | `medium` |
 | `reasoningSummary` | `auto`, `detailed` | `auto`, `detailed` | `auto` |
 | `textVerbosity` | `low`, `medium`, `high` | `medium` only | `medium` |
 | `include` | Array of strings | Array of strings | `["reasoning.encrypted_content"]` |
 
-> **Note**: `minimal` effort is auto-normalized to `low` for gpt-5-codex (not supported by the API). `none` is only supported on GPT-5.1 general models; when used with legacy gpt-5 it is normalized to `minimal`.
+> **Note**: `minimal` effort is auto-normalized to `low` for gpt-5-codex (not supported by the API). `none` is only supported on GPT-5.1 general models; when used with legacy gpt-5 it is normalized to `minimal`. `xhigh` is exclusive to `gpt-5.1-codex-max`—other Codex presets automatically map it to `high`.
+> 
+> † **Extra High reasoning**: `reasoningEffort: "xhigh"` provides maximum computational effort for complex, multi-step problems and is only available on `gpt-5.1-codex-max`.
 
 #### Plugin-Level Settings
 
@@ -531,6 +555,9 @@ Set these in `~/.opencode/openhax-codex-config.json`:
 
 - `codexMode` (default `true`): enable the Codex ↔ OpenCode bridge prompt
 - `enablePromptCaching` (default `true`): keep a stable `prompt_cache_key` and preserved message IDs so Codex can reuse cached prompts, reducing token usage and costs
+- `enableCodexCompaction` (default `true`): expose `/codex-compact` and allow the plugin to rewrite history based on Codex summaries
+- `autoCompactTokenLimit` (default unset): when set, triggers Codex compaction once the approximate token count exceeds this value
+- `autoCompactMinMessages` (default `8`): minimum number of conversation turns before auto-compaction is considered
 
 #### Global Configuration Example
 
@@ -777,3 +804,19 @@ Based on research and working implementations from:
 ## License
 
 GPL-3.0 — see [LICENSE](./LICENSE) for details.
+
+<!-- PACKAGE-DOC-MATRIX:START -->
+
+> This section is auto-generated by scripts/package-doc-matrix.ts. Do not edit manually.
+
+## Internal Dependencies
+
+_None (external-only)._
+
+## Internal Dependents
+
+_None (external-only)._
+
+_Last updated: 2025-11-16T11:25:38.889Z_
+
+<!-- PACKAGE-DOC-MATRIX:END -->

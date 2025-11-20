@@ -15,6 +15,22 @@
         "store": false
       },
       "models": {
+        "gpt-5.1-codex-max": {
+          "name": "GPT 5.1 Codex Max (OAuth)",
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
+          "options": {
+            "reasoningEffort": "medium",
+            "reasoningSummary": "auto",
+            "textVerbosity": "medium",
+            "include": [
+              "reasoning.encrypted_content"
+            ],
+            "store": false
+          }
+        },
         "gpt-5.1-codex-low": {
           "name": "GPT 5.1 Codex Low (OAuth)",
           "limit": {

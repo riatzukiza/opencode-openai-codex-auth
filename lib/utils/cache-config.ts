@@ -1,6 +1,6 @@
 /**
  * Cache Configuration Constants
- * 
+ *
  * Centralized cache settings used across the codebase
  */
 
@@ -21,16 +21,35 @@ export const CACHE_DIRS = {
 } as const;
 
 /**
- * Cache file names
+ * Plugin identifier for cache isolation
+ */
+export const PLUGIN_PREFIX = "openhax-codex";
+
+/**
+ * Cache file names with plugin-specific prefix
  */
 export const CACHE_FILES = {
 	/** Codex instructions file */
-	CODEX_INSTRUCTIONS: "codex-instructions.md",
+	CODEX_INSTRUCTIONS: `${PLUGIN_PREFIX}-instructions.md`,
 	/** Codex instructions metadata file */
-	CODEX_INSTRUCTIONS_META: "codex-instructions-meta.json",
+	CODEX_INSTRUCTIONS_META: `${PLUGIN_PREFIX}-instructions-meta.json`,
 	/** OpenCode prompt file */
-	OPENCODE_CODEX: "opencode-codex.txt",
+	OPENCODE_CODEX: `${PLUGIN_PREFIX}-opencode-prompt.txt`,
 	/** OpenCode prompt metadata file */
+	OPENCODE_CODEX_META: `${PLUGIN_PREFIX}-opencode-prompt-meta.json`,
+} as const;
+
+/**
+ * Legacy cache file names (for migration)
+ */
+export const LEGACY_CACHE_FILES = {
+	/** Legacy Codex instructions file */
+	CODEX_INSTRUCTIONS: "codex-instructions.md",
+	/** Legacy Codex instructions metadata file */
+	CODEX_INSTRUCTIONS_META: "codex-instructions-meta.json",
+	/** Legacy OpenCode prompt file */
+	OPENCODE_CODEX: "opencode-codex.txt",
+	/** Legacy OpenCode prompt metadata file */
 	OPENCODE_CODEX_META: "opencode-codex-meta.json",
 } as const;
 
