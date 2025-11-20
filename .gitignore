@@ -14,3 +14,6 @@ tmp
 
 .stryker-tmp/
 .worktrees/
+.envrc
+.env
+
