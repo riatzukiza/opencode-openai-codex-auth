@@ -1,5 +1,4 @@
 import { applyCompactionIfNeeded } from "../lib/request/compaction-helpers.js";
-import { applyCompactionIfNeeded } from "../lib/request/compaction-helpers.js";
 import type { InputItem, RequestBody } from "../lib/types.js";
 
 describe("compaction helpers", () => {
