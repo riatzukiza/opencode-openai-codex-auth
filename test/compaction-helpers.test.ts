@@ -29,7 +29,7 @@ describe("compaction helpers", () => {
 		expect((body as any).parallel_tool_calls).toBeUndefined();
 	});
 
-	it("applies compaction when no user message exists", () => {
+	it("returns original items when no user message exists", () => {
 		const originalInput: InputItem[] = [
 			{
 				type: "message",
@@ -41,17 +41,15 @@ describe("compaction helpers", () => {
 
 		const decision = applyCompactionIfNeeded(body, {
 			settings: { enabled: true },
-			commandText: "codex-compact",
+			commandText: null, // No command, so no compaction should occur
 			originalInput,
 		});
 
-		expect(decision?.serialization.totalTurns).toBe(1);
-		expect(decision?.serialization.transcript).toContain("system-only follow-up");
-
-		// Verify RequestBody mutations
+		// No compaction should occur when there's no command text
+		expect(decision).toBeUndefined();
+		// Verify RequestBody mutations - body should remain unchanged
 		expect(body.input).toBeDefined();
-		expect(body.input?.length).toBeGreaterThan(0);
-		expect(body.input).not.toEqual(originalInput);
+		expect(body.input).toEqual(originalInput);
 		expect((body as any).tools).toBeUndefined();
 		expect((body as any).tool_choice).toBeUndefined();
 		expect((body as any).parallel_tool_calls).toBeUndefined();
