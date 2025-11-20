@@ -182,7 +182,6 @@ describe("logger", () => {
 		expect(appLog).not.toHaveBeenCalled();
 		expect(warnSpy).not.toHaveBeenCalled();
 	});
-
 	it("logInfo does not mirror to console in tests, even with debug flag", async () => {
 		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = "1";
 		fsMocks.existsSync.mockReturnValue(true);

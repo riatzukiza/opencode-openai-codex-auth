@@ -125,15 +125,31 @@ jobs:
             git commit -m "$COMMIT_MSG"
           fi
 
-      - name: Push release branch
+      - name: Create release tag
+        env:
+          NEXT_VERSION: ${{ steps.analyze.outputs.next_version }}
+          RELEASE_NOTES: ${{ steps.analyze.outputs.notes }}
+        run: |
+          if [ -z "$NEXT_VERSION" ]; then
+            echo "Next version is missing from analyzer output" >&2
+            exit 1
+          fi
+          TAG="v$NEXT_VERSION"
+          printf "%s\n" "$RELEASE_NOTES" > release-notes.md
+          git tag -a "$TAG" -F release-notes.md
+          rm -f release-notes.md
+
+      - name: Push release branch and tag
         env:
           RELEASE_BRANCH: ${{ steps.branch.outputs.name }}
+          NEXT_VERSION: ${{ steps.analyze.outputs.next_version }}
         run: |
-          if [ -z "$RELEASE_BRANCH" ]; then
-            echo "Release branch name is missing" >&2
+          if [ -z "$RELEASE_BRANCH" ] || [ -z "$NEXT_VERSION" ]; then
+            echo "Missing release branch or next version" >&2
             exit 1
           fi
           git push origin "$RELEASE_BRANCH"
+          git push origin "v$NEXT_VERSION"
 
       - name: Open release PR to staging
         env:
@@ -163,13 +179,17 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/$REPO/pulls" \
             -d @/tmp/pr.json | tee /tmp/pr-response.json
-          if jq -e '.html_url' /tmp/pr-response.json >/dev/null 2>&1; then
-            echo "pr_url=$(jq -r '.html_url' /tmp/pr-response.json)" >> "$GITHUB_OUTPUT"
-          else
+          PR_URL=$(jq -r '.html_url' /tmp/pr-response.json)
+          PR_NUMBER=$(jq -r '.number' /tmp/pr-response.json)
+          PR_NODE_ID=$(jq -r '.node_id' /tmp/pr-response.json)
+          if [ -z "$PR_URL" ] || [ "$PR_URL" = "null" ] || [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ] || [ -z "$PR_NODE_ID" ] || [ "$PR_NODE_ID" = "null" ]; then
             echo "Failed to create PR" >&2
             cat /tmp/pr-response.json >&2
             exit 1
           fi
+          echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+          gh api repos/$REPO/pulls/$PR_NUMBER/requested_reviewers -f reviewers[]="coderabbitai"
+          gh api graphql -f query='mutation($prId:ID!,$method:PullRequestMergeMethod!){enablePullRequestAutoMerge(input:{pullRequestId:$prId,mergeMethod:$method}){pullRequest{number autoMergeRequest{enabledBy{login}}}}}' -f prId="$PR_NODE_ID" -f method=SQUASH
 
       - name: Open hotfix PR to main
         if: steps.labels.outputs.hotfix == 'true'
@@ -197,8 +217,12 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/$REPO/pulls" \
             -d @/tmp/hotfix.json | tee /tmp/hotfix-response.json
-          if ! jq -e '.html_url' /tmp/hotfix-response.json >/dev/null 2>&1; then
+          HOTFIX_NUMBER=$(jq -r '.number' /tmp/hotfix-response.json)
+          HOTFIX_NODE=$(jq -r '.node_id' /tmp/hotfix-response.json)
+          if [ -z "$HOTFIX_NUMBER" ] || [ "$HOTFIX_NUMBER" = "null" ] || [ -z "$HOTFIX_NODE" ] || [ "$HOTFIX_NODE" = "null" ]; then
             echo "Failed to create hotfix PR" >&2
             cat /tmp/hotfix-response.json >&2
             exit 1
           fi
+          gh api repos/$REPO/pulls/$HOTFIX_NUMBER/requested_reviewers -f reviewers[]="coderabbitai"
+          gh api graphql -f query='mutation($prId:ID!,$method:PullRequestMergeMethod!){enablePullRequestAutoMerge(input:{pullRequestId:$prId,mergeMethod:$method}){pullRequest{number autoMergeRequest{enabledBy{login}}}}}' -f prId="$HOTFIX_NODE" -f method=SQUASH
