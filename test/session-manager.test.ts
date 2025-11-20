@@ -155,8 +155,8 @@ describe("SessionManager", () => {
 	it("reports metrics snapshot with recent sessions", () => {
 		const manager = new SessionManager({ enabled: true });
 		const body = createBody("conv-metrics");
-		let context = manager.getContext(body) as SessionContext;
-		context = manager.applyRequest(body, context) as SessionContext;
+		let _context = manager.getContext(body) as SessionContext;
+		_context = manager.applyRequest(body, _context) as SessionContext;
 
 		const metrics = manager.getMetrics();
 		expect(metrics.enabled).toBe(true);

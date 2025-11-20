@@ -126,6 +126,7 @@ export async function flushRollingLogsForTest(): Promise<void> {
 
 function emit(level: LogLevel, message: string, extra?: Record<string, unknown>): void {
 	const sanitizedExtra = sanitizeExtra(extra);
+	const supportsToast = loggerClient ? hasTuiShowToast(loggerClient) : false;
 	const entry: RollingLogEntry = {
 		timestamp: new Date().toISOString(),
 		service: PLUGIN_NAME,
@@ -138,7 +139,9 @@ function emit(level: LogLevel, message: string, extra?: Record<string, unknown>)
 		appendRollingLog(entry);
 	}
 
-	if (loggerClient?.app?.log) {
+	const shouldForwardToAppLog = level !== "warn" || !supportsToast;
+
+	if (shouldForwardToAppLog && loggerClient?.app?.log) {
 		void loggerClient.app
 			.log({
 				body: entry,
@@ -151,11 +154,14 @@ function emit(level: LogLevel, message: string, extra?: Record<string, unknown>)
 			);
 	}
 
-	if (level === "error") {
+	if (level === "error" || (level === "warn" && supportsToast)) {
 		notifyToast(level, message, sanitizedExtra);
 	}
 
-	logToConsole(level, message, sanitizedExtra);
+	const shouldLogToConsole = level !== "warn" || !supportsToast;
+	if (shouldLogToConsole) {
+		logToConsole(level, message, sanitizedExtra);
+	}
 }
 
 /**
@@ -170,22 +176,51 @@ function emit(level: LogLevel, message: string, extra?: Record<string, unknown>)
  * @param message - The primary text to show in the notification body.
  * @param extra - Optional metadata to include with the notification payload.
  */
-function notifyToast(level: LogLevel, message: string, extra?: Record<string, unknown>): void {
+function notifyToast(level: LogLevel, message: string, _extra?: Record<string, unknown>): void {
 	if (!loggerClient?.tui?.showToast) return;
 
 	const variant = level === "error" ? "error" : "warning";
+	const wrappedMessage = wrapToastMessage(`${PLUGIN_NAME}: ${message}`);
 
 	try {
 		void loggerClient.tui.showToast({
 			body: {
 				title: level === "error" ? `${PLUGIN_NAME} error` : `${PLUGIN_NAME} warning`,
-				message: `${PLUGIN_NAME}: ${message}`,
+				message: wrappedMessage,
 				variant,
 			},
 		});
 	} catch (err: unknown) {
 		logToConsole("warn", "Failed to send plugin toast", { error: toErrorMessage(err) });
 	}
+}
+
+function wrapToastMessage(message: string, maxWidth = 72): string {
+	if (message.length <= maxWidth) return message;
+
+	const words = message.split(/\s+/).filter(Boolean);
+	const lines: string[] = [];
+	let current = "";
+
+	for (const word of words) {
+		if (current.length === 0) {
+			current = word;
+			continue;
+		}
+		const nextLength = current.length + 1 + word.length;
+		if (nextLength <= maxWidth) {
+			current = `${current} ${word}`;
+			continue;
+		}
+		lines.push(current);
+		current = word;
+	}
+
+	if (current) {
+		lines.push(current);
+	}
+
+	return lines.join("\n");
 }
 
 /**

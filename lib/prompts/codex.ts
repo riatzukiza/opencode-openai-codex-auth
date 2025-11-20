@@ -38,6 +38,127 @@ async function getLatestReleaseTag(): Promise<string> {
 	return data.tag_name;
 }
 
+function readCacheMetadata(cacheMetaPath: string): CacheMetadata | null {
+	const cachedMetaContent = safeReadFile(cacheMetaPath);
+	if (!cachedMetaContent) return null;
+
+	try {
+		return JSON.parse(cachedMetaContent) as CacheMetadata;
+	} catch {
+		return null;
+	}
+}
+
+function loadSessionFromMetadata(metadata: CacheMetadata | null): string | null {
+	if (!metadata) return null;
+	const cacheKeyFromMetadata = getCodexCacheKey(metadata.etag ?? undefined, metadata.tag ?? undefined);
+	const sessionFromMetadata = codexInstructionsCache.get(cacheKeyFromMetadata);
+	if (!sessionFromMetadata) return null;
+
+	cacheSessionEntry(sessionFromMetadata.data, sessionFromMetadata.etag, sessionFromMetadata.tag);
+	return sessionFromMetadata.data;
+}
+
+function cacheIsFresh(cachedTimestamp: number | null, cacheFileExists: boolean): boolean {
+	return Boolean(cachedTimestamp && Date.now() - cachedTimestamp < CACHE_TTL_MS && cacheFileExists);
+}
+
+function readCachedInstructions(
+	cacheFilePath: string,
+	etag?: string | undefined,
+	tag?: string | undefined,
+): string {
+	const fileContent = safeReadFile(cacheFilePath) || "";
+	cacheSessionEntry(fileContent, etag, tag);
+	return fileContent;
+}
+
+function loadBundledInstructions(): string {
+	const bundledContent = readFileSync(join(__dirname, "codex-instructions.md"), "utf8");
+	cacheSessionEntry(bundledContent, undefined, undefined);
+	return bundledContent;
+}
+
+async function fetchInstructionsFromGithub(
+	url: string,
+	cacheFilePath: string,
+	cacheMetaPath: string,
+	cachedETag: string | null,
+	latestTag: string,
+	cacheFileExists: boolean,
+): Promise<string> {
+	const headers: Record<string, string> = {};
+	if (cachedETag) {
+		headers["If-None-Match"] = cachedETag;
+	}
+
+	const response = await fetch(url, { headers });
+
+	if (response.status === 304 && cacheFileExists) {
+		return readCachedInstructions(cacheFilePath, cachedETag || undefined, latestTag || undefined);
+	}
+
+	if (!response.ok) {
+		throw new Error(`HTTP ${response.status}`);
+	}
+
+	const instructions = await response.text();
+	const newETag = response.headers.get("etag");
+
+	safeWriteFile(cacheFilePath, instructions);
+	safeWriteFile(
+		cacheMetaPath,
+		JSON.stringify({
+			etag: newETag || undefined,
+			tag: latestTag,
+			lastChecked: Date.now(),
+			url,
+		} satisfies CacheMetadata),
+	);
+
+	cacheSessionEntry(instructions, newETag || undefined, latestTag);
+	return instructions;
+}
+
+async function fetchInstructionsWithFallback(
+	url: string,
+	options: {
+		cacheFilePath: string;
+		cacheMetaPath: string;
+		cacheFileExists: boolean;
+		effectiveEtag: string | null;
+		latestTag: string;
+		cachedETag: string | null;
+		cachedTag: string | null;
+	},
+): Promise<string> {
+	try {
+		return await fetchInstructionsFromGithub(
+			url,
+			options.cacheFilePath,
+			options.cacheMetaPath,
+			options.effectiveEtag,
+			options.latestTag,
+			options.cacheFileExists,
+		);
+	} catch (error) {
+		const err = error as Error;
+		logError("Failed to fetch instructions from GitHub", { error: err.message });
+
+		if (options.cacheFileExists) {
+			logError("Using cached instructions due to fetch failure");
+			return readCachedInstructions(
+				options.cacheFilePath,
+				options.effectiveEtag || options.cachedETag || undefined,
+				options.cachedTag || undefined,
+			);
+		}
+
+		logError("Falling back to bundled instructions");
+		return loadBundledInstructions();
+	}
+}
+
 /**
  * Fetch Codex instructions from GitHub with ETag-based caching
  * Uses HTTP conditional requests to efficiently check for updates
@@ -54,115 +175,55 @@ export async function getCodexInstructions(): Promise<string> {
 	}
 	recordCacheMiss("codexInstructions");
 
-	let cachedETag: string | null = null;
-	let cachedTag: string | null = null;
-	let cachedTimestamp: number | null = null;
-
 	const cacheMetaPath = getOpenCodePath("cache", CACHE_FILES.CODEX_INSTRUCTIONS_META);
 	const cacheFilePath = getOpenCodePath("cache", CACHE_FILES.CODEX_INSTRUCTIONS);
 
-	const cachedMetaContent = safeReadFile(cacheMetaPath);
-	if (cachedMetaContent) {
-		const metadata = JSON.parse(cachedMetaContent) as CacheMetadata;
-		cachedETag = metadata.etag || null;
-		cachedTag = metadata.tag;
-		cachedTimestamp = metadata.lastChecked;
-	}
+	const metadata = readCacheMetadata(cacheMetaPath);
+	const cachedETag = metadata?.etag || null;
+	const cachedTag = metadata?.tag || null;
+	const cachedTimestamp = metadata?.lastChecked || null;
 
-	const cacheKeyFromMetadata = getCodexCacheKey(cachedETag ?? undefined, cachedTag ?? undefined);
-	const sessionFromMetadata = codexInstructionsCache.get(cacheKeyFromMetadata);
+	const sessionFromMetadata = loadSessionFromMetadata(metadata);
 	if (sessionFromMetadata) {
-		cacheSessionEntry(sessionFromMetadata.data, sessionFromMetadata.etag, sessionFromMetadata.tag);
-		return sessionFromMetadata.data;
+		return sessionFromMetadata;
 	}
 
 	const cacheFileExists = fileExistsAndNotEmpty(cacheFilePath);
-	const isCacheFresh = Boolean(
-		cachedTimestamp && Date.now() - cachedTimestamp < CACHE_TTL_MS && cacheFileExists,
-	);
-
-	if (isCacheFresh) {
-		const fileContent = safeReadFile(cacheFilePath) || "";
-		cacheSessionEntry(fileContent, cachedETag || undefined, cachedTag || undefined);
-		return fileContent;
+	if (cacheIsFresh(cachedTimestamp, cacheFileExists)) {
+		return readCachedInstructions(cacheFilePath, cachedETag || undefined, cachedTag || undefined);
 	}
 
 	let latestTag: string | undefined;
 	try {
 		latestTag = await getLatestReleaseTag();
 	} catch (error) {
-		// If we can't get the latest tag, fall back to cache or bundled version
 		logWarn("Failed to get latest release tag, falling back to cache/bundled", { error });
-		// Fall back to bundled instructions
-		const bundledContent = readFileSync(join(__dirname, "codex-instructions.md"), "utf8");
-		cacheSessionEntry(bundledContent, undefined, undefined);
-		return bundledContent;
+		return loadBundledInstructions();
 	}
 
-	const cacheKeyForLatest = getCodexCacheKey(cachedETag ?? undefined, latestTag);
-	const sessionForLatest = codexInstructionsCache.get(cacheKeyForLatest);
+	if (!latestTag) {
+		return loadBundledInstructions();
+	}
+
+	const resolvedTag = latestTag as string;
+	const sessionForLatest = codexInstructionsCache.get(getCodexCacheKey(cachedETag ?? undefined, resolvedTag));
 	if (sessionForLatest) {
 		cacheSessionEntry(sessionForLatest.data, sessionForLatest.etag, sessionForLatest.tag);
 		return sessionForLatest.data;
 	}
 
-	if (cachedTag !== latestTag) {
-		cachedETag = null; // Force re-fetch when tag changes
-	}
+	const effectiveEtag = cachedTag === resolvedTag ? cachedETag : null;
+	const CODEX_INSTRUCTIONS_URL = `https://raw.githubusercontent.com/openai/codex/${resolvedTag}/codex-rs/core/gpt_5_codex_prompt.md`;
 
-	const CODEX_INSTRUCTIONS_URL = `https://raw.githubusercontent.com/openai/codex/${latestTag}/codex-rs/core/gpt_5_codex_prompt.md`;
-
-	const headers: Record<string, string> = {};
-	if (cachedETag) {
-		headers["If-None-Match"] = cachedETag;
-	}
-
-	try {
-		const response = await fetch(CODEX_INSTRUCTIONS_URL, { headers });
-
-		if (response.status === 304 && cacheFileExists) {
-			const fileContent = safeReadFile(cacheFilePath) || "";
-			cacheSessionEntry(fileContent, cachedETag || undefined, latestTag || undefined);
-			return fileContent;
-		}
-
-		if (response.ok) {
-			const instructions = await response.text();
-			const newETag = response.headers.get("etag");
-
-			// Save to file cache
-			safeWriteFile(cacheFilePath, instructions);
-			safeWriteFile(
-				cacheMetaPath,
-				JSON.stringify({
-					etag: newETag || undefined,
-					tag: latestTag,
-					lastChecked: Date.now(),
-					url: CODEX_INSTRUCTIONS_URL,
-				} satisfies CacheMetadata),
-			);
-
-			cacheSessionEntry(instructions, newETag || undefined, latestTag);
-			return instructions;
-		}
-
-		throw new Error(`HTTP ${response.status}`);
-	} catch (error) {
-		const err = error as Error;
-		logError("Failed to fetch instructions from GitHub", { error: err.message });
-
-		if (cacheFileExists) {
-			logError("Using cached instructions due to fetch failure");
-			const fileContent = safeReadFile(cacheFilePath) || "";
-			cacheSessionEntry(fileContent, cachedETag || undefined, cachedTag || undefined);
-			return fileContent;
-		}
-
-		logError("Falling back to bundled instructions");
-		const bundledContent = readFileSync(join(__dirname, "codex-instructions.md"), "utf8");
-		cacheSessionEntry(bundledContent, undefined, undefined);
-		return bundledContent;
-	}
+	return fetchInstructionsWithFallback(CODEX_INSTRUCTIONS_URL, {
+		cacheFilePath,
+		cacheMetaPath,
+		cacheFileExists,
+		effectiveEtag,
+		latestTag: resolvedTag,
+		cachedETag,
+		cachedTag,
+	});
 }
 
 /**

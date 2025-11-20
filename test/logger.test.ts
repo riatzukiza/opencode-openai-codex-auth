@@ -1,3 +1,4 @@
+import type { OpencodeClient } from "@opencode-ai/sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const fsMocks = {
@@ -126,6 +127,60 @@ describe("logger", () => {
 		await flushRollingLogsForTest();
 
 		expect(warnSpy).toHaveBeenCalledWith("[openhax/codex] warning");
+	});
+
+	it("logWarn sends toast and avoids console/app log when tui available", async () => {
+		fsMocks.existsSync.mockReturnValue(true);
+		const showToast = vi.fn();
+		const appLog = vi.fn().mockResolvedValue(undefined);
+		const { configureLogger, logWarn, flushRollingLogsForTest } = await import("../lib/logger.js");
+
+		const client = {
+			app: { log: appLog },
+			tui: { showToast },
+		} as unknown as OpencodeClient;
+
+		configureLogger({ client });
+
+		logWarn("toast-warning");
+		await flushRollingLogsForTest();
+
+		expect(showToast).toHaveBeenCalledWith({
+			body: {
+				title: "openhax/codex warning",
+				message: "openhax/codex: toast-warning",
+				variant: "warning",
+			},
+		});
+		expect(appLog).not.toHaveBeenCalled();
+		expect(warnSpy).not.toHaveBeenCalled();
+	});
+
+	it("wraps long toast messages to avoid truncation", async () => {
+		fsMocks.existsSync.mockReturnValue(true);
+		const showToast = vi.fn();
+		const appLog = vi.fn().mockResolvedValue(undefined);
+		const { configureLogger, logWarn, flushRollingLogsForTest } = await import("../lib/logger.js");
+
+		const client = {
+			app: { log: appLog },
+			tui: { showToast },
+		} as unknown as OpencodeClient;
+
+		configureLogger({ client });
+
+		logWarn(
+			"prefix mismatch detected while warming the session cache; reconnecting with fallback account boundaries",
+		);
+		await flushRollingLogsForTest();
+
+		expect(showToast).toHaveBeenCalledTimes(1);
+		const message = (showToast.mock.calls[0]?.[0] as { body: { message: string } }).body.message;
+		const lines = message.split("\n");
+		expect(lines.length).toBeGreaterThan(1);
+		lines.forEach((line) => expect(line.length).toBeLessThanOrEqual(72));
+		expect(appLog).not.toHaveBeenCalled();
+		expect(warnSpy).not.toHaveBeenCalled();
 	});
 
 	it("logInfo does not mirror to console in tests, even with debug flag", async () => {
