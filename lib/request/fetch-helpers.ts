@@ -136,6 +136,12 @@ export async function transformRequestForCodex(
 		const manualCommand = compactionEnabled ? detectCompactionCommand(originalInput) : null;
 
 		const sessionContext = sessionManager?.getContext(body);
+		if (sessionContext?.state?.promptCacheKey) {
+			const hostProvided = (body as any).prompt_cache_key || (body as any).promptCacheKey;
+			if (!hostProvided) {
+				(body as any).prompt_cache_key = sessionContext.state.promptCacheKey;
+			}
+		}
 		if (compactionEnabled && !manualCommand) {
 			sessionManager?.applyCompactedHistory?.(body, sessionContext);
 		}

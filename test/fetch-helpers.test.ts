@@ -301,6 +301,46 @@ describe("Fetch Helpers Module", () => {
 			expect(result?.body).toEqual(transformed);
 			expect(result?.updatedInit.body).toBe(JSON.stringify(transformed));
 		});
+
+		it("prefers session prompt cache key when host did not provide one", async () => {
+			const body = {
+				model: "gpt-5",
+				tools: [],
+				input: [{ type: "message", role: "user", content: "hi" }],
+			};
+			const transformed = { ...body };
+			transformRequestBodyMock.mockResolvedValue({ body: transformed });
+			const sessionContext = {
+				sessionId: "session-1",
+				enabled: true,
+				preserveIds: true,
+				state: {
+					id: "session-1",
+					promptCacheKey: "session-cache-key",
+					store: false,
+					lastInput: [],
+					lastPrefixHash: null,
+					lastUpdated: Date.now(),
+				},
+			};
+			const sessionManager = {
+				getContext: vi.fn().mockReturnValue(sessionContext),
+				applyRequest: vi.fn().mockReturnValue(sessionContext),
+			};
+
+			await transformRequestForCodex(
+				{ body: JSON.stringify(body) },
+				"https://chatgpt.com/backend-api/codex/responses",
+				"instructions",
+				{ global: {}, models: {} },
+				true,
+				sessionManager as never,
+				{ enableCodexCompaction: false } as any,
+			);
+
+			const [passedBody] = transformRequestBodyMock.mock.calls[0];
+			expect((passedBody as any).prompt_cache_key).toBe("session-cache-key");
+		});
 	});
 
 	describe("response handlers", () => {
