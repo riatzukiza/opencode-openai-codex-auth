@@ -237,9 +237,11 @@ describe("Fetch Helpers Module", () => {
 
 			const result = await refreshAndUpdateToken(auth, client as never);
 			expect(result.success).toBe(true);
-			expect(auth.access).toBe("new-access");
-			expect(auth.refresh).toBe("new-refresh");
-			expect(auth.expires).toBe(newAuth.expires);
+			if (result.success && result.auth.type === "oauth") {
+				expect(result.auth.access).toBe("new-access");
+				expect(result.auth.refresh).toBe("new-refresh");
+				expect(result.auth.expires).toBe(newAuth.expires);
+			}
 			expect(setMock).toHaveBeenCalledWith({
 				path: { id: "openai" },
 				body: {
