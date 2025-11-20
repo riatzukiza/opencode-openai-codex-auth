@@ -63,6 +63,10 @@ function cacheIsFresh(cachedTimestamp: number | null, cacheFileExists: boolean):
 	return Boolean(cachedTimestamp && Date.now() - cachedTimestamp < CACHE_TTL_MS && cacheFileExists);
 }
 
+function writeCacheMetadata(cacheMetaPath: string, metadata: CacheMetadata): void {
+	safeWriteFile(cacheMetaPath, JSON.stringify(metadata));
+}
+
 function readCachedInstructions(
 	cacheFilePath: string,
 	etag?: string | undefined,
@@ -108,6 +112,12 @@ async function fetchInstructionsFromGithub(
 	if (response.status === 304 && cacheFileExists) {
 		const cachedContent = readCachedInstructions(cacheFilePath, cachedETag || undefined, latestTag);
 		if (cachedContent) {
+			writeCacheMetadata(cacheMetaPath, {
+				etag: cachedETag || undefined,
+				tag: latestTag,
+				lastChecked: Date.now(),
+				url,
+			});
 			return cachedContent;
 		}
 		throw new Error("Cached Codex instructions were unavailable after 304 response");
@@ -121,15 +131,12 @@ async function fetchInstructionsFromGithub(
 	const newETag = response.headers.get("etag");
 
 	safeWriteFile(cacheFilePath, instructions);
-	safeWriteFile(
-		cacheMetaPath,
-		JSON.stringify({
-			etag: newETag || undefined,
-			tag: latestTag,
-			lastChecked: Date.now(),
-			url,
-		} satisfies CacheMetadata),
-	);
+	writeCacheMetadata(cacheMetaPath, {
+		etag: newETag || undefined,
+		tag: latestTag,
+		lastChecked: Date.now(),
+		url,
+	});
 
 	cacheSessionEntry(instructions, newETag || undefined, latestTag);
 	return instructions;
@@ -160,6 +167,13 @@ async function fetchInstructionsWithFallback(
 		const err = error as Error;
 		logError("Failed to fetch instructions from GitHub", { error: err.message });
 
+		const fallbackMetadata: CacheMetadata = {
+			etag: options.effectiveEtag || options.cachedETag || undefined,
+			tag: options.cachedTag || options.latestTag,
+			lastChecked: Date.now(),
+			url,
+		};
+
 		if (options.cacheFileExists) {
 			logWarn("Using cached instructions due to fetch failure");
 			const cachedContent = readCachedInstructions(
@@ -168,13 +182,16 @@ async function fetchInstructionsWithFallback(
 				options.cachedTag || undefined,
 			);
 			if (cachedContent) {
+				writeCacheMetadata(options.cacheMetaPath, fallbackMetadata);
 				return cachedContent;
 			}
 			logWarn("Cached instructions unavailable; falling back to bundled instructions");
 		}
 
 		logWarn("Falling back to bundled instructions");
-		return loadBundledInstructions();
+		const bundledInstructions = loadBundledInstructions();
+		writeCacheMetadata(options.cacheMetaPath, fallbackMetadata);
+		return bundledInstructions;
 	}
 }
 
