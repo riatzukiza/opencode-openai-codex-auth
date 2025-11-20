@@ -1,6 +1,6 @@
 {
   "name": "@openhax/codex",
-  "version": "0.3.0",
+  "version": "0.3.5",
   "description": "OpenHax Codex OAuth plugin for Opencode — bring your ChatGPT Plus/Pro subscription instead of API credits",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
