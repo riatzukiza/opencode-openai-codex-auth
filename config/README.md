@@ -5,6 +5,7 @@ This directory contains example opencode configuration files for the OpenAI Code
 ## Files
 
 ### minimal-opencode.json
+
 The simplest possible configuration using plugin defaults.
 
 ```bash
@@ -12,6 +13,7 @@ cp config/minimal-opencode.json ~/.config/opencode/opencode.json
 ```
 
 This uses default settings:
+
 - `reasoningEffort`: "medium"
 - `reasoningSummary`: "auto"
 - `textVerbosity`: "medium"
@@ -19,6 +21,7 @@ This uses default settings:
 - `store`: false (required for AI SDK 2.0.50+ compatibility)
 
 ### full-opencode.json
+
 Complete configuration example showing all model variants with custom settings.
 
 ```bash
@@ -26,6 +29,7 @@ cp config/full-opencode.json ~/.config/opencode/opencode.json
 ```
 
 This demonstrates:
+
 - Global options for all models
 - Per-model configuration overrides
 - All supported model variants (gpt-5-codex, gpt-5-codex-mini, gpt-5, gpt-5-mini, gpt-5-nano)
@@ -41,4 +45,4 @@ This demonstrates:
 
 ## Configuration Options
 
-See the main [README.md](../README.md#configuration) for detailed documentation of all configuration options.
+See the main [README.md](../README.md#configuration-reference) for detailed documentation of all configuration options.
