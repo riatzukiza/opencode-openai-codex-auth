@@ -6,7 +6,7 @@ on:
 
 jobs:
   auto-review-response:
-    if: contains(fromJson('["coderabbitai","riatzukiza"]'), github.event.comment.user.login) || github.event.comment.author_association == 'OWNER' || github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'COLLABORATOR'
+    if: contains(fromJson('["coderabbitai","coderabbitai[bot]","github-code-quality[bot]","riatzukiza"]'), github.event.comment.user.login) || github.event.comment.author_association == 'OWNER' || github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'COLLABORATOR'
     runs-on: ubuntu-latest
     permissions:
       contents: write
