@@ -5,7 +5,7 @@ Welcome to the OpenHax Codex Plugin documentation!
 ## For Users
 
 - **[Getting Started](../README.md)** - Installation, configuration, and quick start
-- **[Configuration Guide](../README.md#configuration)** - Complete config reference
+- **[Configuration Guide](../README.md#configuration-reference)** - Complete config reference
 - **[Troubleshooting](../README.md#troubleshooting)** - Common issues and debugging
 - **[Changelog](../CHANGELOG.md)** - Version history and release notes
 

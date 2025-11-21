@@ -8,25 +8,62 @@ This plugin enables opencode to use OpenAI's Codex backend via ChatGPT Plus/Pro 
 
 > **Maintained by Open Hax.** Follow project updates at [github.com/open-hax/codex](https://github.com/open-hax/codex) and report issues or ideas there.
 
-## ⚠️ Terms of Service & Usage Notice
+## Installation
 
-**Important:** This plugin is designed for **personal development use only** with your own ChatGPT Plus/Pro subscription. By using this tool, you agree to:
+- **Prerequisites:** ChatGPT Plus or Pro subscription; OpenCode installed ([opencode.ai](https://opencode.ai)); Node.js 18+.
 
-- ✅ Use only for individual productivity and coding assistance
-- ✅ Respect OpenAI's rate limits and usage policies
-- ✅ Not use to power commercial services or resell access
-- ✅ Comply with [OpenAI's Terms of Use](https://openai.com/policies/terms-of-use/) and [Usage Policies](https://openai.com/policies/usage-policies/)
+**Quick start (minimal provider config — one model):**
 
-**This tool uses OpenAI's official OAuth authentication** (the same method as OpenAI's official Codex CLI). However, users are responsible for ensuring their usage complies with OpenAI's terms.
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["@openhax/codex"],
+  "model": "openai/gpt-5.1-codex-max",
+  "provider": {
+    "openai": {
+      "options": {
+        "reasoningEffort": "medium",
+        "reasoningSummary": "auto",
+        "textVerbosity": "medium",
+        "include": ["reasoning.encrypted_content"],
+        "store": false
+      },
+      "models": {
+        "gpt-5.1-codex-max": {
+          "name": "GPT 5.1 Codex Max (OAuth)"
+        }
+      }
+    }
+  }
+}
+```
 
-### ⚠️ Not Suitable For:
+1. Save that to `~/.config/opencode/opencode.json` (or project-specific `.opencode.json`).
+2. Restart OpenCode (it installs plugins automatically). If prompted, run `opencode auth login` and finish the OAuth flow with your ChatGPT account.
+3. In the TUI, choose `GPT 5.1 Codex Max (OAuth)` and start chatting.
 
-- Commercial API resale or white-labeling
-- High-volume automated extraction beyond personal use
-- Applications serving multiple users with one subscription
-- Any use that violates OpenAI's acceptable use policies
+Prefer every preset? Copy [`config/full-opencode.json`](./config/full-opencode.json) instead; it registers all GPT-5.1/GPT-5 Codex variants with recommended settings.
 
-**For production applications or commercial use, use the [OpenAI Platform API](https://platform.openai.com/) with proper API keys.**
+Want to customize? Jump to [Configuration reference](#configuration-reference).
+
+## Plugin-Level Settings
+
+Set these in `~/.opencode/openhax-codex-config.json` (applies to all models):
+
+- `codexMode` (default `true`): enable the Codex ↔ OpenCode bridge prompt and tool remapping
+- `enablePromptCaching` (default `true`): keep a stable `prompt_cache_key` so Codex can reuse cached prompts
+
+Example:
+
+```json
+{
+  "codexMode": true,
+  "enablePromptCaching": true,
+  "enableCodexCompaction": true,
+  "autoCompactTokenLimit": 120000,
+  "autoCompactMinMessages": 8
+}
+```
 
 ---
 
@@ -45,18 +82,8 @@ This plugin enables opencode to use OpenAI's Codex backend via ChatGPT Plus/Pro 
 - ✅ **Usage-aware errors** - Shows clear guidance when ChatGPT subscription limits are reached
 - ✅ **Type-safe & tested** - Strict TypeScript with 160+ unit tests + 14 integration tests
 - ✅ **Modular architecture** - Easy to maintain and extend
-  **Prompt caching is enabled by default** to optimize your token usage and reduce costs.
 
-### Built-in Codex Commands
-
-These commands are typed as normal chat messages (no slash required). `codex-metrics`/`codex-inspect` run entirely inside the plugin.
-
-| Command         | Aliases                                              | Description                                                                                       |
-| --------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `codex-metrics` | `?codex-metrics`, `codexmetrics`, `/codex-metrics`\* | Shows cache stats, recent prompt-cache sessions, and cache-warm status                            |
-| `codex-inspect` | `?codex-inspect`, `codexinspect`, `/codex-inspect`\* | Dumps the pending request configuration (model, prompt cache key, tools, reasoning/text settings) |
-
-> \*Slash-prefixed variants only work in environments that allow arbitrary `/` commands. In the opencode TUI, stick to `codex-metrics` / `codex-inspect` so the message is treated as normal chat text.
+**Prompt caching is enabled by default** to optimize your token usage and reduce costs.
 
 ### How Caching Works
 
@@ -472,11 +499,43 @@ When no configuration is specified, the plugin uses these defaults for all GPT-5
 
 These defaults match the official Codex CLI behavior and can be customized (see Configuration below). GPT-5.1 requests automatically start at `reasoningEffort: "none"`, while Codex/Codex Mini presets continue to clamp to their supported levels.
 
-## Configuration
+## Configuration Reference
 
-### Recommended: Use Pre-Configured File
+Already set up from Installation? You're all set. Use this section when you want to tweak defaults or build custom presets.
 
-The easiest way to get started is to use [`config/full-opencode.json`](./config/full-opencode.json), which provides:
+### Minimal configuration (single model)
+
+Use the smallest working provider config if you only need one flagship model:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["@openhax/codex"],
+  "model": "openai/gpt-5.1-codex-max",
+  "provider": {
+    "openai": {
+      "options": {
+        "reasoningEffort": "medium",
+        "reasoningSummary": "auto",
+        "textVerbosity": "medium",
+        "include": ["reasoning.encrypted_content"],
+        "store": false
+      },
+      "models": {
+        "gpt-5.1-codex-max": {
+          "name": "GPT 5.1 Codex Max (OAuth)"
+        }
+      }
+    }
+  }
+}
+```
+
+`gpt-5.1-codex-max` is the recommended default for balanced reasoning + tool use. Switch the `model` value if you prefer another preset.
+
+### Full preset bundle
+
+The easiest way to get all presets is to use [`config/full-opencode.json`](./config/full-opencode.json), which provides:
 
 - 21 pre-configured model variants matching the latest Codex CLI presets (GPT-5.1 Codex Max + GPT-5.1 + GPT-5)
 - Optimal settings for each reasoning level
@@ -502,13 +561,6 @@ If you want to customize settings yourself, you can configure options at provide
 > **Note**: `minimal` effort is auto-normalized to `low` for gpt-5-codex (not supported by the API). `none` is only supported on GPT-5.1 general models; when used with legacy gpt-5 it is normalized to `minimal`. `xhigh` is exclusive to `gpt-5.1-codex-max`—other Codex presets automatically map it to `high`.
 >
 > † **Extra High reasoning**: `reasoningEffort: "xhigh"` provides maximum computational effort for complex, multi-step problems and is only available on `gpt-5.1-codex-max`.
-
-#### Plugin-Level Settings
-
-Set these in `~/.opencode/openhax-codex-config.json`:
-
-- `codexMode` (default `true`): enable the Codex ↔ OpenCode bridge prompt
-- `enablePromptCaching` (default `true`): keep a stable `prompt_cache_key` and preserved message IDs so Codex can reuse cached prompts, reducing token usage and costs
 
 #### Global Configuration Example
 
@@ -598,11 +650,6 @@ This plugin respects the same rate limits enforced by OpenAI's official Codex CL
 **Note:** Excessive usage or violations of OpenAI's terms may result in temporary throttling or account review by OpenAI.
 
 ---
-
-## Requirements
-
-- **ChatGPT Plus or Pro subscription** (required)
-- **OpenCode** installed ([opencode.ai](https://opencode.ai))
 
 ## Updating & Clearing Caches
 
@@ -755,10 +802,30 @@ Based on research and working implementations from:
 **📖 Documentation:**
 
 - [Installation](#installation) - Get started in 2 minutes
-- [Configuration](#configuration) - Customize your setup
+- [Configuration reference](#configuration-reference) - Customize your setup
 - [Troubleshooting](#troubleshooting) - Common issues
 - [GitHub Pages Docs](https://open-hax.github.io/codex/) - Extended guides
 - [Developer Docs](https://open-hax.github.io/codex/development/ARCHITECTURE) - Technical deep dive
+
+## Terms of Service & Usage Notice
+
+**Important:** This plugin is designed for **personal development use only** with your own ChatGPT Plus/Pro subscription. By using this tool, you agree to:
+
+- ✅ Use only for individual productivity and coding assistance
+- ✅ Respect OpenAI's rate limits and usage policies
+- ✅ Not use to power commercial services or resell access
+- ✅ Comply with [OpenAI's Terms of Use](https://openai.com/policies/terms-of-use/) and [Usage Policies](https://openai.com/policies/usage-policies/)
+
+**This tool uses OpenAI's official OAuth authentication** (the same method as OpenAI's official Codex CLI). However, users are responsible for ensuring their usage complies with OpenAI's terms.
+
+### ⚠️ Not Suitable For:
+
+- Commercial API resale or white-labeling
+- High-volume automated extraction beyond personal use
+- Applications serving multiple users with one subscription
+- Any use that violates OpenAI's acceptable use policies
+
+**For production applications or commercial use, use the [OpenAI Platform API](https://platform.openai.com/) with proper API keys.**
 
 ## License
 
