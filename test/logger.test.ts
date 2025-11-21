@@ -107,6 +107,20 @@ describe("logger", () => {
 		expect(fsMocks.appendFile).not.toHaveBeenCalled();
 	});
 
+	it("config overrides env-enabled request logging when disabled in file", async () => {
+		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = "1";
+		fsMocks.existsSync.mockReturnValue(true);
+		const { configureLogger, logRequest, flushRollingLogsForTest } = await import("../lib/logger.js");
+
+		configureLogger({ pluginConfig: { logging: { enableRequestLogging: false } } });
+
+		logRequest("stage-one", { foo: "bar" });
+		await flushRollingLogsForTest();
+
+		expect(fsMocks.writeFile).not.toHaveBeenCalled();
+		expect(fsMocks.appendFile).not.toHaveBeenCalled();
+	});
+
 	it("logDebug appends to rolling log only when enabled", async () => {
 		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = "1";
 		fsMocks.existsSync.mockReturnValue(true);
@@ -129,7 +143,7 @@ describe("logger", () => {
 		expect(warnSpy).toHaveBeenCalledWith("[openhax/codex] warning");
 	});
 
-	it("logWarn sends toast and avoids console/app log when tui available", async () => {
+	it("logWarn does not send warning toasts by default even when tui is available", async () => {
 		fsMocks.existsSync.mockReturnValue(true);
 		const showToast = vi.fn();
 		const appLog = vi.fn().mockResolvedValue(undefined);
@@ -141,6 +155,27 @@ describe("logger", () => {
 		} as unknown as OpencodeClient;
 
 		configureLogger({ client });
+
+		logWarn("toast-warning");
+		await flushRollingLogsForTest();
+
+		expect(showToast).not.toHaveBeenCalled();
+		expect(appLog).toHaveBeenCalledTimes(1);
+		expect(warnSpy).toHaveBeenCalledWith("[openhax/codex] toast-warning");
+	});
+
+	it("logWarn sends warning toasts only when enabled via config", async () => {
+		fsMocks.existsSync.mockReturnValue(true);
+		const showToast = vi.fn();
+		const appLog = vi.fn().mockResolvedValue(undefined);
+		const { configureLogger, logWarn, flushRollingLogsForTest } = await import("../lib/logger.js");
+
+		const client = {
+			app: { log: appLog },
+			tui: { showToast },
+		} as unknown as OpencodeClient;
+
+		configureLogger({ client, pluginConfig: { logging: { showWarningToasts: true } } });
 
 		logWarn("toast-warning");
 		await flushRollingLogsForTest();
@@ -167,7 +202,7 @@ describe("logger", () => {
 			tui: { showToast },
 		} as unknown as OpencodeClient;
 
-		configureLogger({ client });
+		configureLogger({ client, pluginConfig: { logging: { showWarningToasts: true } } });
 
 		logWarn(
 			"prefix mismatch detected while warming the session cache; reconnecting with fallback account boundaries",

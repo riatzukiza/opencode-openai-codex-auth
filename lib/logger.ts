@@ -1,26 +1,38 @@
 import type { OpencodeClient } from "@opencode-ai/sdk";
 import { appendFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { LoggingConfig, PluginConfig } from "./types.js";
 import { PLUGIN_NAME } from "./constants.js";
 import { ensureDirectory, getOpenCodePath } from "./utils/file-system-utils.js";
 
-export const LOGGING_ENABLED = process.env.ENABLE_PLUGIN_REQUEST_LOGGING === "1";
-const DEBUG_FLAG_ENABLED = process.env.DEBUG_CODEX_PLUGIN === "1";
-const DEBUG_ENABLED = DEBUG_FLAG_ENABLED || LOGGING_ENABLED;
 const IS_TEST_ENV = process.env.NODE_ENV === "test";
-const CONSOLE_LOGGING_ENABLED = DEBUG_FLAG_ENABLED && !IS_TEST_ENV;
 const LOG_DIR = getOpenCodePath("logs", "codex-plugin");
 const ROLLING_LOG_FILE = join(LOG_DIR, "codex-plugin.log");
 
-const LOG_ROTATION_MAX_BYTES = Math.max(1, getEnvNumber("CODEX_LOG_MAX_BYTES", 5 * 1024 * 1024));
-const LOG_ROTATION_MAX_FILES = Math.max(1, getEnvNumber("CODEX_LOG_MAX_FILES", 5));
-const LOG_QUEUE_MAX_LENGTH = Math.max(1, getEnvNumber("CODEX_LOG_QUEUE_MAX", 1000));
+const envLoggingDefaults = {
+	loggingEnabled: process.env.ENABLE_PLUGIN_REQUEST_LOGGING === "1",
+	debugFlagEnabled: process.env.DEBUG_CODEX_PLUGIN === "1",
+	showWarningToasts: process.env.CODEX_SHOW_WARNING_TOASTS === "1",
+	logRotationMaxBytes: getEnvNumber("CODEX_LOG_MAX_BYTES", 5 * 1024 * 1024),
+	logRotationMaxFiles: getEnvNumber("CODEX_LOG_MAX_FILES", 5),
+	logQueueMaxLength: getEnvNumber("CODEX_LOG_QUEUE_MAX", 1000),
+};
+
+export let LOGGING_ENABLED = envLoggingDefaults.loggingEnabled;
+let DEBUG_FLAG_ENABLED = envLoggingDefaults.debugFlagEnabled;
+let WARN_TOASTS_ENABLED = envLoggingDefaults.showWarningToasts ?? false;
+let LOG_ROTATION_MAX_BYTES = Math.max(1, envLoggingDefaults.logRotationMaxBytes);
+let LOG_ROTATION_MAX_FILES = Math.max(1, envLoggingDefaults.logRotationMaxFiles);
+let LOG_QUEUE_MAX_LENGTH = Math.max(1, envLoggingDefaults.logQueueMaxLength);
+let DEBUG_ENABLED = DEBUG_FLAG_ENABLED || LOGGING_ENABLED;
+let CONSOLE_LOGGING_ENABLED = DEBUG_FLAG_ENABLED && !IS_TEST_ENV;
 
 type LogLevel = "debug" | "info" | "warn" | "error";
 
 type LoggerOptions = {
 	client?: OpencodeClient;
 	directory?: string;
+	pluginConfig?: PluginConfig;
 };
 
 type OpencodeClientWithTui = OpencodeClient & {
@@ -46,6 +58,35 @@ type RollingLogEntry = {
 	extra?: Record<string, unknown>;
 };
 
+function refreshLoggingState(): void {
+	DEBUG_ENABLED = DEBUG_FLAG_ENABLED || LOGGING_ENABLED;
+	CONSOLE_LOGGING_ENABLED = DEBUG_FLAG_ENABLED && !IS_TEST_ENV;
+}
+
+function ensurePositiveNumber(value: number | undefined, fallback: number): number {
+	if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+		return value;
+	}
+	return fallback;
+}
+
+function applyLoggingOverrides(logging?: LoggingConfig): void {
+	if (!logging) {
+		refreshLoggingState();
+		return;
+	}
+
+	LOGGING_ENABLED = logging.enableRequestLogging ?? LOGGING_ENABLED;
+	DEBUG_FLAG_ENABLED = logging.debug ?? DEBUG_FLAG_ENABLED;
+	WARN_TOASTS_ENABLED = logging.showWarningToasts ?? WARN_TOASTS_ENABLED;
+	LOG_ROTATION_MAX_BYTES = ensurePositiveNumber(logging.logMaxBytes, LOG_ROTATION_MAX_BYTES);
+	LOG_ROTATION_MAX_FILES = ensurePositiveNumber(logging.logMaxFiles, LOG_ROTATION_MAX_FILES);
+	LOG_QUEUE_MAX_LENGTH = ensurePositiveNumber(logging.logQueueMax, LOG_QUEUE_MAX_LENGTH);
+	refreshLoggingState();
+}
+
+refreshLoggingState();
+
 let requestCounter = 0;
 let loggerClient: OpencodeClient | undefined;
 let projectDirectory: string | undefined;
@@ -66,6 +107,7 @@ export function configureLogger(options: LoggerOptions = {}): void {
 	if (options.directory) {
 		projectDirectory = options.directory;
 	}
+	applyLoggingOverrides(options.pluginConfig?.logging);
 	if (announcedState || !(LOGGING_ENABLED || DEBUG_ENABLED)) {
 		return;
 	}
@@ -127,6 +169,7 @@ export async function flushRollingLogsForTest(): Promise<void> {
 function emit(level: LogLevel, message: string, extra?: Record<string, unknown>): void {
 	const sanitizedExtra = sanitizeExtra(extra);
 	const supportsToast = loggerClient ? hasTuiShowToast(loggerClient) : false;
+	const warnToastEnabled = supportsToast && WARN_TOASTS_ENABLED;
 	const entry: RollingLogEntry = {
 		timestamp: new Date().toISOString(),
 		service: PLUGIN_NAME,
@@ -139,7 +182,7 @@ function emit(level: LogLevel, message: string, extra?: Record<string, unknown>)
 		appendRollingLog(entry);
 	}
 
-	const shouldForwardToAppLog = level !== "warn" || !supportsToast;
+	const shouldForwardToAppLog = level !== "warn" || !warnToastEnabled;
 
 	if (shouldForwardToAppLog && loggerClient?.app?.log) {
 		void loggerClient.app
@@ -154,11 +197,11 @@ function emit(level: LogLevel, message: string, extra?: Record<string, unknown>)
 			);
 	}
 
-	if (level === "error" || (level === "warn" && supportsToast)) {
+	if (level === "error" || (level === "warn" && warnToastEnabled)) {
 		notifyToast(level, message, sanitizedExtra);
 	}
 
-	const shouldLogToConsole = level !== "warn" || !supportsToast;
+	const shouldLogToConsole = level !== "warn" || !warnToastEnabled;
 	if (shouldLogToConsole) {
 		logToConsole(level, message, sanitizedExtra);
 	}

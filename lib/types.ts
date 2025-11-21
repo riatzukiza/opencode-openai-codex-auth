@@ -32,6 +32,26 @@ export interface PluginConfig {
 	 * Minimum number of conversation messages before auto-compacting
 	 */
 	autoCompactMinMessages?: number;
+
+	/**
+	 * Logging configuration that can override environment variables
+	 */
+	logging?: LoggingConfig;
+}
+
+export interface LoggingConfig {
+	/** When true, persist detailed request logs regardless of env var */
+	enableRequestLogging?: boolean;
+	/** When true, enable debug logging regardless of env var */
+	debug?: boolean;
+	/** Whether warning-level toasts should be shown (default: false) */
+	showWarningToasts?: boolean;
+	/** Override max bytes before rolling log rotation */
+	logMaxBytes?: number;
+	/** Override number of rotated log files to keep */
+	logMaxFiles?: number;
+	/** Override rolling log queue length */
+	logQueueMax?: number;
 }
 
 /**

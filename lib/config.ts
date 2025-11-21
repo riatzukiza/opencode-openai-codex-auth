@@ -14,6 +14,9 @@ const DEFAULT_CONFIG: PluginConfig = {
 	enablePromptCaching: true,
 	enableCodexCompaction: true,
 	autoCompactMinMessages: 8,
+	logging: {
+		showWarningToasts: false,
+	},
 };
 
 let cachedPluginConfig: PluginConfig | undefined;
@@ -39,16 +42,21 @@ export function loadPluginConfig(options: { forceReload?: boolean } = {}): Plugi
 		const fileContent = safeReadFile(CONFIG_PATH);
 		if (!fileContent) {
 			logWarn("Plugin config file not found, using defaults", { path: CONFIG_PATH });
-			cachedPluginConfig = DEFAULT_CONFIG;
+			cachedPluginConfig = { ...DEFAULT_CONFIG };
 			return cachedPluginConfig;
 		}
 
 		const userConfig = JSON.parse(fileContent) as Partial<PluginConfig>;
+		const userLogging = userConfig.logging ?? {};
 
-		// Merge with defaults
+		// Merge with defaults (shallow merge + nested logging merge)
 		cachedPluginConfig = {
 			...DEFAULT_CONFIG,
 			...userConfig,
+			logging: {
+				...DEFAULT_CONFIG.logging,
+				...userLogging,
+			},
 		};
 		return cachedPluginConfig;
 	} catch (error) {
@@ -56,7 +64,7 @@ export function loadPluginConfig(options: { forceReload?: boolean } = {}): Plugi
 			path: CONFIG_PATH,
 			error: (error as Error).message,
 		});
-		cachedPluginConfig = DEFAULT_CONFIG;
+		cachedPluginConfig = { ...DEFAULT_CONFIG };
 		return cachedPluginConfig;
 	}
 }
