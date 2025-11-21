@@ -67,8 +67,12 @@ afterEach(() => {
 describe("logger", () => {
 	it("isLoggingEnabled reflects env state", async () => {
 		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = "1";
-		const { isLoggingEnabled } = await import("../lib/logger.js");
+		const { isLoggingEnabled, configureLogger } = await import("../lib/logger.js");
 		expect(isLoggingEnabled()).toBe(true);
+
+		// Test that config overrides are reflected
+		configureLogger({ pluginConfig: { logging: { enableRequestLogging: false } } });
+		expect(isLoggingEnabled()).toBe(false);
 	});
 
 	it("logRequest writes stage file and rolling log when enabled", async () => {
@@ -110,9 +114,14 @@ describe("logger", () => {
 	it("config overrides env-enabled request logging when disabled in file", async () => {
 		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = "1";
 		fsMocks.existsSync.mockReturnValue(true);
-		const { configureLogger, logRequest, flushRollingLogsForTest } = await import("../lib/logger.js");
+		const { configureLogger, logRequest, flushRollingLogsForTest, isLoggingEnabled } = await import(
+			"../lib/logger.js"
+		);
 
 		configureLogger({ pluginConfig: { logging: { enableRequestLogging: false } } });
+
+		// Verify isLoggingEnabled reflects the config override
+		expect(isLoggingEnabled()).toBe(false);
 
 		logRequest("stage-one", { foo: "bar" });
 		await flushRollingLogsForTest();
