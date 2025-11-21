@@ -1,0 +1,44 @@
+name: Ruleset Drift Check
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+  push:
+    branches:
+      - dev
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ruleset-drift:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Fetch live rulesets
+        run: |
+          mkdir -p /tmp/rulesets
+          gh api repos/${{ github.repository }}/rulesets/10200441 > /tmp/rulesets/release.json
+          gh api repos/${{ github.repository }}/rulesets/10223971 > /tmp/rulesets/main.json
+
+      - name: Normalize JSON (strip volatile fields)
+        run: |
+          mkdir -p /tmp/rulesets/normalized
+          strip='del(.created_at, .updated_at, .bypass_actors, .current_user_can_bypass)'
+          jq -S "$strip" .github/rulesets/release.json > /tmp/rulesets/normalized/release.json
+          jq -S "$strip" /tmp/rulesets/release.json > /tmp/rulesets/normalized/release.live.json
+          jq -S "$strip" .github/rulesets/main.json > /tmp/rulesets/normalized/main.json
+          jq -S "$strip" /tmp/rulesets/main.json > /tmp/rulesets/normalized/main.live.json
+
+      - name: Compare snapshots
+        run: |
+          diff -u /tmp/rulesets/normalized/release.json /tmp/rulesets/normalized/release.live.json
+          diff -u /tmp/rulesets/normalized/main.json /tmp/rulesets/normalized/main.live.json

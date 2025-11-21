@@ -10,6 +10,7 @@ import {
 	addCodexBridgeMessage,
 	transformRequestBody as transformRequestBodyInternal,
 } from "../lib/request/request-transformer.js";
+import { CODEX_OPENCODE_BRIDGE } from "../lib/prompts/codex-opencode-bridge.js";
 import * as logger from "../lib/logger.js";
 import { SessionManager } from "../lib/session/session-manager.js";
 import type { RequestBody, SessionContext, UserConfig, InputItem } from "../lib/types.js";
@@ -34,9 +35,9 @@ describe("normalizeModel", () => {
 		expect(normalizeModel("gpt-5-nano")).toBe("gpt-5");
 	});
 
-	it("should return gpt-5.1 as default for unknown models", async () => {
-		expect(normalizeModel("unknown-model")).toBe("gpt-5.1");
-		expect(normalizeModel("gpt-4")).toBe("gpt-5.1");
+	it("should preserve unknown models without remapping", async () => {
+		expect(normalizeModel("unknown-model")).toBe("unknown-model");
+		expect(normalizeModel("gpt-4")).toBe("gpt-4");
 	});
 
 	it("should return gpt-5.1 for undefined", async () => {
@@ -235,6 +236,23 @@ describe("filterInput", () => {
 
 		expect(result).toHaveLength(1);
 		expect(result![0]).toHaveProperty("id", "msg_123");
+		expect(result![0]).toHaveProperty("metadata");
+	});
+
+	it("preserves metadata when explicitly requested without preserving IDs", async () => {
+		const input: InputItem[] = [
+			{
+				id: "msg_456",
+				type: "message",
+				role: "developer",
+				content: "Summary saved to ~/.opencode/summary.md",
+				metadata: { source: "opencode-compaction" },
+			},
+		];
+		const result = filterInput(input, { preserveMetadata: true });
+
+		expect(result).toHaveLength(1);
+		expect(result![0]).not.toHaveProperty("id");
 		expect(result![0]).toHaveProperty("metadata");
 	});
 
@@ -613,6 +631,21 @@ describe("filterOpenCodeSystemPrompts", () => {
 		expect(result![1].role).toBe("user");
 	});
 
+	it("should use metadata flag to detect compaction prompts", async () => {
+		const input: InputItem[] = [
+			{
+				type: "message",
+				role: "developer",
+				content: "Summary saved to ~/.opencode/summary.md for inspection",
+				metadata: { source: "opencode-compaction" },
+			},
+			{ type: "message", role: "user", content: "continue" },
+		];
+		const result = await filterOpenCodeSystemPrompts(input);
+		expect(result).toHaveLength(1);
+		expect(result![0].role).toBe("user");
+	});
+
 	it("should return undefined for undefined input", async () => {
 		expect(await filterOpenCodeSystemPrompts(undefined)).toBeUndefined();
 	});
@@ -651,6 +684,38 @@ describe("addCodexBridgeMessage", () => {
 		expect(result).toHaveLength(2);
 		expect(result?.[0].role).toBe("developer");
 		expect(result?.[1].role).toBe("user");
+		expect(sessionContext.state.bridgeInjected).toBe(true);
+	});
+
+	it("avoids duplicating bridge when already present in session", async () => {
+		const input: InputItem[] = [
+			{
+				type: "message",
+				role: "developer",
+				content: [{ type: "input_text", text: CODEX_OPENCODE_BRIDGE }],
+			},
+			{ type: "message", role: "user", content: "hello" },
+		];
+		const sessionContext: SessionContext = {
+			sessionId: "ses_bridge",
+			enabled: true,
+			preserveIds: true,
+			isNew: false,
+			state: {
+				id: "ses_bridge",
+				promptCacheKey: "ses_bridge",
+				store: false,
+				lastInput: [],
+				lastPrefixHash: null,
+				lastUpdated: Date.now(),
+				bridgeInjected: true,
+			},
+		};
+
+		const result = addCodexBridgeMessage(input, true, sessionContext);
+
+		expect(result).toEqual(input);
+		expect(result?.[0]).toEqual(input[0]);
 		expect(sessionContext.state.bridgeInjected).toBe(true);
 	});
 
@@ -741,6 +806,29 @@ describe("transformRequestBody", () => {
 
 		expect(result1.prompt_cache_key).toBe("cache_meta-conv-789-fork-fork-x");
 		expect(result2.prompt_cache_key).toBe("cache_meta-conv-789-fork-fork-x");
+	});
+
+	it("filters metadata-tagged compaction prompts and strips metadata when IDs are not preserved", async () => {
+		const body: RequestBody = {
+			model: "gpt-5",
+			input: [
+				{
+					type: "message",
+					role: "developer",
+					content: "Summary saved to ~/.opencode/summary.md for inspection",
+					metadata: { source: "opencode-compaction" },
+				},
+				{ type: "message", role: "user", content: "continue" },
+			],
+		};
+
+		const transformedBody = await transformRequestBody(body, codexInstructions);
+		expect(transformedBody).toBeDefined();
+		const messages = transformedBody.input ?? [];
+
+		expect(messages.some((item) => (item as any).metadata)).toBe(false);
+		expect(JSON.stringify(messages)).not.toContain(".opencode/summary");
+		expect(messages.some((item) => item.role === "user" && (item as any).content === "continue")).toBe(true);
 	});
 
 	it("keeps bridge prompt across turns so prompt_cache_key stays stable", async () => {

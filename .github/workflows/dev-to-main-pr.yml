@@ -1,0 +1,41 @@
+name: Dev to Main Promotion PR
+
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: dev-to-main-pr
+
+jobs:
+  open-promotion-pr:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.PR_AUTOMATION_TOKEN }}
+    steps:
+      - name: Validate PR automation token
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "PR_AUTOMATION_TOKEN is required to open promotion PRs" >&2
+            exit 1
+          fi
+      - name: Check for existing dev->main PR
+        run: |
+          set -euo pipefail
+          EXISTING=$(gh pr list --head dev --base main --state open --json number --jq '.[0].number' || true)
+          if [ -n "$EXISTING" ]; then
+            echo "Existing dev->main PR: #$EXISTING"
+            exit 0
+          fi
+      - name: Open dev->main PR
+        run: |
+          set -euo pipefail
+          TITLE="Promote dev to main"
+          BODY="Automated promotion PR from dev to main after latest release merge."
+          gh pr create --base main --head dev --title "$TITLE" --body "$BODY"
