@@ -77,6 +77,118 @@ function sanitizeCacheKey(candidate: string): string {
 	return trimmed;
 }
 
+function isSystemLike(item: InputItem | undefined): boolean {
+	if (!item || typeof item.role !== "string") {
+		return false;
+	}
+	const role = item.role.toLowerCase();
+	return role === "system" || role === "developer";
+}
+
+function isToolMessage(item: InputItem | undefined): boolean {
+	if (!item) return false;
+	const role = typeof item.role === "string" ? item.role.toLowerCase() : "";
+	const type = typeof item.type === "string" ? item.type.toLowerCase() : "";
+	const hasToolCall =
+		"tool_call_id" in (item as Record<string, unknown>) || "tool_calls" in (item as Record<string, unknown>);
+	return (
+		role === "tool" ||
+		type === "tool" ||
+		type === "tool_call" ||
+		type === "tool_result" ||
+		type === "function" ||
+		hasToolCall
+	);
+}
+
+function fingerprintInputItem(item: InputItem | undefined): string | undefined {
+	if (!item) return undefined;
+	try {
+		return createHash("sha1").update(JSON.stringify(item)).digest("hex").slice(0, 8);
+	} catch {
+		return undefined;
+	}
+}
+
+function summarizeRoles(items: InputItem[]): string[] {
+	const roles = new Set<string>();
+	for (const item of items) {
+		if (typeof item.role === "string" && item.role.trim()) {
+			roles.add(item.role);
+		}
+	}
+	return Array.from(roles);
+}
+
+function findSuffixReuseStart(previous: InputItem[], current: InputItem[]): number | null {
+	if (previous.length === 0 || current.length === 0 || current.length > previous.length) {
+		return null;
+	}
+	const start = previous.length - current.length;
+	for (let index = 0; index < current.length; index += 1) {
+		const prevItem = previous[start + index];
+		if (JSON.stringify(prevItem) !== JSON.stringify(current[index])) {
+			return null;
+		}
+	}
+	return start;
+}
+
+type PrefixChangeCause = "system_prompt_changed" | "history_pruned" | "unknown";
+
+type PrefixChangeAnalysis = {
+	cause: PrefixChangeCause;
+	details: Record<string, unknown>;
+};
+
+function analyzePrefixChange(
+	previous: InputItem[],
+	current: InputItem[],
+	sharedPrefixLength: number,
+): PrefixChangeAnalysis {
+	const firstPrevious = previous[sharedPrefixLength];
+	const firstIncoming = current[sharedPrefixLength];
+	const suffixReuseStart = findSuffixReuseStart(previous, current);
+	const removedSegment =
+		suffixReuseStart !== null && suffixReuseStart > 0 ? previous.slice(0, suffixReuseStart) : [];
+	const removedToolCount = removedSegment.filter((item) => isToolMessage(item)).length;
+
+	if (suffixReuseStart !== null && removedSegment.length > 0) {
+		return {
+			cause: "history_pruned",
+			details: {
+				mismatchIndex: sharedPrefixLength,
+				suffixReuseStart,
+				removedCount: removedSegment.length,
+				removedToolCount,
+				removedRoles: summarizeRoles(removedSegment),
+			},
+		};
+	}
+
+	if (isSystemLike(firstPrevious) || isSystemLike(firstIncoming)) {
+		return {
+			cause: "system_prompt_changed",
+			details: {
+				mismatchIndex: sharedPrefixLength,
+				previousRole: firstPrevious?.role,
+				incomingRole: firstIncoming?.role,
+				previousFingerprint: fingerprintInputItem(firstPrevious),
+				incomingFingerprint: fingerprintInputItem(firstIncoming),
+			},
+		};
+	}
+
+	return {
+		cause: "unknown",
+		details: {
+			mismatchIndex: sharedPrefixLength,
+			previousRole: firstPrevious?.role,
+			incomingRole: firstIncoming?.role,
+		},
+	};
+}
+
 function buildPrefixForkIds(
 	baseSessionId: string,
 	basePromptCacheKey: string,
@@ -294,11 +406,15 @@ export class SessionManager {
 		const hasFullPrefixMatch = sharedPrefixLength === state.lastInput.length;
 
 		if (!hasFullPrefixMatch) {
+			const prefixAnalysis = analyzePrefixChange(state.lastInput, input, sharedPrefixLength);
 			if (sharedPrefixLength === 0) {
 				logWarn("SessionManager: prefix mismatch detected, regenerating cache key", {
 					sessionId: state.id,
+					sharedPrefixLength,
 					previousItems: state.lastInput.length,
 					incomingItems: input.length,
+					prefixCause: prefixAnalysis.cause,
+					...prefixAnalysis.details,
 				});
 				const refreshed = this.resetSessionInternal(state.id, true);
 				if (!refreshed) {
@@ -351,6 +467,8 @@ export class SessionManager {
 				sharedPrefixLength,
 				previousItems: state.lastInput.length,
 				incomingItems: input.length,
+				prefixCause: prefixAnalysis.cause,
+				...prefixAnalysis.details,
 			});
 			// eslint-disable-next-line no-param-reassign
 			body.prompt_cache_key = forkPromptCacheKey;

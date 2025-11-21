@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { SESSION_CONFIG } from "../lib/constants.js";
 import { SessionManager } from "../lib/session/session-manager.js";
+import * as logger from "../lib/logger.js";
 import type { InputItem, RequestBody, SessionContext } from "../lib/types.js";
 
 interface BodyOptions {
@@ -107,6 +108,89 @@ describe("SessionManager", () => {
 		expect(branchBody.prompt_cache_key).toMatch(/^cache_/);
 		expect(branchContext.isNew).toBe(true);
 		expect(branchContext.state.promptCacheKey).not.toBe(context.state.promptCacheKey);
+	});
+
+	it("logs system prompt changes when regenerating cache key", () => {
+		const warnSpy = vi.spyOn(logger, "logWarn").mockImplementation(() => {});
+		const manager = new SessionManager({ enabled: true });
+		const baseBody: RequestBody = {
+			model: "gpt-5",
+			metadata: { conversation_id: "conv-system-change" },
+			input: [
+				{ type: "message", role: "system", content: "initial system" },
+				{ type: "message", role: "user", content: "hello" },
+			],
+		};
+
+		let context = manager.getContext(baseBody) as SessionContext;
+		context = manager.applyRequest(baseBody, context) as SessionContext;
+
+		const changedBody: RequestBody = {
+			...baseBody,
+			input: [
+				{ type: "message", role: "system", content: "updated system prompt" },
+				{ type: "message", role: "user", content: "hello" },
+			],
+		};
+
+		const nextContext = manager.getContext(changedBody) as SessionContext;
+		manager.applyRequest(changedBody, nextContext);
+
+		const warnCall = warnSpy.mock.calls.find(
+			([message]) => typeof message === "string" && message.includes("prefix mismatch"),
+		);
+
+		expect(warnCall?.[1]).toMatchObject({
+			prefixCause: "system_prompt_changed",
+			previousRole: "system",
+			incomingRole: "system",
+		});
+
+		warnSpy.mockRestore();
+	});
+
+	it("logs history pruning when earlier tool results are removed", () => {
+		const warnSpy = vi.spyOn(logger, "logWarn").mockImplementation(() => {});
+		const manager = new SessionManager({ enabled: true });
+		const fullBody: RequestBody = {
+			model: "gpt-5",
+			metadata: { conversation_id: "conv-history-prune" },
+			input: [
+				{ type: "message", role: "system", content: "sys" },
+				{ type: "message", role: "user", content: "step 1" },
+				{
+					type: "message",
+					role: "assistant",
+					content: "tool call",
+					tool_calls: [{ id: "call-1" }],
+				},
+				{ type: "message", role: "tool", content: "tool output", tool_call_id: "call-1" },
+				{ type: "message", role: "user", content: "follow up" },
+			],
+		};
+
+		let context = manager.getContext(fullBody) as SessionContext;
+		context = manager.applyRequest(fullBody, context) as SessionContext;
+
+		const prunedBody: RequestBody = {
+			...fullBody,
+			input: fullBody.input ? fullBody.input.slice(4) : [],
+		};
+
+		const prunedContext = manager.getContext(prunedBody) as SessionContext;
+		manager.applyRequest(prunedBody, prunedContext);
+
+		const warnCall = warnSpy.mock.calls.find(
+			([message]) => typeof message === "string" && message.includes("prefix mismatch"),
+		);
+
+		expect(warnCall?.[1]).toMatchObject({
+			prefixCause: "history_pruned",
+			removedCount: 4,
+		});
+		expect((warnCall?.[1] as Record<string, unknown>)?.removedRoles).toContain("tool");
+
+		warnSpy.mockRestore();
 	});
 
 	it("forks session when prefix matches partially and reuses compaction state", () => {

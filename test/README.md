@@ -79,7 +79,7 @@ Tests SSE to JSON conversion:
 
 Tests logging functionality:
 
-- LOGGING_ENABLED constant
+- isLoggingEnabled() function
 - logRequest function parameter handling
 - Complex data structure support
 

@@ -52,7 +52,9 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: true,
 				enablePromptCaching: true,
+				logging: { showWarningToasts: false },
 			});
+
 			expect(mockExistsSync).toHaveBeenCalledWith(
 				path.join(os.homedir(), ".opencode", "openhax-codex-config.json"),
 			);
@@ -67,6 +69,7 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: false,
 				enablePromptCaching: true,
+				logging: { showWarningToasts: false },
 			});
 		});
 
@@ -79,6 +82,22 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: true,
 				enablePromptCaching: true,
+				logging: { showWarningToasts: false },
+			});
+		});
+
+		it("should merge nested logging config with defaults", () => {
+			mockExistsSync.mockReturnValue(true);
+			mockReadFileSync.mockReturnValue(
+				JSON.stringify({ logging: { enableRequestLogging: false, logMaxFiles: 2 } }),
+			);
+
+			const config = loadPluginConfig({ forceReload: true });
+
+			expect(config.logging).toEqual({
+				enableRequestLogging: false,
+				logMaxFiles: 2,
+				showWarningToasts: false,
 			});
 		});
 
@@ -92,7 +111,8 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: true,
 				enablePromptCaching: true,
-			});
+				logging: { showWarningToasts: false },
+      });
 			expect(logWarnSpy).toHaveBeenCalled();
 			logWarnSpy.mockRestore();
 		});
@@ -109,6 +129,7 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: true,
 				enablePromptCaching: true,
+				logging: { showWarningToasts: false },
 			});
 			expect(logWarnSpy).toHaveBeenCalled();
 			logWarnSpy.mockRestore();
