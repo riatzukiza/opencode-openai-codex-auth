@@ -27,6 +27,6 @@
 ## Plan (Phases)
 
 1. **Prompt Fetchers**: Refactor `getCodexInstructions` and `getOpenCodeCodexPrompt` by extracting helper routines for cache reads/writes, freshness checks, and network fetch handling to reduce branching.
-2. **Request Transformation**: Break down `transformRequestForCodex` and tool normalization into smaller helpers (e.g., compaction config, logging wrappers, tool converters) to simplify flow.
+2. **Request Transformation**: Break down `transformRequestForCodex` and tool normalization into smaller helpers (e.g., logging wrappers, tool converters) to simplify flow.
 3. **Error/Reasoning Handling**: Simplify `handleErrorResponse` and `getReasoningConfig` with helper functions and clearer rule tables; ensure messaging and rate-limit parsing stay intact.
 4. **Validation**: Run targeted lint/tests to confirm complexity warnings resolved and behavior intact.

@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { SESSION_CONFIG } from "../lib/constants.js";
 import { SessionManager } from "../lib/session/session-manager.js";
@@ -35,10 +34,6 @@ function createBody(conversationId: string, inputCount = 1, options: BodyOptions
 			content: `message-${index + 1}`,
 		})),
 	};
-}
-
-function hashItems(items: InputItem[]): string {
-	return createHash("sha1").update(JSON.stringify(items)).digest("hex");
 }
 
 describe("SessionManager", () => {
@@ -193,45 +188,6 @@ describe("SessionManager", () => {
 		warnSpy.mockRestore();
 	});
 
-	it("forks session when prefix matches partially and reuses compaction state", () => {
-		const manager = new SessionManager({ enabled: true });
-		const baseBody = createBody("conv-prefix-fork", 3);
-
-		let baseContext = manager.getContext(baseBody) as SessionContext;
-		baseContext = manager.applyRequest(baseBody, baseContext) as SessionContext;
-
-		const systemMessage: InputItem = { type: "message", role: "system", content: "env vars" };
-		manager.applyCompactionSummary(baseContext, {
-			baseSystem: [systemMessage],
-			summary: "Base summary",
-		});
-
-		const branchBody = createBody("conv-prefix-fork", 3);
-		branchBody.input = [
-			{ type: "message", role: "user", id: "msg_1", content: "message-1" },
-			{ type: "message", role: "user", id: "msg_2", content: "message-2" },
-			{ type: "message", role: "assistant", id: "msg_3", content: "diverged" },
-		];
-
-		let branchContext = manager.getContext(branchBody) as SessionContext;
-		branchContext = manager.applyRequest(branchBody, branchContext) as SessionContext;
-
-		const sharedPrefix = branchBody.input.slice(0, 2) as InputItem[];
-		const expectedSuffix = hashItems(sharedPrefix).slice(0, 8);
-		expect(branchBody.prompt_cache_key).toBe(`conv-prefix-fork::prefix::${expectedSuffix}`);
-		expect(branchContext.state.promptCacheKey).toBe(`conv-prefix-fork::prefix::${expectedSuffix}`);
-		expect(branchContext.isNew).toBe(true);
-
-		const followUp = createBody("conv-prefix-fork", 1);
-		followUp.input = [{ type: "message", role: "user", content: "follow-up" }];
-		manager.applyCompactedHistory(followUp, branchContext);
-
-		expect(followUp.input).toHaveLength(3);
-		expect(followUp.input?.[0].role).toBe("system");
-		expect(followUp.input?.[1].content).toContain("Base summary");
-		expect(followUp.input?.[2].content).toBe("follow-up");
-	});
-
 	it("records cached token usage from response payload", () => {
 		const manager = new SessionManager({ enabled: true });
 		const body = createBody("conv-usage");
@@ -331,46 +287,6 @@ describe("SessionManager", () => {
 		expect(snakeParentContext.state.promptCacheKey).toBe("conv-fork-parent::fork::parent-snake");
 	});
 
-	it("scopes compaction summaries per fork session", () => {
-		const manager = new SessionManager({ enabled: true });
-		const alphaBody = createBody("conv-fork-summary", 1, { forkId: "alpha" });
-		let alphaContext = manager.getContext(alphaBody) as SessionContext;
-		alphaContext = manager.applyRequest(alphaBody, alphaContext) as SessionContext;
-
-		const systemMessage: InputItem = { type: "message", role: "system", content: "env vars" };
-		manager.applyCompactionSummary(alphaContext, {
-			baseSystem: [systemMessage],
-			summary: "Alpha summary",
-		});
-
-		const alphaNext = createBody("conv-fork-summary", 1, { forkId: "alpha" });
-		alphaNext.input = [{ type: "message", role: "user", content: "alpha task" }];
-		manager.applyCompactedHistory(alphaNext, alphaContext);
-		expect(alphaNext.input).toHaveLength(3);
-		expect(alphaNext.input?.[1].content).toContain("Alpha summary");
-
-		const betaBody = createBody("conv-fork-summary", 1, { forkId: "beta" });
-		let betaContext = manager.getContext(betaBody) as SessionContext;
-		betaContext = manager.applyRequest(betaBody, betaContext) as SessionContext;
-
-		const betaNext = createBody("conv-fork-summary", 1, { forkId: "beta" });
-		betaNext.input = [{ type: "message", role: "user", content: "beta task" }];
-		manager.applyCompactedHistory(betaNext, betaContext);
-		expect(betaNext.input).toHaveLength(1);
-
-		manager.applyCompactionSummary(betaContext, {
-			baseSystem: [],
-			summary: "Beta summary",
-		});
-
-		const betaFollowUp = createBody("conv-fork-summary", 1, { forkId: "beta" });
-		betaFollowUp.input = [{ type: "message", role: "user", content: "beta follow-up" }];
-		manager.applyCompactedHistory(betaFollowUp, betaContext);
-		expect(betaFollowUp.input).toHaveLength(2);
-		expect(betaFollowUp.input?.[0].content).toContain("Beta summary");
-		expect(betaFollowUp.input?.[1].content).toBe("beta follow-up");
-	});
-
 	it("evicts sessions that exceed idle TTL", () => {
 		const manager = new SessionManager({ enabled: true });
 		const body = createBody("conv-expire");
@@ -398,28 +314,5 @@ describe("SessionManager", () => {
 		const metrics = manager.getMetrics(SESSION_CONFIG.MAX_ENTRIES + 10);
 		expect(metrics.totalSessions).toBe(SESSION_CONFIG.MAX_ENTRIES);
 		expect(metrics.recentSessions.length).toBeLessThanOrEqual(SESSION_CONFIG.MAX_ENTRIES);
-	});
-
-	it("applies compacted history when summary stored", () => {
-		const manager = new SessionManager({ enabled: true });
-		const body = createBody("conv-compaction");
-		let context = manager.getContext(body) as SessionContext;
-		context = manager.applyRequest(body, context) as SessionContext;
-
-		const systemMessage: InputItem = { type: "message", role: "system", content: "env" };
-		manager.applyCompactionSummary(context, {
-			baseSystem: [systemMessage],
-			summary: "Auto-compaction summary",
-		});
-
-		const nextBody = createBody("conv-compaction");
-		nextBody.input = [{ type: "message", role: "user", content: "new task" }];
-		manager.applyCompactedHistory(nextBody, context);
-
-		expect(nextBody.input).toHaveLength(3);
-		expect(nextBody.input?.[0].role).toBe("system");
-		expect(nextBody.input?.[1].role).toBe("user");
-		expect(nextBody.input?.[1].content).toContain("Auto-compaction summary");
-		expect(nextBody.input?.[2].content).toBe("new task");
 	});
 });

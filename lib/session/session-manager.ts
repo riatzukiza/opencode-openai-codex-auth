@@ -3,7 +3,7 @@ import { SESSION_CONFIG } from "../constants.js";
 import { logDebug, logWarn } from "../logger.js";
 import { PROMPT_CACHE_FORK_KEYS } from "../request/prompt-cache.js";
 import type { CodexResponsePayload, InputItem, RequestBody, SessionContext, SessionState } from "../types.js";
-import { cloneInputItems, deepClone } from "../utils/clone.js";
+import { cloneInputItems } from "../utils/clone.js";
 import { isAssistantMessage, isUserMessage } from "../utils/input-item-utils.js";
 
 export interface SessionManagerOptions {
@@ -453,13 +453,8 @@ export class SessionManager {
 				lastUpdated: Date.now(),
 				lastCachedTokens: state.lastCachedTokens,
 				bridgeInjected: state.bridgeInjected,
-				compactionBaseSystem: state.compactionBaseSystem
-					? cloneInputItems(state.compactionBaseSystem)
-					: undefined,
-				compactionSummaryItem: state.compactionSummaryItem
-					? deepClone(state.compactionSummaryItem)
-					: undefined,
 			};
+
 			this.sessions.set(forkSessionId, forkState);
 			logWarn("SessionManager: prefix mismatch detected, forking session", {
 				sessionId: state.id,
@@ -490,39 +485,6 @@ export class SessionManager {
 		state.lastUpdated = Date.now();
 
 		return context;
-	}
-
-	public applyCompactionSummary(
-		context: SessionContext | undefined,
-		payload: { baseSystem: InputItem[]; summary: string },
-	): void {
-		if (!context?.enabled) return;
-		const state = context.state;
-		state.compactionBaseSystem = cloneInputItems(payload.baseSystem);
-		state.compactionSummaryItem = deepClone<InputItem>({
-			type: "message",
-			role: "user",
-			content: payload.summary,
-		});
-	}
-
-	public applyCompactedHistory(
-		body: RequestBody,
-		context: SessionContext | undefined,
-		opts?: { skip?: boolean },
-	): void {
-		if (!context?.enabled || opts?.skip) {
-			return;
-		}
-		const baseSystem = context.state.compactionBaseSystem;
-		const summary = context.state.compactionSummaryItem;
-		if (!baseSystem || !summary) {
-			return;
-		}
-		const tail = extractLatestUserSlice(body.input);
-		const merged = [...cloneInputItems(baseSystem), deepClone(summary), ...tail];
-		// eslint-disable-next-line no-param-reassign
-		body.input = merged;
 	}
 
 	public recordResponse(

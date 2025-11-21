@@ -14,6 +14,7 @@ const DEFAULT_CONFIG: PluginConfig = {
 	enablePromptCaching: true,
 	logging: {
 		showWarningToasts: false,
+		logWarningsToConsole: false,
 	},
 };
 

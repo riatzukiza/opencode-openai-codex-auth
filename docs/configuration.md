@@ -432,7 +432,7 @@ CODEX_MODE=1 opencode run "task"  # Temporarily enable
 - [config/full-opencode.json](../config/full-opencode.json) - Complete with 11 variants (adds Codex Mini presets)
 - [config/minimal-opencode.json](../config/minimal-opencode.json) - Minimal setup
 
-> **Why choose the full config?** OpenCode's auto-compaction and usage widgets rely on the per-model `limit` metadata present only in `full-opencode.json`. Use the minimal config only if you don't need those UI features.
+> **Why choose the full config?** OpenCode's usage widgets rely on the per-model `limit` metadata present only in `full-opencode.json`. Use the minimal config only if you don't need those UI features.
 
 **Your Configs:**
 
@@ -464,6 +464,22 @@ Look for:
 [openhax/codex] Model config lookup: "your-model-name" → normalized to "gpt-5-codex" for API {
   hasModelSpecificConfig: true,
   resolvedConfig: { ... }
+}
+```
+
+### Surface warnings to console (opt-in)
+
+Warnings default to file/app logs only. To mirror warnings to the console/UI for debugging:
+
+```bash
+CODEX_LOG_WARNINGS_TO_CONSOLE=1 opencode run "test" --model=openai/your-model-name
+```
+
+Or add to `~/.opencode/openhax-codex-config.json`:
+
+```json
+{
+  "logging": { "logWarningsToConsole": true }
 }
 ```
 

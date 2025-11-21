@@ -30,6 +30,8 @@ export interface LoggingConfig {
 	debug?: boolean;
 	/** Whether warning-level toasts should be shown (default: false) */
 	showWarningToasts?: boolean;
+	/** Whether warnings should also be mirrored to console (default: false) */
+	logWarningsToConsole?: boolean;
 	/** Override max bytes before rolling log rotation */
 	logMaxBytes?: number;
 	/** Override number of rotated log files to keep */
@@ -193,8 +195,6 @@ export interface SessionState {
 	lastUpdated: number;
 	lastCachedTokens?: number;
 	bridgeInjected?: boolean; // Track whether Codex-OpenCode bridge prompt was added
-	compactionBaseSystem?: InputItem[];
-	compactionSummaryItem?: InputItem;
 }
 
 /**

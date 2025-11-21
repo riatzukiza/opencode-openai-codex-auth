@@ -26,15 +26,12 @@ PR #29 has **1 unresolved review thread** from `coderabbitai` containing **19 ac
 4. **Fix Mock Leakage** - `test/index.test.ts:22-28, 93-121`
    - Reset `sessionManager` instance mocks in `beforeEach` to prevent cross-test leakage
 
-5. **Add Missing Test Case** - `test/codex-fetcher.test.ts`
-   - Add direct `compactionDecision` test case coverage
-
-6. **Fix Redundant Tests** - `test/codex-fetcher.test.ts:272-287`
+5. **Fix Redundant Tests** - `test/codex-fetcher.test.ts:272-287`
    - Either provide distinct inputs for short/long text scenarios or remove redundant test
 
 ### 🔧 **Code Quality Improvements**
 
-7. **Logger Hardening** - `lib/logger.ts:138-159`
+6. **Logger Hardening** - `lib/logger.ts:138-159`
    - Add try/catch around `JSON.stringify(extra)` to prevent logging failures
    - Remove unused `error` parameter from `logToConsole`
 

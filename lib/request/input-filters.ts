@@ -81,80 +81,6 @@ export async function filterOpenCodeSystemPrompts(
 		// Fallback to text-based detection only
 	}
 
-	const compactionInstructionPatterns: RegExp[] = [
-		/(summary[ _-]?file)/i,
-		/(summary[ _-]?path)/i,
-		/summary\s+(?:has\s+been\s+)?saved\s+(?:to|at)/i,
-		/summary\s+(?:is\s+)?stored\s+(?:in|at|to)/i,
-		/summary\s+(?:is\s+)?available\s+(?:at|in)/i,
-		/write\s+(?:the\s+)?summary\s+(?:to|into)/i,
-		/save\s+(?:the\s+)?summary\s+(?:to|into)/i,
-		/open\s+(?:the\s+)?summary/i,
-		/read\s+(?:the\s+)?summary/i,
-		/cat\s+(?:the\s+)?summary/i,
-		/view\s+(?:the\s+)?summary/i,
-		/~\/\.opencode/i,
-		/\.opencode\/.*summary/i,
-	];
-
-	const hasCompactionMetadataFlag = (item: InputItem): boolean => {
-		const rawMeta = (item as Record<string, unknown>)?.metadata ?? (item as Record<string, unknown>)?.meta;
-		if (!rawMeta || typeof rawMeta !== "object") return false;
-		const meta = rawMeta as Record<string, unknown>;
-		const metaAny = meta as Record<string, any>;
-		const source = metaAny.source as unknown;
-		if (typeof source === "string" && source.toLowerCase() === "opencode-compaction") {
-			return true;
-		}
-		if (metaAny.opencodeCompaction === true || metaAny.opencode_compaction === true) {
-			return true;
-		}
-		return false;
-	};
-
-	const matchesCompactionInstruction = (value: string): boolean =>
-		compactionInstructionPatterns.some((pattern) => pattern.test(value));
-
-	const sanitizeOpenCodeCompactionPrompt = (item: InputItem): InputItem | null => {
-		const text = extractTextFromItem(item);
-		if (!text) return null;
-		const sanitizedText = text
-			.split(/\r?\n/)
-			.map((line) => line.trimEnd())
-			.filter((line) => {
-				const trimmed = line.trim();
-				if (!trimmed) {
-					return true;
-				}
-				return !matchesCompactionInstruction(trimmed);
-			})
-			.join("\n")
-			.replace(/\n{3,}/g, "\n\n")
-			.trim();
-		if (!sanitizedText) {
-			return null;
-		}
-		const originalMentionedCompaction = /\bauto[-\s]?compaction\b/i.test(text);
-		let finalText = sanitizedText;
-		if (originalMentionedCompaction && !/\bauto[-\s]?compaction\b/i.test(finalText)) {
-			finalText = `Auto-compaction summary\n\n${finalText}`;
-		}
-		return {
-			...item,
-			content: finalText,
-		};
-	};
-
-	const isOpenCodeCompactionPrompt = (item: InputItem): boolean => {
-		const isSystemRole = item.role === "developer" || item.role === "system";
-		if (!isSystemRole) return false;
-		const text = extractTextFromItem(item);
-		if (!text) return false;
-		const hasCompaction = /\b(auto[-\s]?compaction|compaction|compact)\b/i.test(text);
-		const hasSummary = /\b(summary|summarize|summarise)\b/i.test(text);
-		return hasCompaction && hasSummary && matchesCompactionInstruction(text);
-	};
-
 	const filteredInput: InputItem[] = [];
 	for (const item of input) {
 		if (item.role === "user") {
@@ -163,15 +89,6 @@ export async function filterOpenCodeSystemPrompts(
 		}
 
 		if (isOpenCodeSystemPrompt(item, cachedPrompt)) {
-			continue;
-		}
-
-		const compactionMetadataFlagged = hasCompactionMetadataFlag(item);
-		if (compactionMetadataFlagged || isOpenCodeCompactionPrompt(item)) {
-			const sanitized = sanitizeOpenCodeCompactionPrompt(item);
-			if (sanitized) {
-				filteredInput.push(sanitized);
-			}
 			continue;
 		}
 

@@ -142,14 +142,19 @@ describe("logger", () => {
 		expect(logSpy).not.toHaveBeenCalled();
 	});
 
-	it("logWarn emits to console even without env overrides", async () => {
+	it("logWarn writes to rolling log but stays off console by default", async () => {
 		fsMocks.existsSync.mockReturnValue(true);
 		const { logWarn, flushRollingLogsForTest } = await import("../lib/logger.js");
 
 		logWarn("warning");
 		await flushRollingLogsForTest();
 
-		expect(warnSpy).toHaveBeenCalledWith("[openhax/codex] warning");
+		expect(warnSpy).not.toHaveBeenCalled();
+		expect(fsMocks.appendFile).toHaveBeenCalledTimes(1);
+		const [logPath, logLine, logEncoding] = fsMocks.appendFile.mock.calls[0];
+		expect(logPath).toBe("/mock-home/.opencode/logs/codex-plugin/codex-plugin.log");
+		expect(logEncoding).toBe("utf8");
+		expect(logLine as string).toContain('"message":"warning"');
 	});
 
 	it("logWarn does not send warning toasts by default even when tui is available", async () => {
@@ -170,7 +175,8 @@ describe("logger", () => {
 
 		expect(showToast).not.toHaveBeenCalled();
 		expect(appLog).toHaveBeenCalledTimes(1);
-		expect(warnSpy).toHaveBeenCalledWith("[openhax/codex] toast-warning");
+		expect(warnSpy).not.toHaveBeenCalled();
+		expect(fsMocks.appendFile).toHaveBeenCalledTimes(1);
 	});
 
 	it("logWarn sends warning toasts only when enabled via config", async () => {
@@ -198,6 +204,19 @@ describe("logger", () => {
 		});
 		expect(appLog).not.toHaveBeenCalled();
 		expect(warnSpy).not.toHaveBeenCalled();
+	});
+
+	it("logWarn mirrors to console when enabled via config", async () => {
+		fsMocks.existsSync.mockReturnValue(true);
+		const { configureLogger, logWarn, flushRollingLogsForTest } = await import("../lib/logger.js");
+
+		configureLogger({ pluginConfig: { logging: { logWarningsToConsole: true } } });
+
+		logWarn("console-warning");
+		await flushRollingLogsForTest();
+
+		expect(warnSpy).toHaveBeenCalledWith("[openhax/codex] console-warning");
+		expect(fsMocks.appendFile).toHaveBeenCalled();
 	});
 
 	it("wraps long toast messages to avoid truncation", async () => {

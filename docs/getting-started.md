@@ -218,7 +218,7 @@ Add this to `~/.config/opencode/opencode.json`:
 
 Prompt caching is enabled out of the box: when OpenCode sends its session identifier as `prompt_cache_key`, the plugin forwards it untouched so multi-turn runs reuse prior work. The plugin no longer synthesizes cache IDs; if the host omits that field, Codex treats the run as uncached. The CODEX_MODE bridge prompt bundled with the plugin is kept in sync with the latest Codex CLI release, so the OpenCode UI and Codex share the same tool contract. If you hit your ChatGPT subscription limits, the plugin returns a friendly Codex-style message with the 5-hour and weekly usage windows so you know when capacity resets.
 
-> **Heads up:** OpenCode's context auto-compaction and usage sidebar only work when this full configuration is installed. The minimal configuration skips the per-model limits, so OpenCode cannot display token usage or compact history automatically.
+> **Heads up:** OpenCode's usage sidebar relies on the per-model limits in this full configuration. The minimal configuration skips those limits, so token usage may not display correctly.
 
 #### Option B: Minimal Configuration
 

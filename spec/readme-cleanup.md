@@ -43,5 +43,5 @@
 - 2025-11-21: Added Installation section, renamed Configuration Reference, removed standalone requirements block, moved TOS near bottom, and updated related anchors in docs/config README files.
 - 2025-11-21: Promoted minimal provider config (plugin array + single `openai/gpt-5.1-codex-max` model with provider/openai options) to top of Installation and Configuration Reference.
 - 2025-11-21: Removed non-functional Built-in Codex Commands section pending upstream support.
-- 2025-11-21: Surfaced plugin-level settings (codexMode, caching, compaction) immediately after Installation with example JSON.
+- 2025-11-21: Surfaced plugin-level settings (codexMode, caching) immediately after Installation with example JSON.
 - 2025-11-21: Removed duplicated plugin-level settings block from Configuration Reference; now it links back to the top settings section.
