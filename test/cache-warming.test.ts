@@ -20,7 +20,7 @@ vi.mock("../lib/logger.js", () => ({
 	logDebug: vi.fn(),
 	logWarn: vi.fn(),
 	logRequest: vi.fn(),
-	LOGGING_ENABLED: false,
+	isLoggingEnabled: () => false,
 }));
 
 const mockGetCodexInstructions = getCodexInstructions as ReturnType<typeof vi.fn>;
