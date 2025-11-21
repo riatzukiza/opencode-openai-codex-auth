@@ -65,10 +65,10 @@ afterEach(() => {
 });
 
 describe("logger", () => {
-	it("LOGGING_ENABLED reflects env state", async () => {
+	it("isLoggingEnabled reflects env state", async () => {
 		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = "1";
-		const { LOGGING_ENABLED } = await import("../lib/logger.js");
-		expect(LOGGING_ENABLED).toBe(true);
+		const { isLoggingEnabled } = await import("../lib/logger.js");
+		expect(isLoggingEnabled()).toBe(true);
 	});
 
 	it("logRequest writes stage file and rolling log when enabled", async () => {

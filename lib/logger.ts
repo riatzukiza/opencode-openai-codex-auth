@@ -18,7 +18,10 @@ const envLoggingDefaults = {
 	logQueueMaxLength: getEnvNumber("CODEX_LOG_QUEUE_MAX", 1000),
 };
 
-export let LOGGING_ENABLED = envLoggingDefaults.loggingEnabled;
+let LOGGING_ENABLED = envLoggingDefaults.loggingEnabled;
+export function isLoggingEnabled(): boolean {
+	return LOGGING_ENABLED;
+}
 let DEBUG_FLAG_ENABLED = envLoggingDefaults.debugFlagEnabled;
 let WARN_TOASTS_ENABLED = envLoggingDefaults.showWarningToasts ?? false;
 let LOG_ROTATION_MAX_BYTES = Math.max(1, envLoggingDefaults.logRotationMaxBytes);

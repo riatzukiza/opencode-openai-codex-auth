@@ -1,5 +1,5 @@
 import { PLUGIN_NAME } from "../constants.js";
-import { LOGGING_ENABLED, logError, logRequest } from "../logger.js";
+import { isLoggingEnabled, logError, logRequest } from "../logger.js";
 import type { SSEEventData } from "../types.js";
 
 /**
@@ -50,7 +50,7 @@ export async function convertSseToJson(response: Response, headers: Headers): Pr
 			fullText += decoder.decode(value, { stream: true });
 		}
 
-		if (LOGGING_ENABLED) {
+		if (isLoggingEnabled()) {
 			logRequest("stream-full", { fullContent: fullText });
 		}
 
