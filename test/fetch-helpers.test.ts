@@ -296,7 +296,6 @@ describe("Fetch Helpers Module", () => {
 				applyRequest: vi.fn().mockReturnValue(appliedContext),
 			};
 
-			const pluginConfig = { enableCodexCompaction: false };
 			const result = await transformRequestForCodex(
 				{ body: JSON.stringify(body) },
 				"https://chatgpt.com/backend-api/codex/responses",
@@ -304,19 +303,9 @@ describe("Fetch Helpers Module", () => {
 				{ global: {}, models: {} },
 				true,
 				sessionManager as never,
-				pluginConfig as any,
 			);
 
 			expect(transformRequestBodyMock).toHaveBeenCalledTimes(1);
-			const [_passedBody, _passedInstructions, _passedUserConfig, _passedCodexMode, optionsArg] =
-				transformRequestBodyMock.mock.calls[0];
-
-			expect(Array.isArray(optionsArg?.compaction?.originalInput)).toBe(true);
-			expect(optionsArg?.compaction?.originalInput).not.toBe(body.input);
-
-			body.input[0].content = "mutated";
-			expect(optionsArg?.compaction?.originalInput?.[0].content).toBe("hello");
-
 			expect(result?.body).toEqual(transformed);
 			// Note: updatedInit.body is serialized once from transformResult.body and won't reflect later mutations to transformResult.body
 			expect(result?.updatedInit.body).toBe(JSON.stringify(transformed));
@@ -355,7 +344,6 @@ describe("Fetch Helpers Module", () => {
 				{ global: {}, models: {} },
 				true,
 				sessionManager as never,
-				{ enableCodexCompaction: false } as any,
 			);
 
 			const [passedBody] = transformRequestBodyMock.mock.calls[0];
@@ -396,7 +384,6 @@ describe("Fetch Helpers Module", () => {
 				{ global: {}, models: {} },
 				true,
 				sessionManager as never,
-				{ enableCodexCompaction: false } as any,
 			);
 
 			const [passedBody] = transformRequestBodyMock.mock.calls[0];

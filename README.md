@@ -52,9 +52,6 @@ Set these in `~/.opencode/openhax-codex-config.json` (applies to all models):
 
 - `codexMode` (default `true`): enable the Codex ↔ OpenCode bridge prompt and tool remapping
 - `enablePromptCaching` (default `true`): keep a stable `prompt_cache_key` so Codex can reuse cached prompts
-- `enableCodexCompaction` (default `true`): allow `/codex-compact` behavior once upstream support lands
-- `autoCompactTokenLimit` (optional): trigger Codex compaction after an approximate token threshold
-- `autoCompactMinMessages` (default `8`): minimum conversation turns before auto-compaction is considered
 
 Example:
 
@@ -564,8 +561,6 @@ If you want to customize settings yourself, you can configure options at provide
 > **Note**: `minimal` effort is auto-normalized to `low` for gpt-5-codex (not supported by the API). `none` is only supported on GPT-5.1 general models; when used with legacy gpt-5 it is normalized to `minimal`. `xhigh` is exclusive to `gpt-5.1-codex-max`—other Codex presets automatically map it to `high`.
 >
 > † **Extra High reasoning**: `reasoningEffort: "xhigh"` provides maximum computational effort for complex, multi-step problems and is only available on `gpt-5.1-codex-max`.
-
-See [Plugin-Level Settings](#plugin-level-settings) above for global toggles. Below are provider/model examples.
 
 #### Global Configuration Example
 

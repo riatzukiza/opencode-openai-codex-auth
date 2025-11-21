@@ -1,5 +1,4 @@
 /* eslint-disable no-param-reassign */
-import type { CompactionDecision } from "../compaction/compaction-executor.js";
 import { logDebug, logWarn } from "../logger.js";
 import type { RequestBody, SessionContext, UserConfig } from "../types.js";
 import {
@@ -8,7 +7,6 @@ import {
 	filterInput,
 	filterOpenCodeSystemPrompts,
 } from "./input-filters.js";
-import { applyCompactionIfNeeded, type CompactionOptions } from "./compaction-helpers.js";
 import { getModelConfig, getReasoningConfig, normalizeModel } from "./model-config.js";
 import { ensurePromptCacheKey, logCacheKeyDecision } from "./prompt-cache.js";
 import { normalizeToolsForCodexBody } from "./tooling.js";
@@ -23,16 +21,13 @@ export {
 export { getModelConfig, getReasoningConfig, normalizeModel } from "./model-config.js";
 
 export interface TransformRequestOptions {
-	/** Preserve IDs only when conversation transforms run; may be a no-op when compaction skips them. */
+	/** Preserve IDs when prompt caching requires it. */
 	preserveIds?: boolean;
-	/** Compaction settings and original input context used when building compaction prompts. */
-	compaction?: CompactionOptions;
 }
 
 export interface TransformResult {
 	/** Mutated request body (same instance passed into transformRequestBody). */
 	body: RequestBody;
-	compactionDecision?: CompactionDecision;
 }
 
 async function transformInputForCodex(
@@ -41,9 +36,8 @@ async function transformInputForCodex(
 	preserveIds: boolean,
 	hasNormalizedTools: boolean,
 	sessionContext?: SessionContext,
-	skipConversationTransforms = false,
 ): Promise<void> {
-	if (!body.input || !Array.isArray(body.input) || skipConversationTransforms) {
+	if (!body.input || !Array.isArray(body.input)) {
 		return;
 	}
 
@@ -94,12 +88,6 @@ export async function transformRequestBody(
 	const normalizedModel = normalizeModel(body.model);
 	const preserveIds = options.preserveIds ?? false;
 
-	const compactionDecision = applyCompactionIfNeeded(
-		body,
-		options.compaction && { ...options.compaction, preserveIds },
-	);
-	const skipConversationTransforms = Boolean(compactionDecision);
-
 	const lookupModel = originalModel || normalizedModel;
 	const modelConfig = getModelConfig(lookupModel, userConfig);
 
@@ -117,16 +105,9 @@ export async function transformRequestBody(
 	const isNewSession = sessionContext?.isNew ?? true;
 	logCacheKeyDecision(cacheKeyResult, isNewSession);
 
-	const hasNormalizedTools = normalizeToolsForCodexBody(body, skipConversationTransforms);
+	const hasNormalizedTools = normalizeToolsForCodexBody(body, false);
 
-	await transformInputForCodex(
-		body,
-		codexMode,
-		preserveIds,
-		hasNormalizedTools,
-		sessionContext,
-		skipConversationTransforms,
-	);
+	await transformInputForCodex(body, codexMode, preserveIds, hasNormalizedTools, sessionContext);
 
 	const reasoningConfig = getReasoningConfig(originalModel, modelConfig);
 	body.reasoning = {
@@ -144,5 +125,5 @@ export async function transformRequestBody(
 	body.max_output_tokens = undefined;
 	body.max_completion_tokens = undefined;
 
-	return { body, compactionDecision };
+	return { body };
 }

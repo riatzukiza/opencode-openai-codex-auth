@@ -47,21 +47,25 @@ Complete reference for configuring the OpenHax Codex Plugin.
 Controls computational effort for reasoning.
 
 **GPT-5 Values:**
+
 - `minimal` - Fastest, least reasoning
 - `low` - Light reasoning
 - `medium` - Balanced (default)
 - `high` - Deep reasoning
 
 **GPT-5-Codex Values:**
+
 - `low` - Fastest for code
 - `medium` - Balanced (default)
 - `high` - Maximum code quality
 
 **Notes**:
+
 - `minimal` auto-converts to `low` for gpt-5-codex (API limitation)
 - `gpt-5-codex-mini*` only supports `medium` or `high`; lower settings are clamped to `medium`
 
 **Example:**
+
 ```json
 {
   "options": {
@@ -75,10 +79,12 @@ Controls computational effort for reasoning.
 Controls reasoning summary verbosity.
 
 **Values:**
+
 - `auto` - Automatically adapts (default)
 - `detailed` - Verbose summaries
 
 **Example:**
+
 ```json
 {
   "options": {
@@ -92,14 +98,17 @@ Controls reasoning summary verbosity.
 Controls output length.
 
 **GPT-5 Values:**
+
 - `low` - Concise
 - `medium` - Balanced (default)
 - `high` - Verbose
 
 **GPT-5-Codex:**
+
 - `medium` only (API limitation)
 
 **Example:**
+
 ```json
 {
   "options": {
@@ -117,6 +126,7 @@ Array of additional response fields to include.
 **Why needed**: Enables multi-turn conversations with `store: false` (stateless mode)
 
 **Example:**
+
 ```json
 {
   "options": {
@@ -132,6 +142,7 @@ Controls server-side conversation persistence.
 **⚠️ Required**: `false` (for AI SDK 2.0.50+ compatibility)
 
 **Values:**
+
 - `false` - Stateless mode (required for Codex API)
 - `true` - Server-side storage (not supported by Codex API)
 
@@ -139,6 +150,7 @@ Controls server-side conversation persistence.
 AI SDK 2.0.50+ automatically uses `item_reference` items when `store: true`. The Codex API requires stateless operation (`store: false`), where references cannot be resolved.
 
 **Example:**
+
 ```json
 {
   "options": {
@@ -241,6 +253,7 @@ Different settings for different models:
 - **`id` field**: DEPRECATED - not used by OpenAI provider
 
 **Example Usage:**
+
 ```bash
 # Use the config key in CLI
 opencode run "task" --model=openai/my-custom-id
@@ -323,6 +336,7 @@ Different agents use different models:
 Global config has defaults, project overrides for specific work:
 
 **~/.config/opencode/opencode.json** (global):
+
 ```json
 {
   "plugin": ["@openhax/codex"],
@@ -338,6 +352,7 @@ Global config has defaults, project overrides for specific work:
 ```
 
 **my-project/.opencode.json** (project):
+
 ```json
 {
   "provider": {
@@ -362,15 +377,14 @@ Advanced plugin settings in `~/.opencode/openhax-codex-config.json`:
 ```json
 {
   "codexMode": true,
-  "enableCodexCompaction": true,
-  "autoCompactTokenLimit": 12000,
-  "autoCompactMinMessages": 8
+  "enablePromptCaching": true
 }
 ```
 
 ### Log file management
 
 Control local request/rolling log growth:
+
 - `CODEX_LOG_MAX_BYTES` (default: 5_242_880) - rotate when the rolling log exceeds this many bytes.
 - `CODEX_LOG_MAX_FILES` (default: 5) - number of rotated log files to retain (plus the active log).
 - `CODEX_LOG_QUEUE_MAX` (default: 1000) - maximum buffered log entries before oldest entries are dropped.
@@ -378,38 +392,23 @@ Control local request/rolling log growth:
 ### CODEX_MODE
 
 **What it does:**
+
 - `true` (default): Uses Codex-OpenCode bridge prompt (Task tool & MCP aware)
 - `false`: Uses legacy tool remap message
 - Bridge prompt content is synced with the latest Codex CLI release (ETag-cached)
 
 **When to disable:**
+
 - Compatibility issues with OpenCode updates
 - Testing different prompt styles
 - Debugging tool call issues
 
 **Override with environment variable:**
+
 ```bash
 CODEX_MODE=0 opencode run "task"  # Temporarily disable
 CODEX_MODE=1 opencode run "task"  # Temporarily enable
 ```
-
-### enableCodexCompaction
-
-Controls whether the plugin exposes Codex-style compaction commands.
-
-- `true` (default): `/codex-compact` is available and auto-compaction heuristics may run if enabled.
-- `false`: Compaction commands are ignored and OpenCode's own prompts pass through untouched.
-
-Disable only if you prefer OpenCode's host-side compaction or while debugging prompt differences.
-
-### autoCompactTokenLimit / autoCompactMinMessages
-
-Configures the optional auto-compaction heuristic.
-
-- `autoCompactTokenLimit`: Approximate token budget (based on character count ÷ 4). When unset, auto-compaction never triggers.
-- `autoCompactMinMessages`: Minimum number of conversation turns before auto-compaction is considered (default `8`).
-
-When the limit is reached, the plugin injects a Codex summary, stores it for future turns, and replies: “Auto compaction triggered… Review the summary then resend your last instruction.”
 
 ### Prompt caching
 
@@ -429,12 +428,14 @@ When the limit is reached, the plugin injects a Codex summary, stores it for fut
 ## Configuration Files
 
 **Provided Examples:**
+
 - [config/full-opencode.json](../config/full-opencode.json) - Complete with 11 variants (adds Codex Mini presets)
 - [config/minimal-opencode.json](../config/minimal-opencode.json) - Minimal setup
 
 > **Why choose the full config?** OpenCode's auto-compaction and usage widgets rely on the per-model `limit` metadata present only in `full-opencode.json`. Use the minimal config only if you don't need those UI features.
 
 **Your Configs:**
+
 - `~/.config/opencode/opencode.json` - Global config
 - `<project>/.opencode.json` - Project-specific config
 - `~/.opencode/openhax-codex-config.json` - Plugin config
@@ -458,6 +459,7 @@ DEBUG_CODEX_PLUGIN=1 opencode run "test" --model=openai/your-model-name
 ```
 
 Look for:
+
 ```
 [openhax/codex] Model config lookup: "your-model-name" → normalized to "gpt-5-codex" for API {
   hasModelSpecificConfig: true,
@@ -512,6 +514,7 @@ Old verbose names still work:
 ```
 
 **Benefits:**
+
 - Cleaner: `--model=openai/gpt-5-codex-low`
 - Matches Codex CLI preset names
 - No redundant `id` field
@@ -608,9 +611,11 @@ Old verbose names still work:
 **Cause**: Config key doesn't match model name in command
 
 **Fix**: Use exact config key:
+
 ```json
 { "models": { "my-model": { ... } } }
 ```
+
 ```bash
 opencode run "test" --model=openai/my-model  # Must match exactly
 ```
@@ -630,9 +635,11 @@ Look for `hasModelSpecificConfig: true` in debug output.
 **Cause**: Model normalizes before lookup
 
 **Example Problem:**
+
 ```json
 { "models": { "gpt-5-codex": { "options": { ... } } } }
 ```
+
 ```bash
 --model=openai/gpt-5-codex-low  # Normalizes to "gpt-5-codex" before lookup
 ```

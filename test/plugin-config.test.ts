@@ -52,8 +52,6 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: true,
 				enablePromptCaching: true,
-				enableCodexCompaction: true,
-				autoCompactMinMessages: 8,
 				logging: { showWarningToasts: false },
 			});
 
@@ -71,8 +69,6 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: false,
 				enablePromptCaching: true,
-				enableCodexCompaction: true,
-				autoCompactMinMessages: 8,
 				logging: { showWarningToasts: false },
 			});
 		});
@@ -86,8 +82,6 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: true,
 				enablePromptCaching: true,
-				enableCodexCompaction: true,
-				autoCompactMinMessages: 8,
 				logging: { showWarningToasts: false },
 			});
 		});
@@ -117,10 +111,8 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: true,
 				enablePromptCaching: true,
-				enableCodexCompaction: true,
-				autoCompactMinMessages: 8,
 				logging: { showWarningToasts: false },
-			});
+      });
 			expect(logWarnSpy).toHaveBeenCalled();
 			logWarnSpy.mockRestore();
 		});
@@ -137,8 +129,6 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: true,
 				enablePromptCaching: true,
-				enableCodexCompaction: true,
-				autoCompactMinMessages: 8,
 				logging: { showWarningToasts: false },
 			});
 			expect(logWarnSpy).toHaveBeenCalled();
