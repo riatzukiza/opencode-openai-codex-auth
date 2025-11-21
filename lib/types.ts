@@ -16,22 +16,6 @@ export interface PluginConfig {
 	 * @default true
 	 */
 	enablePromptCaching?: boolean;
-
-	/**
-	 * Enable Codex-style compaction commands inside the plugin
-	 * @default true
-	 */
-	enableCodexCompaction?: boolean;
-
-	/**
-	 * Optional auto-compaction token limit (approximate tokens)
-	 */
-	autoCompactTokenLimit?: number;
-
-	/**
-	 * Minimum number of conversation messages before auto-compacting
-	 */
-	autoCompactMinMessages?: number;
 }
 
 /**
