@@ -16,6 +16,7 @@ export default [
       "assets/**",
       "docs/**",
       "spec/**",
+      ".worktrees/**",
     ],
   },
   {

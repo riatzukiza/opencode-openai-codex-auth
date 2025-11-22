@@ -52,7 +52,7 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: true,
 				enablePromptCaching: true,
-				logging: { showWarningToasts: false },
+				logging: { showWarningToasts: false, logWarningsToConsole: false },
 			});
 
 			expect(mockExistsSync).toHaveBeenCalledWith(
@@ -69,7 +69,7 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: false,
 				enablePromptCaching: true,
-				logging: { showWarningToasts: false },
+				logging: { showWarningToasts: false, logWarningsToConsole: false },
 			});
 		});
 
@@ -82,7 +82,7 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: true,
 				enablePromptCaching: true,
-				logging: { showWarningToasts: false },
+				logging: { showWarningToasts: false, logWarningsToConsole: false },
 			});
 		});
 
@@ -98,6 +98,7 @@ describe("Plugin Configuration", () => {
 				enableRequestLogging: false,
 				logMaxFiles: 2,
 				showWarningToasts: false,
+				logWarningsToConsole: false,
 			});
 		});
 
@@ -111,8 +112,9 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: true,
 				enablePromptCaching: true,
-				logging: { showWarningToasts: false },
-      });
+				logging: { showWarningToasts: false, logWarningsToConsole: false },
+			});
+
 			expect(logWarnSpy).toHaveBeenCalled();
 			logWarnSpy.mockRestore();
 		});
@@ -129,7 +131,7 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: true,
 				enablePromptCaching: true,
-				logging: { showWarningToasts: false },
+				logging: { showWarningToasts: false, logWarningsToConsole: false },
 			});
 			expect(logWarnSpy).toHaveBeenCalled();
 			logWarnSpy.mockRestore();

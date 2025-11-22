@@ -3,8 +3,7 @@ import { SESSION_CONFIG } from "../constants.js";
 import { logDebug, logWarn } from "../logger.js";
 import { PROMPT_CACHE_FORK_KEYS } from "../request/prompt-cache.js";
 import type { CodexResponsePayload, InputItem, RequestBody, SessionContext, SessionState } from "../types.js";
-import { cloneInputItems, deepClone } from "../utils/clone.js";
-import { isAssistantMessage, isUserMessage } from "../utils/input-item-utils.js";
+import { cloneInputItems } from "../utils/clone.js";
 
 export interface SessionManagerOptions {
 	enabled: boolean;
@@ -18,37 +17,6 @@ export interface SessionManagerOptions {
 
 function computeHash(items: InputItem[]): string {
 	return createHash("sha1").update(JSON.stringify(items)).digest("hex");
-}
-
-function extractLatestUserSlice(items: InputItem[] | undefined): InputItem[] {
-	if (!Array.isArray(items) || items.length === 0) {
-		return [];
-	}
-
-	let lastUserIndex = -1;
-	for (let index = items.length - 1; index >= 0; index -= 1) {
-		const item = items[index];
-		if (item && isUserMessage(item)) {
-			lastUserIndex = index;
-			break;
-		}
-	}
-
-	if (lastUserIndex < 0) {
-		return [];
-	}
-
-	const tail: InputItem[] = [];
-	for (let index = lastUserIndex; index < items.length; index += 1) {
-		const item = items[index];
-		if (item && (isUserMessage(item) || isAssistantMessage(item))) {
-			tail.push(item);
-		} else {
-			break;
-		}
-	}
-
-	return cloneInputItems(tail);
 }
 
 function longestSharedPrefixLength(previous: InputItem[], current: InputItem[]): number {
@@ -134,7 +102,7 @@ function findSuffixReuseStart(previous: InputItem[], current: InputItem[]): numb
 	return start;
 }
 
-type PrefixChangeCause = "system_prompt_changed" | "history_pruned" | "unknown";
+type PrefixChangeCause = "system_prompt_changed" | "history_pruned" | "user_message_changed" | "unknown";
 
 type PrefixChangeAnalysis = {
 	cause: PrefixChangeCause;
@@ -175,6 +143,19 @@ function analyzePrefixChange(
 				incomingRole: firstIncoming?.role,
 				previousFingerprint: fingerprintInputItem(firstPrevious),
 				incomingFingerprint: fingerprintInputItem(firstIncoming),
+			},
+		};
+	}
+
+	if (firstPrevious?.role === "user" && firstIncoming?.role === "user") {
+		return {
+			cause: "user_message_changed",
+			details: {
+				mismatchIndex: sharedPrefixLength,
+				previousFingerprint: fingerprintInputItem(firstPrevious),
+				incomingFingerprint: fingerprintInputItem(firstIncoming),
+				previousRole: firstPrevious.role,
+				incomingRole: firstIncoming.role,
 			},
 		};
 	}
@@ -410,12 +391,16 @@ export class SessionManager {
 			if (sharedPrefixLength === 0) {
 				logWarn("SessionManager: prefix mismatch detected, regenerating cache key", {
 					sessionId: state.id,
+					promptCacheKey: state.promptCacheKey,
 					sharedPrefixLength,
 					previousItems: state.lastInput.length,
 					incomingItems: input.length,
+					previousHash: state.lastPrefixHash,
+					incomingHash: inputHash,
 					prefixCause: prefixAnalysis.cause,
 					...prefixAnalysis.details,
 				});
+
 				const refreshed = this.resetSessionInternal(state.id, true);
 				if (!refreshed) {
 					return undefined;
@@ -453,20 +438,19 @@ export class SessionManager {
 				lastUpdated: Date.now(),
 				lastCachedTokens: state.lastCachedTokens,
 				bridgeInjected: state.bridgeInjected,
-				compactionBaseSystem: state.compactionBaseSystem
-					? cloneInputItems(state.compactionBaseSystem)
-					: undefined,
-				compactionSummaryItem: state.compactionSummaryItem
-					? deepClone(state.compactionSummaryItem)
-					: undefined,
 			};
+
 			this.sessions.set(forkSessionId, forkState);
 			logWarn("SessionManager: prefix mismatch detected, forking session", {
 				sessionId: state.id,
+				promptCacheKey: state.promptCacheKey,
 				forkSessionId,
+				forkPromptCacheKey,
 				sharedPrefixLength,
 				previousItems: state.lastInput.length,
 				incomingItems: input.length,
+				previousHash: state.lastPrefixHash,
+				incomingHash: inputHash,
 				prefixCause: prefixAnalysis.cause,
 				...prefixAnalysis.details,
 			});
@@ -490,39 +474,6 @@ export class SessionManager {
 		state.lastUpdated = Date.now();
 
 		return context;
-	}
-
-	public applyCompactionSummary(
-		context: SessionContext | undefined,
-		payload: { baseSystem: InputItem[]; summary: string },
-	): void {
-		if (!context?.enabled) return;
-		const state = context.state;
-		state.compactionBaseSystem = cloneInputItems(payload.baseSystem);
-		state.compactionSummaryItem = deepClone<InputItem>({
-			type: "message",
-			role: "user",
-			content: payload.summary,
-		});
-	}
-
-	public applyCompactedHistory(
-		body: RequestBody,
-		context: SessionContext | undefined,
-		opts?: { skip?: boolean },
-	): void {
-		if (!context?.enabled || opts?.skip) {
-			return;
-		}
-		const baseSystem = context.state.compactionBaseSystem;
-		const summary = context.state.compactionSummaryItem;
-		if (!baseSystem || !summary) {
-			return;
-		}
-		const tail = extractLatestUserSlice(body.input);
-		const merged = [...cloneInputItems(baseSystem), deepClone(summary), ...tail];
-		// eslint-disable-next-line no-param-reassign
-		body.input = merged;
 	}
 
 	public recordResponse(

@@ -6,7 +6,9 @@ import {
 	addToolRemapMessage,
 	filterInput,
 	filterOpenCodeSystemPrompts,
+	filterOpenCodeSystemPromptsWithEnv,
 } from "./input-filters.js";
+
 import { getModelConfig, getReasoningConfig, normalizeModel } from "./model-config.js";
 import { ensurePromptCacheKey, logCacheKeyDecision } from "./prompt-cache.js";
 import { normalizeToolsForCodexBody } from "./tooling.js";
@@ -60,7 +62,25 @@ async function transformInputForCodex(
 	}
 
 	if (codexMode) {
-		workingInput = await filterOpenCodeSystemPrompts(workingInput);
+		const appendEnvTail = process.env.CODEX_APPEND_ENV_CONTEXT === "1";
+		if (appendEnvTail) {
+			const result = await filterOpenCodeSystemPromptsWithEnv(workingInput);
+			workingInput = result?.input;
+			if (result?.envSegments?.length) {
+				workingInput = workingInput || [];
+				workingInput = [
+					...(workingInput || []),
+					{
+						type: "message",
+						role: "developer",
+						content: result.envSegments.join("\n"),
+					},
+				];
+			}
+		} else {
+			workingInput = await filterOpenCodeSystemPrompts(workingInput);
+		}
+
 		if (!preserveIds) {
 			workingInput = filterInput(workingInput, { preserveIds });
 		}

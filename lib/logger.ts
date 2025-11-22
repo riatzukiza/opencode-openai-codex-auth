@@ -13,6 +13,7 @@ const envLoggingDefaults = {
 	loggingEnabled: process.env.ENABLE_PLUGIN_REQUEST_LOGGING === "1",
 	debugFlagEnabled: process.env.DEBUG_CODEX_PLUGIN === "1",
 	showWarningToasts: process.env.CODEX_SHOW_WARNING_TOASTS === "1",
+	logWarningsToConsole: process.env.CODEX_LOG_WARNINGS_TO_CONSOLE === "1",
 	logRotationMaxBytes: getEnvNumber("CODEX_LOG_MAX_BYTES", 5 * 1024 * 1024),
 	logRotationMaxFiles: getEnvNumber("CODEX_LOG_MAX_FILES", 5),
 	logQueueMaxLength: getEnvNumber("CODEX_LOG_QUEUE_MAX", 1000),
@@ -24,6 +25,7 @@ export function isLoggingEnabled(): boolean {
 }
 let DEBUG_FLAG_ENABLED = envLoggingDefaults.debugFlagEnabled;
 let WARN_TOASTS_ENABLED = envLoggingDefaults.showWarningToasts ?? false;
+let WARN_CONSOLE_ENABLED = envLoggingDefaults.logWarningsToConsole ?? false;
 let LOG_ROTATION_MAX_BYTES = Math.max(1, envLoggingDefaults.logRotationMaxBytes);
 let LOG_ROTATION_MAX_FILES = Math.max(1, envLoggingDefaults.logRotationMaxFiles);
 let LOG_QUEUE_MAX_LENGTH = Math.max(1, envLoggingDefaults.logQueueMaxLength);
@@ -82,6 +84,7 @@ function applyLoggingOverrides(logging?: LoggingConfig): void {
 	LOGGING_ENABLED = logging.enableRequestLogging ?? LOGGING_ENABLED;
 	DEBUG_FLAG_ENABLED = logging.debug ?? DEBUG_FLAG_ENABLED;
 	WARN_TOASTS_ENABLED = logging.showWarningToasts ?? WARN_TOASTS_ENABLED;
+	WARN_CONSOLE_ENABLED = logging.logWarningsToConsole ?? WARN_CONSOLE_ENABLED;
 	LOG_ROTATION_MAX_BYTES = ensurePositiveNumber(logging.logMaxBytes, LOG_ROTATION_MAX_BYTES);
 	LOG_ROTATION_MAX_FILES = ensurePositiveNumber(logging.logMaxFiles, LOG_ROTATION_MAX_FILES);
 	LOG_QUEUE_MAX_LENGTH = ensurePositiveNumber(logging.logQueueMax, LOG_QUEUE_MAX_LENGTH);
@@ -181,7 +184,8 @@ function emit(level: LogLevel, message: string, extra?: Record<string, unknown>)
 		extra: sanitizedExtra,
 	};
 
-	if (LOGGING_ENABLED || DEBUG_ENABLED) {
+	const shouldPersist = LOGGING_ENABLED || DEBUG_ENABLED || level === "warn";
+	if (shouldPersist) {
 		appendRollingLog(entry);
 	}
 
@@ -204,7 +208,10 @@ function emit(level: LogLevel, message: string, extra?: Record<string, unknown>)
 		notifyToast(level, message, sanitizedExtra);
 	}
 
-	const shouldLogToConsole = level !== "warn" || !warnToastEnabled;
+	const shouldLogToConsole =
+		level === "warn"
+			? WARN_CONSOLE_ENABLED && !warnToastEnabled
+			: level === "error" || CONSOLE_LOGGING_ENABLED;
 	if (shouldLogToConsole) {
 		logToConsole(level, message, sanitizedExtra);
 	}

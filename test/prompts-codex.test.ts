@@ -112,7 +112,8 @@ describe("Codex Instructions Fetcher", () => {
 
 	it("falls back to cached instructions when fetch fails", async () => {
 		const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-		const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const logger = await import("../lib/logger.js");
+		const logWarnSpy = vi.spyOn(logger, "logWarn").mockImplementation(() => {});
 		const previousLastChecked = Date.now() - 20 * 60 * 1000;
 		files.set(cacheFile, "still-good");
 		files.set(
@@ -140,9 +141,7 @@ describe("Codex Instructions Fetcher", () => {
 		expect(consoleError).toHaveBeenCalledWith(
 			'[openhax/codex] Failed to fetch instructions from GitHub {"error":"HTTP 500 fetching https://raw.githubusercontent.com/openai/codex/v2/codex-rs/core/gpt_5_codex_prompt.md"}',
 		);
-		expect(consoleWarn).toHaveBeenCalledWith(
-			"[openhax/codex] Using cached instructions due to fetch failure",
-		);
+		expect(logWarnSpy).toHaveBeenCalledWith("Using cached instructions due to fetch failure");
 
 		const meta = JSON.parse(files.get(cacheMeta) ?? "{}");
 		expect(meta.lastChecked).toBeGreaterThan(previousLastChecked);
@@ -150,7 +149,7 @@ describe("Codex Instructions Fetcher", () => {
 		expect(meta.url).toContain("codex-rs/core/gpt_5_codex_prompt.md");
 
 		consoleError.mockRestore();
-		consoleWarn.mockRestore();
+		logWarnSpy.mockRestore();
 	});
 
 	it("serves in-memory session cache when latest entry exists", async () => {
@@ -242,7 +241,8 @@ describe("Codex Instructions Fetcher", () => {
 
 	it("falls back to bundled instructions when no cache is available", async () => {
 		const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-		const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const logger = await import("../lib/logger.js");
+		const logWarnSpy = vi.spyOn(logger, "logWarn").mockImplementation(() => {});
 
 		fetchMock
 			.mockResolvedValueOnce(
@@ -260,7 +260,7 @@ describe("Codex Instructions Fetcher", () => {
 		expect(consoleError).toHaveBeenCalledWith(
 			'[openhax/codex] Failed to fetch instructions from GitHub {"error":"HTTP 500 fetching https://raw.githubusercontent.com/openai/codex/v1/codex-rs/core/gpt_5_codex_prompt.md"}',
 		);
-		expect(consoleWarn).toHaveBeenCalledWith("[openhax/codex] Falling back to bundled instructions");
+		expect(logWarnSpy).toHaveBeenCalledWith("Falling back to bundled instructions");
 
 		const meta = JSON.parse(files.get(cacheMeta) ?? "{}");
 		expect(meta.tag).toBe("v1");
@@ -268,6 +268,6 @@ describe("Codex Instructions Fetcher", () => {
 		expect(meta.url).toContain("codex-rs/core/gpt_5_codex_prompt.md");
 
 		consoleError.mockRestore();
-		consoleWarn.mockRestore();
+		logWarnSpy.mockRestore();
 	});
 });

@@ -69,10 +69,44 @@ export function isOpenCodeSystemPrompt(item: InputItem, cachedPrompt: string | n
 	return contentText.startsWith("You are a coding agent running in");
 }
 
-export async function filterOpenCodeSystemPrompts(
+type FilterResult = { input?: InputItem[]; envSegments: string[] };
+
+function stripOpenCodeEnvBlocks(contentText: string): {
+	text: string;
+	removed: boolean;
+	removedBlocks: string[];
+} {
+	let removed = false;
+	let sanitized = contentText;
+	const removedBlocks: string[] = [];
+
+	// Remove the standard environment header OpenCode prepends before <env>
+	const envHeaderPattern = /Here is some useful information about the environment you are running in:\s*/i;
+	const headerStripped = sanitized.replace(envHeaderPattern, "");
+	if (headerStripped !== sanitized) {
+		removed = true;
+		sanitized = headerStripped;
+	}
+
+	const patterns = [/<env>[\s\S]*?<\/env>/g, /<files>[\s\S]*?<\/files>/g];
+
+	for (const pattern of patterns) {
+		const matches = sanitized.match(pattern);
+		if (matches) {
+			removedBlocks.push(...matches);
+			removed = true;
+			sanitized = sanitized.replace(pattern, "");
+		}
+	}
+
+	return { text: sanitized.trim(), removed, removedBlocks };
+}
+
+async function filterOpenCodeSystemPromptsInternal(
 	input: InputItem[] | undefined,
-): Promise<InputItem[] | undefined> {
-	if (!Array.isArray(input)) return input;
+	options: { captureEnv?: boolean } = {},
+): Promise<FilterResult | undefined> {
+	if (!Array.isArray(input)) return input ? { input, envSegments: [] } : undefined;
 
 	let cachedPrompt: string | null = null;
 	try {
@@ -81,81 +115,8 @@ export async function filterOpenCodeSystemPrompts(
 		// Fallback to text-based detection only
 	}
 
-	const compactionInstructionPatterns: RegExp[] = [
-		/(summary[ _-]?file)/i,
-		/(summary[ _-]?path)/i,
-		/summary\s+(?:has\s+been\s+)?saved\s+(?:to|at)/i,
-		/summary\s+(?:is\s+)?stored\s+(?:in|at|to)/i,
-		/summary\s+(?:is\s+)?available\s+(?:at|in)/i,
-		/write\s+(?:the\s+)?summary\s+(?:to|into)/i,
-		/save\s+(?:the\s+)?summary\s+(?:to|into)/i,
-		/open\s+(?:the\s+)?summary/i,
-		/read\s+(?:the\s+)?summary/i,
-		/cat\s+(?:the\s+)?summary/i,
-		/view\s+(?:the\s+)?summary/i,
-		/~\/\.opencode/i,
-		/\.opencode\/.*summary/i,
-	];
-
-	const hasCompactionMetadataFlag = (item: InputItem): boolean => {
-		const rawMeta = (item as Record<string, unknown>)?.metadata ?? (item as Record<string, unknown>)?.meta;
-		if (!rawMeta || typeof rawMeta !== "object") return false;
-		const meta = rawMeta as Record<string, unknown>;
-		const metaAny = meta as Record<string, any>;
-		const source = metaAny.source as unknown;
-		if (typeof source === "string" && source.toLowerCase() === "opencode-compaction") {
-			return true;
-		}
-		if (metaAny.opencodeCompaction === true || metaAny.opencode_compaction === true) {
-			return true;
-		}
-		return false;
-	};
-
-	const matchesCompactionInstruction = (value: string): boolean =>
-		compactionInstructionPatterns.some((pattern) => pattern.test(value));
-
-	const sanitizeOpenCodeCompactionPrompt = (item: InputItem): InputItem | null => {
-		const text = extractTextFromItem(item);
-		if (!text) return null;
-		const sanitizedText = text
-			.split(/\r?\n/)
-			.map((line) => line.trimEnd())
-			.filter((line) => {
-				const trimmed = line.trim();
-				if (!trimmed) {
-					return true;
-				}
-				return !matchesCompactionInstruction(trimmed);
-			})
-			.join("\n")
-			.replace(/\n{3,}/g, "\n\n")
-			.trim();
-		if (!sanitizedText) {
-			return null;
-		}
-		const originalMentionedCompaction = /\bauto[-\s]?compaction\b/i.test(text);
-		let finalText = sanitizedText;
-		if (originalMentionedCompaction && !/\bauto[-\s]?compaction\b/i.test(finalText)) {
-			finalText = `Auto-compaction summary\n\n${finalText}`;
-		}
-		return {
-			...item,
-			content: finalText,
-		};
-	};
-
-	const isOpenCodeCompactionPrompt = (item: InputItem): boolean => {
-		const isSystemRole = item.role === "developer" || item.role === "system";
-		if (!isSystemRole) return false;
-		const text = extractTextFromItem(item);
-		if (!text) return false;
-		const hasCompaction = /\b(auto[-\s]?compaction|compaction|compact)\b/i.test(text);
-		const hasSummary = /\b(summary|summarize|summarise)\b/i.test(text);
-		return hasCompaction && hasSummary && matchesCompactionInstruction(text);
-	};
-
 	const filteredInput: InputItem[] = [];
+	const envSegments: string[] = [];
 	for (const item of input) {
 		if (item.role === "user") {
 			filteredInput.push(item);
@@ -166,19 +127,38 @@ export async function filterOpenCodeSystemPrompts(
 			continue;
 		}
 
-		const compactionMetadataFlagged = hasCompactionMetadataFlag(item);
-		if (compactionMetadataFlagged || isOpenCodeCompactionPrompt(item)) {
-			const sanitized = sanitizeOpenCodeCompactionPrompt(item);
-			if (sanitized) {
-				filteredInput.push(sanitized);
+		const contentText = extractTextFromItem(item);
+		if (typeof contentText === "string" && contentText.length > 0) {
+			const { text, removed, removedBlocks } = stripOpenCodeEnvBlocks(contentText);
+			if (options.captureEnv && removedBlocks.length > 0) {
+				envSegments.push(...removedBlocks.map((block) => block.trim()).filter(Boolean));
 			}
-			continue;
+			if (removed && text.length === 0) {
+				continue;
+			}
+			if (removed) {
+				filteredInput.push({ ...item, content: text });
+				continue;
+			}
 		}
 
 		filteredInput.push(item);
 	}
 
-	return filteredInput;
+	return { input: filteredInput, envSegments };
+}
+
+export async function filterOpenCodeSystemPrompts(
+	input: InputItem[] | undefined,
+): Promise<InputItem[] | undefined> {
+	const result = await filterOpenCodeSystemPromptsInternal(input);
+	return result?.input;
+}
+
+export async function filterOpenCodeSystemPromptsWithEnv(
+	input: InputItem[] | undefined,
+): Promise<FilterResult | undefined> {
+	return filterOpenCodeSystemPromptsInternal(input, { captureEnv: true });
 }
 
 function analyzeBridgeRequirement(

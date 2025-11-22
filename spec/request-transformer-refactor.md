@@ -8,7 +8,7 @@
 
 ## Relevant Code References
 
-- `lib/request/request-transformer.ts` lines 1-1094: monolithic helpers for model normalization, reasoning config, input filtering, bridge/tool messages, compaction, prompt cache keys, and `transformRequestBody` entrypoint.
+- `lib/request/request-transformer.ts` lines 1-1094: monolithic helpers for model normalization, reasoning config, input filtering, bridge/tool messages, prompt cache keys, and `transformRequestBody` entrypoint.
 - `lib/request/tool-normalizer.ts` lines 1-158: provides `normalizeToolsForResponses` used by transformer but not imported.
 - Tests mirror structure under `test/` (e.g., `test/request-transformer.test.ts`).
 
@@ -23,8 +23,8 @@
 
 ### Phase 1: Extraction Design
 
-- Identify logical groupings (model/reasoning config, input filtering/bridge, compaction helpers, prompt cache key utilities, tool normalization usage, main transform orchestration).
-- Decide target helper modules under `lib/request/` to move into (e.g., `model-config.ts`, `input-filters.ts`, `prompt-cache.ts`, `compaction-helpers.ts`).
+- Identify logical groupings (model/reasoning config, input filtering/bridge, prompt cache key utilities, tool normalization usage, main transform orchestration).
+- Decide target helper modules under `lib/request/` to move into (e.g., `model-config.ts`, `input-filters.ts`, `prompt-cache.ts`).
 
 ### Phase 2: Implement Refactors
 
@@ -39,11 +39,11 @@
 
 ## Notes
 
-- Preserve existing behavior (stateless filtering, bridge prompt caching, compaction decisions, prompt cache key derivation).
+- Preserve existing behavior (stateless filtering, bridge prompt caching, prompt cache key derivation).
 - Avoid altering public APIs consumed by tests unless necessary; adjust tests if import paths change.
 
 ## Change Log
 
-- Split `lib/request/request-transformer.ts` into helper modules (`model-config.ts`, `input-filters.ts`, `prompt-cache.ts`, `compaction-helpers.ts`, `tooling.ts`) and re-exported APIs to keep the transformer under 500 lines.
+- Split `lib/request/request-transformer.ts` into helper modules (`model-config.ts`, `input-filters.ts`, `prompt-cache.ts`, `tooling.ts`) and re-exported APIs to keep the transformer under 500 lines.
 - Added missing `normalizeToolsForResponses` import via `normalizeToolsForCodexBody` helper.
 - Ran `pnpm build` and `pnpm lint` (lint only warning remains about legacy `.eslintignore`).

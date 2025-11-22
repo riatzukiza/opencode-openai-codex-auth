@@ -48,10 +48,20 @@ Want to customize? Jump to [Configuration reference](#configuration-reference).
 
 ## Plugin-Level Settings
 
-Set these in `~/.opencode/openhax-codex-config.json` (applies to all models):
+Set these in `~/.opencode/openhax-codex-config.json` (applies to all models). Related env vars control runtime tweaks (e.g., request logging, env tail):
 
 - `codexMode` (default `true`): enable the Codex ↔ OpenCode bridge prompt and tool remapping
 - `enablePromptCaching` (default `true`): keep a stable `prompt_cache_key` so Codex can reuse cached prompts
+- `logging` (optional): override log defaults and related env vars (`ENABLE_PLUGIN_REQUEST_LOGGING`, `DEBUG_CODEX_PLUGIN`, `CODEX_LOG_MAX_BYTES`, `CODEX_LOG_MAX_FILES`, `CODEX_LOG_QUEUE_MAX`, `CODEX_SHOW_WARNING_TOASTS`, `CODEX_LOG_WARNINGS_TO_CONSOLE`). Fields:
+  - `enableRequestLogging`: force request log persistence even without `ENABLE_PLUGIN_REQUEST_LOGGING=1`
+  - `debug`: force debug logging regardless of env
+  - `showWarningToasts`: show warning-level toasts in the OpenCode UI
+  - `logWarningsToConsole`: mirror warnings to console when toasts are off
+  - `logMaxBytes` (default `5_242_880` bytes): rotate rolling log after this size
+  - `logMaxFiles` (default `5`): rotated log files to retain (plus the active log)
+  - `logQueueMax` (default `1000`): max buffered log entries before oldest entries drop
+- Env tail (optional): set `CODEX_APPEND_ENV_CONTEXT=1` to reattach env/files context as a trailing developer message (stripped from system prompts to keep the prefix stable). Default is unset/0 (env/files removed for maximum cache stability).
+- Log inspection helper: `node scripts/inspect-codex-logs.mjs [--dir <path>] [--limit N] [--id X] [--stage after-transform]` summarizes cached request logs (shows model, prompt_cache_key, roles, etc.).
 
 Example:
 
@@ -59,9 +69,12 @@ Example:
 {
   "codexMode": true,
   "enablePromptCaching": true,
-  "enableCodexCompaction": true,
-  "autoCompactTokenLimit": 120000,
-  "autoCompactMinMessages": 8
+  "logging": {
+    "enableRequestLogging": true,
+    "logMaxBytes": 5242880,
+    "logMaxFiles": 5,
+    "logQueueMax": 1000
+  }
 }
 ```
 
@@ -85,6 +98,8 @@ Example:
 
 **Prompt caching is enabled by default** to optimize your token usage and reduce costs.
 
+> Optional: `CODEX_APPEND_ENV_CONTEXT=1` keeps env/files context by reattaching it as a trailing developer message while preserving a stable prefix. Leave unset to maximize cache stability.
+
 ### How Caching Works
 
 - **Enabled by default**: `enablePromptCaching: true`
@@ -92,6 +107,14 @@ Example:
 - **Maintains conversation context** across multiple turns
 - **Reduces token consumption** by reusing cached prompts
 - **Lowers costs** significantly for multi-turn conversations
+
+### Reducing Cache Churn (keep `prompt_cache_key` stable)
+
+- Why caches reset: OpenCode rebuilds the system/developer prompt every turn; the env block includes today’s date and a ripgrep tree of your workspace, so daily rollovers or file tree changes alter the prefix and trigger a new cache key.
+- Keep the tree stable: ensure noisy/ephemeral dirs are ignored (e.g. `dist/`, `build/`, `.next/`, `coverage/`, `.cache/`, `logs/`, `tmp/`, `.turbo/`, `.vite/`, `.stryker-tmp/`, `artifacts/`, and similar). Put transient outputs under an ignored directory or `/tmp`.
+- Don’t thrash the workspace mid-session: large checkouts, mass file generation, or moving directories will change the ripgrep listing and force a cache miss.
+- Model/provider switches also change the system prompt (different base prompt), so avoid swapping models in the middle of a session if you want to reuse cache.
+- Optional: set `CODEX_APPEND_ENV_CONTEXT=1` to reattach env/files at the end of the prompt instead of stripping them. This keeps the shared prefix stable (better cache reuse) while still sending env/files as a trailing developer message. Default is off (env/files stripped to maximize stability).
 
 ### Managing Caching
 
