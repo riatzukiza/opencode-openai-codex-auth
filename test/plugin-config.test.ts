@@ -29,9 +29,13 @@ beforeEach(async () => {
 
 describe("Plugin Configuration", () => {
 	let originalEnv: string | undefined;
+	let originalAppendEnv: string | undefined;
 
 	beforeEach(() => {
 		originalEnv = process.env.CODEX_MODE;
+		originalAppendEnv = process.env.CODEX_APPEND_ENV_CONTEXT;
+		delete process.env.CODEX_MODE;
+		delete process.env.CODEX_APPEND_ENV_CONTEXT;
 		vi.clearAllMocks();
 	});
 
@@ -40,6 +44,12 @@ describe("Plugin Configuration", () => {
 			delete process.env.CODEX_MODE;
 		} else {
 			process.env.CODEX_MODE = originalEnv;
+		}
+
+		if (originalAppendEnv === undefined) {
+			delete process.env.CODEX_APPEND_ENV_CONTEXT;
+		} else {
+			process.env.CODEX_APPEND_ENV_CONTEXT = originalAppendEnv;
 		}
 	});
 
@@ -52,9 +62,10 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: true,
 				enablePromptCaching: true,
-				enableCodexCompaction: true,
-				autoCompactMinMessages: 8,
+				appendEnvContext: false,
+				logging: { showWarningToasts: false, logWarningsToConsole: false },
 			});
+
 			expect(mockExistsSync).toHaveBeenCalledWith(
 				path.join(os.homedir(), ".opencode", "openhax-codex-config.json"),
 			);
@@ -69,8 +80,8 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: false,
 				enablePromptCaching: true,
-				enableCodexCompaction: true,
-				autoCompactMinMessages: 8,
+				appendEnvContext: false,
+				logging: { showWarningToasts: false, logWarningsToConsole: false },
 			});
 		});
 
@@ -83,8 +94,43 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: true,
 				enablePromptCaching: true,
-				enableCodexCompaction: true,
-				autoCompactMinMessages: 8,
+				appendEnvContext: false,
+				logging: { showWarningToasts: false, logWarningsToConsole: false },
+			});
+		});
+
+		it("should default appendEnvContext from env when config missing", () => {
+			process.env.CODEX_APPEND_ENV_CONTEXT = "1";
+			mockExistsSync.mockReturnValue(false);
+
+			const config = loadPluginConfig({ forceReload: true });
+
+			expect(config.appendEnvContext).toBe(true);
+		});
+
+		it("should let config override appendEnvContext even when env is set", () => {
+			process.env.CODEX_APPEND_ENV_CONTEXT = "1";
+			mockExistsSync.mockReturnValue(true);
+			mockReadFileSync.mockReturnValue(JSON.stringify({ appendEnvContext: false }));
+
+			const config = loadPluginConfig({ forceReload: true });
+
+			expect(config.appendEnvContext).toBe(false);
+		});
+
+		it("should merge nested logging config with defaults", () => {
+			mockExistsSync.mockReturnValue(true);
+			mockReadFileSync.mockReturnValue(
+				JSON.stringify({ logging: { enableRequestLogging: false, logMaxFiles: 2 } }),
+			);
+
+			const config = loadPluginConfig({ forceReload: true });
+
+			expect(config.logging).toEqual({
+				enableRequestLogging: false,
+				logMaxFiles: 2,
+				showWarningToasts: false,
+				logWarningsToConsole: false,
 			});
 		});
 
@@ -98,9 +144,10 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: true,
 				enablePromptCaching: true,
-				enableCodexCompaction: true,
-				autoCompactMinMessages: 8,
+				appendEnvContext: false,
+				logging: { showWarningToasts: false, logWarningsToConsole: false },
 			});
+
 			expect(logWarnSpy).toHaveBeenCalled();
 			logWarnSpy.mockRestore();
 		});
@@ -117,8 +164,8 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: true,
 				enablePromptCaching: true,
-				enableCodexCompaction: true,
-				autoCompactMinMessages: 8,
+				appendEnvContext: false,
+				logging: { showWarningToasts: false, logWarningsToConsole: false },
 			});
 			expect(logWarnSpy).toHaveBeenCalled();
 			logWarnSpy.mockRestore();

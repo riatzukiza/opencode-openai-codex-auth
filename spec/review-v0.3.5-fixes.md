@@ -3,7 +3,6 @@
 ## Scope
 
 - Handle null/empty cache reads in `lib/prompts/codex.ts` around readCachedInstructions caching logic
-- Remove redundant cloning in `lib/request/compaction-helpers.ts` (removeLastUserMessage, maybeBuildCompactionPrompt)
 - Prevent duplicate tool remap injection in `lib/request/input-filters.ts` addToolRemapMessage
 
 ## Existing issues / PRs
@@ -13,7 +12,6 @@
 ## Definition of done
 
 - safeReadFile null results do not get cached as empty content; fallback logic remains available for caller
-- Compaction helpers avoid unnecessary clones while preserving immutability semantics (original input reused unless truncated)
 - Tool remap message is only prepended once when tools are present; logic handles undefined/null safely
 - All relevant tests updated or added if behavior changes; existing suite passes locally if run
 

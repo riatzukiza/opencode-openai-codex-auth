@@ -9,12 +9,17 @@ const CONFIG_PATH = getOpenCodePath("openhax-codex-config.json");
  * CODEX_MODE is enabled by default for better Codex CLI parity
  * Prompt caching is enabled by default to optimize token usage and reduce costs
  */
-const DEFAULT_CONFIG: PluginConfig = {
-	codexMode: true,
-	enablePromptCaching: true,
-	enableCodexCompaction: true,
-	autoCompactMinMessages: 8,
-};
+function getDefaultConfig(): PluginConfig {
+	return {
+		codexMode: true,
+		enablePromptCaching: true,
+		appendEnvContext: process.env.CODEX_APPEND_ENV_CONTEXT === "1",
+		logging: {
+			showWarningToasts: false,
+			logWarningsToConsole: false,
+		},
+	};
+}
 
 let cachedPluginConfig: PluginConfig | undefined;
 
@@ -36,27 +41,34 @@ export function loadPluginConfig(options: { forceReload?: boolean } = {}): Plugi
 	}
 
 	try {
+		const defaults = getDefaultConfig();
 		const fileContent = safeReadFile(CONFIG_PATH);
 		if (!fileContent) {
 			logWarn("Plugin config file not found, using defaults", { path: CONFIG_PATH });
-			cachedPluginConfig = DEFAULT_CONFIG;
+			cachedPluginConfig = { ...defaults };
 			return cachedPluginConfig;
 		}
 
 		const userConfig = JSON.parse(fileContent) as Partial<PluginConfig>;
+		const userLogging = userConfig.logging ?? {};
 
-		// Merge with defaults
+		// Merge with defaults (shallow merge + nested logging merge)
 		cachedPluginConfig = {
-			...DEFAULT_CONFIG,
+			...defaults,
 			...userConfig,
+			logging: {
+				...defaults.logging,
+				...userLogging,
+			},
 		};
 		return cachedPluginConfig;
 	} catch (error) {
+		const defaults = getDefaultConfig();
 		logWarn("Failed to load plugin config", {
 			path: CONFIG_PATH,
 			error: (error as Error).message,
 		});
-		cachedPluginConfig = DEFAULT_CONFIG;
+		cachedPluginConfig = { ...defaults };
 		return cachedPluginConfig;
 	}
 }

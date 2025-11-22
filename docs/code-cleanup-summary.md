@@ -13,7 +13,7 @@
 2. **Created InputItemUtils** - `lib/utils/input-item-utils.ts`
    - Centralized text extraction logic used in multiple modules
    - Added utility functions for role checking, filtering, and formatting
-   - Eliminates duplication in `request-transformer.ts`, `session-manager.ts`, and `codex-compaction.ts`
+   - Eliminates duplication in `request-transformer.ts` and `session-manager.ts`
    - Functions: `extractTextFromItem()`, `hasTextContent()`, `formatRole()`, `formatEntry()`, `isSystemMessage()`, `isUserMessage()`, `isAssistantMessage()`, `filterByRole()`, `getLastUserMessage()`, `countConversationTurns()`
 
 3. **Refactored Large Functions**
@@ -53,12 +53,14 @@
 ## Code Quality Improvements
 
 ### Before Refactoring
+
 - **Code Duplication**: 3+ duplicate clone implementations
 - **Large Functions**: `transformRequestBody()` 1130 lines with high complexity
 - **Magic Numbers**: Scattered TTL values and limits throughout codebase
 - **No Complexity Enforcement**: No cognitive complexity limits
 
 ### After Refactoring
+
 - **Eliminated Duplication**: Single source of truth for cloning and text extraction
 - **Reduced Complexity**: Large function now uses focused utility functions
 - **Centralized Configuration**: All magic numbers in constants with descriptive names
@@ -67,30 +69,34 @@
 ## Files Modified
 
 ### New Files Created
+
 - `lib/utils/clone.ts` - Shared cloning utilities
 - `lib/utils/input-item-utils.ts` - InputItem processing utilities
 
 ### Files Updated
+
 - `lib/constants.ts` - Added centralized configuration constants
 - `biome.json` - Enhanced linting rules for complexity
 - `lib/request/request-transformer.ts` - Updated to use shared utilities
 - `lib/session/session-manager.ts` - Updated to use shared utilities and constants
-- `lib/compaction/codex-compaction.ts` - Updated to use shared utilities
 - `test/session-manager.test.ts` - Updated imports for new constants
 
 ## Impact
 
 ### Maintainability
+
 - **Easier to modify** cloning behavior in one place
 - **Clearer separation of concerns** with focused utility functions
 - **Better discoverability** of common operations
 
 ### Performance
+
 - **Optimized cloning** with `structuredClone` when available
 - **Reduced memory allocation** through shared utilities
 - **Consistent error handling** patterns
 
 ### Code Quality
+
 - **Enforced complexity limits** to prevent future issues
 - **Standardized patterns** across all modules
 - **Improved type safety** with centralized utilities
@@ -98,12 +104,14 @@
 ## Next Steps
 
 The codebase now has:
+
 - **B+ code quality rating** (improved from existing baseline)
 - **Zero critical code smells**
 - **Comprehensive test coverage** maintained
 - **Automated quality gates** in place
 
 Future development will benefit from:
+
 - Shared utilities reducing duplication
 - Complexity limits preventing excessive nesting
 - Centralized configuration for easy maintenance

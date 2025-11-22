@@ -5,8 +5,6 @@
 
 import type { Auth, OpencodeClient } from "@opencode-ai/sdk";
 import { refreshAccessToken } from "../auth/auth.js";
-import { detectCompactionCommand } from "../compaction/codex-compaction.js";
-import type { CompactionDecision } from "../compaction/compaction-executor.js";
 import {
 	ERROR_MESSAGES,
 	HTTP_STATUS,
@@ -18,7 +16,6 @@ import {
 import { logError, logRequest } from "../logger.js";
 import type { SessionManager } from "../session/session-manager.js";
 import type { PluginConfig, RequestBody, SessionContext, UserConfig } from "../types.js";
-import { cloneInputItems } from "../utils/clone.js";
 import { transformRequestBody } from "./request-transformer.js";
 import { convertSseToJson, ensureContentType } from "./response-handler.js";
 
@@ -99,14 +96,6 @@ export function rewriteUrlForCodex(url: string): string {
 	return url.replace(URL_PATHS.RESPONSES, URL_PATHS.CODEX_RESPONSES);
 }
 
-function buildCompactionSettings(pluginConfig?: PluginConfig) {
-	return {
-		enabled: pluginConfig?.enableCodexCompaction !== false,
-		autoLimitTokens: pluginConfig?.autoCompactTokenLimit,
-		autoMinMessages: pluginConfig?.autoCompactMinMessages ?? 8,
-	};
-}
-
 function applyPromptCacheKey(body: RequestBody, sessionContext?: SessionContext): RequestBody {
 	const promptCacheKey = sessionContext?.state?.promptCacheKey;
 	if (!promptCacheKey) return body;
@@ -117,17 +106,6 @@ function applyPromptCacheKey(body: RequestBody, sessionContext?: SessionContext)
 	}
 
 	return { ...(body as any), prompt_cache_key: promptCacheKey } as RequestBody;
-}
-
-function applyCompactionHistory(
-	body: RequestBody,
-	sessionManager: SessionManager | undefined,
-	sessionContext: SessionContext | undefined,
-	settings: { enabled: boolean },
-	manualCommand: string | null,
-): void {
-	if (!settings.enabled || manualCommand) return;
-	sessionManager?.applyCompactedHistory?.(body, sessionContext);
 }
 
 /**
@@ -152,7 +130,6 @@ export async function transformRequestForCodex(
 			body: RequestBody;
 			updatedInit: RequestInit;
 			sessionContext?: SessionContext;
-			compactionDecision?: CompactionDecision;
 	  }
 	| undefined
 > {
@@ -161,19 +138,9 @@ export async function transformRequestForCodex(
 	try {
 		const body = JSON.parse(init.body as string) as RequestBody;
 		const originalModel = body.model;
-		const originalInput = cloneInputItems(body.input ?? []);
-		const compactionSettings = buildCompactionSettings(pluginConfig);
-		const manualCommand = compactionSettings.enabled ? detectCompactionCommand(originalInput) : null;
 		const sessionContext = sessionManager?.getContext(body);
 
 		const bodyWithCacheKey = applyPromptCacheKey(body, sessionContext);
-		applyCompactionHistory(
-			bodyWithCacheKey,
-			sessionManager,
-			sessionContext,
-			compactionSettings,
-			manualCommand,
-		);
 
 		logRequest(LOG_STAGES.BEFORE_TRANSFORM, {
 			url,
@@ -193,12 +160,9 @@ export async function transformRequestForCodex(
 			codexMode,
 			{
 				preserveIds: sessionContext?.preserveIds,
-				compaction: {
-					settings: compactionSettings,
-					commandText: manualCommand,
-					originalInput,
-				},
+				appendEnvContext: pluginConfig?.appendEnvContext ?? process.env.CODEX_APPEND_ENV_CONTEXT === "1",
 			},
+
 			sessionContext,
 		);
 		const appliedContext =
@@ -226,7 +190,6 @@ export async function transformRequestForCodex(
 			body: transformResult.body,
 			updatedInit,
 			sessionContext: appliedContext,
-			compactionDecision: transformResult.compactionDecision,
 		};
 	} catch (e) {
 		logError(ERROR_MESSAGES.REQUEST_PARSE_ERROR, {

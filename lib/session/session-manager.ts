@@ -3,8 +3,7 @@ import { SESSION_CONFIG } from "../constants.js";
 import { logDebug, logWarn } from "../logger.js";
 import { PROMPT_CACHE_FORK_KEYS } from "../request/prompt-cache.js";
 import type { CodexResponsePayload, InputItem, RequestBody, SessionContext, SessionState } from "../types.js";
-import { cloneInputItems, deepClone } from "../utils/clone.js";
-import { isAssistantMessage, isUserMessage } from "../utils/input-item-utils.js";
+import { cloneInputItems } from "../utils/clone.js";
 
 export interface SessionManagerOptions {
 	enabled: boolean;
@@ -17,38 +16,19 @@ export interface SessionManagerOptions {
 // Clone utilities now imported from ../utils/clone.ts
 
 function computeHash(items: InputItem[]): string {
-	return createHash("sha1").update(JSON.stringify(items)).digest("hex");
+	try {
+		return createHash("sha1").update(JSON.stringify(items)).digest("hex");
+	} catch {
+		return createHash("sha1").update(`fallback_${items.length}`).digest("hex");
+	}
 }
 
-function extractLatestUserSlice(items: InputItem[] | undefined): InputItem[] {
-	if (!Array.isArray(items) || items.length === 0) {
-		return [];
+function itemsEqual(a: InputItem | undefined, b: InputItem | undefined): boolean {
+	try {
+		return JSON.stringify(a) === JSON.stringify(b);
+	} catch {
+		return false;
 	}
-
-	let lastUserIndex = -1;
-	for (let index = items.length - 1; index >= 0; index -= 1) {
-		const item = items[index];
-		if (item && isUserMessage(item)) {
-			lastUserIndex = index;
-			break;
-		}
-	}
-
-	if (lastUserIndex < 0) {
-		return [];
-	}
-
-	const tail: InputItem[] = [];
-	for (let index = lastUserIndex; index < items.length; index += 1) {
-		const item = items[index];
-		if (item && (isUserMessage(item) || isAssistantMessage(item))) {
-			tail.push(item);
-		} else {
-			break;
-		}
-	}
-
-	return cloneInputItems(tail);
 }
 
 function longestSharedPrefixLength(previous: InputItem[], current: InputItem[]): number {
@@ -60,7 +40,7 @@ function longestSharedPrefixLength(previous: InputItem[], current: InputItem[]):
 	let length = 0;
 
 	for (let i = 0; i < limit; i += 1) {
-		if (JSON.stringify(previous[i]) !== JSON.stringify(current[i])) {
+		if (!itemsEqual(previous[i], current[i])) {
 			break;
 		}
 		length += 1;
@@ -75,6 +55,131 @@ function sanitizeCacheKey(candidate: string): string {
 		return `cache_${randomUUID()}`;
 	}
 	return trimmed;
+}
+
+function isSystemLike(item: InputItem | undefined): boolean {
+	if (!item || typeof item.role !== "string") {
+		return false;
+	}
+	const role = item.role.toLowerCase();
+	return role === "system" || role === "developer";
+}
+
+function isToolMessage(item: InputItem | undefined): boolean {
+	if (!item) return false;
+	const role = typeof item.role === "string" ? item.role.toLowerCase() : "";
+	const type = typeof item.type === "string" ? item.type.toLowerCase() : "";
+	const hasToolCall =
+		"tool_call_id" in (item as Record<string, unknown>) || "tool_calls" in (item as Record<string, unknown>);
+	return (
+		role === "tool" ||
+		type === "tool" ||
+		type === "tool_call" ||
+		type === "tool_result" ||
+		type === "function" ||
+		hasToolCall
+	);
+}
+
+function fingerprintInputItem(item: InputItem | undefined): string | undefined {
+	if (!item) return undefined;
+	try {
+		return createHash("sha1").update(JSON.stringify(item)).digest("hex").slice(0, 8);
+	} catch {
+		return undefined;
+	}
+}
+
+function summarizeRoles(items: InputItem[]): string[] {
+	const roles = new Set<string>();
+	for (const item of items) {
+		if (typeof item.role === "string" && item.role.trim()) {
+			roles.add(item.role);
+		}
+	}
+	return Array.from(roles);
+}
+
+function findSuffixReuseStart(previous: InputItem[], current: InputItem[]): number | null {
+	if (previous.length === 0 || current.length === 0 || current.length > previous.length) {
+		return null;
+	}
+	const start = previous.length - current.length;
+	for (let index = 0; index < current.length; index += 1) {
+		const prevItem = previous[start + index];
+		if (!itemsEqual(prevItem, current[index])) {
+			return null;
+		}
+	}
+	return start;
+}
+
+type PrefixChangeCause = "system_prompt_changed" | "history_pruned" | "user_message_changed" | "unknown";
+
+type PrefixChangeAnalysis = {
+	cause: PrefixChangeCause;
+	details: Record<string, unknown>;
+};
+
+function analyzePrefixChange(
+	previous: InputItem[],
+	current: InputItem[],
+	sharedPrefixLength: number,
+): PrefixChangeAnalysis {
+	const firstPrevious = previous[sharedPrefixLength];
+	const firstIncoming = current[sharedPrefixLength];
+	const suffixReuseStart = findSuffixReuseStart(previous, current);
+	const removedSegment =
+		suffixReuseStart !== null && suffixReuseStart > 0 ? previous.slice(0, suffixReuseStart) : [];
+	const removedToolCount = removedSegment.filter((item) => isToolMessage(item)).length;
+
+	if (suffixReuseStart !== null && removedSegment.length > 0) {
+		return {
+			cause: "history_pruned",
+			details: {
+				mismatchIndex: sharedPrefixLength,
+				suffixReuseStart,
+				removedCount: removedSegment.length,
+				removedToolCount,
+				removedRoles: summarizeRoles(removedSegment),
+			},
+		};
+	}
+
+	if (isSystemLike(firstPrevious) || isSystemLike(firstIncoming)) {
+		return {
+			cause: "system_prompt_changed",
+			details: {
+				mismatchIndex: sharedPrefixLength,
+				previousRole: firstPrevious?.role,
+				incomingRole: firstIncoming?.role,
+				previousFingerprint: fingerprintInputItem(firstPrevious),
+				incomingFingerprint: fingerprintInputItem(firstIncoming),
+			},
+		};
+	}
+
+	if (firstPrevious?.role === "user" && firstIncoming?.role === "user") {
+		return {
+			cause: "user_message_changed",
+			details: {
+				mismatchIndex: sharedPrefixLength,
+				previousFingerprint: fingerprintInputItem(firstPrevious),
+				incomingFingerprint: fingerprintInputItem(firstIncoming),
+				previousRole: firstPrevious.role,
+				incomingRole: firstIncoming.role,
+			},
+		};
+	}
+
+	return {
+		cause: "unknown",
+		details: {
+			mismatchIndex: sharedPrefixLength,
+			previousRole: firstPrevious?.role,
+			incomingRole: firstIncoming?.role,
+		},
+	};
 }
 
 function buildPrefixForkIds(
@@ -294,12 +399,20 @@ export class SessionManager {
 		const hasFullPrefixMatch = sharedPrefixLength === state.lastInput.length;
 
 		if (!hasFullPrefixMatch) {
+			const prefixAnalysis = analyzePrefixChange(state.lastInput, input, sharedPrefixLength);
 			if (sharedPrefixLength === 0) {
 				logWarn("SessionManager: prefix mismatch detected, regenerating cache key", {
 					sessionId: state.id,
+					promptCacheKey: state.promptCacheKey,
+					sharedPrefixLength,
 					previousItems: state.lastInput.length,
 					incomingItems: input.length,
+					previousHash: state.lastPrefixHash,
+					incomingHash: inputHash,
+					prefixCause: prefixAnalysis.cause,
+					...prefixAnalysis.details,
 				});
+
 				const refreshed = this.resetSessionInternal(state.id, true);
 				if (!refreshed) {
 					return undefined;
@@ -337,20 +450,21 @@ export class SessionManager {
 				lastUpdated: Date.now(),
 				lastCachedTokens: state.lastCachedTokens,
 				bridgeInjected: state.bridgeInjected,
-				compactionBaseSystem: state.compactionBaseSystem
-					? cloneInputItems(state.compactionBaseSystem)
-					: undefined,
-				compactionSummaryItem: state.compactionSummaryItem
-					? deepClone(state.compactionSummaryItem)
-					: undefined,
 			};
+
 			this.sessions.set(forkSessionId, forkState);
 			logWarn("SessionManager: prefix mismatch detected, forking session", {
 				sessionId: state.id,
+				promptCacheKey: state.promptCacheKey,
 				forkSessionId,
+				forkPromptCacheKey,
 				sharedPrefixLength,
 				previousItems: state.lastInput.length,
 				incomingItems: input.length,
+				previousHash: state.lastPrefixHash,
+				incomingHash: inputHash,
+				prefixCause: prefixAnalysis.cause,
+				...prefixAnalysis.details,
 			});
 			// eslint-disable-next-line no-param-reassign
 			body.prompt_cache_key = forkPromptCacheKey;
@@ -372,39 +486,6 @@ export class SessionManager {
 		state.lastUpdated = Date.now();
 
 		return context;
-	}
-
-	public applyCompactionSummary(
-		context: SessionContext | undefined,
-		payload: { baseSystem: InputItem[]; summary: string },
-	): void {
-		if (!context?.enabled) return;
-		const state = context.state;
-		state.compactionBaseSystem = cloneInputItems(payload.baseSystem);
-		state.compactionSummaryItem = deepClone<InputItem>({
-			type: "message",
-			role: "user",
-			content: payload.summary,
-		});
-	}
-
-	public applyCompactedHistory(
-		body: RequestBody,
-		context: SessionContext | undefined,
-		opts?: { skip?: boolean },
-	): void {
-		if (!context?.enabled || opts?.skip) {
-			return;
-		}
-		const baseSystem = context.state.compactionBaseSystem;
-		const summary = context.state.compactionSummaryItem;
-		if (!baseSystem || !summary) {
-			return;
-		}
-		const tail = extractLatestUserSlice(body.input);
-		const merged = [...cloneInputItems(baseSystem), deepClone(summary), ...tail];
-		// eslint-disable-next-line no-param-reassign
-		body.input = merged;
 	}
 
 	public recordResponse(

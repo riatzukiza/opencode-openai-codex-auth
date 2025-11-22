@@ -18,20 +18,32 @@ export interface PluginConfig {
 	enablePromptCaching?: boolean;
 
 	/**
-	 * Enable Codex-style compaction commands inside the plugin
-	 * @default true
+	 * Reattach stripped environment/file context to the end of the prompt
+	 * Default inherits from CODEX_APPEND_ENV_CONTEXT env var
 	 */
-	enableCodexCompaction?: boolean;
+	appendEnvContext?: boolean;
 
 	/**
-	 * Optional auto-compaction token limit (approximate tokens)
+	 * Logging configuration that can override environment variables
 	 */
-	autoCompactTokenLimit?: number;
+	logging?: LoggingConfig;
+}
 
-	/**
-	 * Minimum number of conversation messages before auto-compacting
-	 */
-	autoCompactMinMessages?: number;
+export interface LoggingConfig {
+	/** When true, persist detailed request logs regardless of env var */
+	enableRequestLogging?: boolean;
+	/** When true, enable debug logging regardless of env var */
+	debug?: boolean;
+	/** Whether warning-level toasts should be shown (default: false) */
+	showWarningToasts?: boolean;
+	/** Whether warnings should also be mirrored to console (default: false) */
+	logWarningsToConsole?: boolean;
+	/** Override max bytes before rolling log rotation */
+	logMaxBytes?: number;
+	/** Override number of rotated log files to keep */
+	logMaxFiles?: number;
+	/** Override rolling log queue length */
+	logQueueMax?: number;
 }
 
 /**
@@ -189,8 +201,6 @@ export interface SessionState {
 	lastUpdated: number;
 	lastCachedTokens?: number;
 	bridgeInjected?: boolean; // Track whether Codex-OpenCode bridge prompt was added
-	compactionBaseSystem?: InputItem[];
-	compactionSummaryItem?: InputItem;
 }
 
 /**

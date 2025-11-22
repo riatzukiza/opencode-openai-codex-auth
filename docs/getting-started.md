@@ -207,6 +207,7 @@ Add this to `~/.config/opencode/opencode.json`:
 ```
 
 **What you get:**
+
 - ✅ GPT-5 Codex (Low/Medium/High reasoning)
 - ✅ GPT-5 (Minimal/Low/Medium/High reasoning)
 - ✅ gpt-5-mini, gpt-5-nano (lightweight variants)
@@ -217,7 +218,7 @@ Add this to `~/.config/opencode/opencode.json`:
 
 Prompt caching is enabled out of the box: when OpenCode sends its session identifier as `prompt_cache_key`, the plugin forwards it untouched so multi-turn runs reuse prior work. The plugin no longer synthesizes cache IDs; if the host omits that field, Codex treats the run as uncached. The CODEX_MODE bridge prompt bundled with the plugin is kept in sync with the latest Codex CLI release, so the OpenCode UI and Codex share the same tool contract. If you hit your ChatGPT subscription limits, the plugin returns a friendly Codex-style message with the 5-hour and weekly usage windows so you know when capacity resets.
 
-> **Heads up:** OpenCode's context auto-compaction and usage sidebar only work when this full configuration is installed. The minimal configuration skips the per-model limits, so OpenCode cannot display token usage or compact history automatically.
+> **Heads up:** OpenCode's usage sidebar relies on the per-model limits in this full configuration. The minimal configuration skips those limits, so token usage may not display correctly.
 
 #### Option B: Minimal Configuration
 
@@ -290,6 +291,7 @@ opencode
 ```
 
 **When to update:**
+
 - New features released
 - Bug fixes available
 - Security updates
@@ -313,6 +315,7 @@ For plugin development or testing unreleased changes:
 **Note**: Must point to `dist/` folder (built output), not root.
 
 **Build the plugin:**
+
 ```bash
 cd codex
 npm install
@@ -355,11 +358,13 @@ ls ~/.opencode/logs/codex-plugin/
 **Prompt caching is enabled by default** to minimize your costs.
 
 ### What This Means
+
 - Your conversation context is preserved across turns
 - Token usage is significantly reduced for multi-turn conversations
 - Lower overall costs compared to stateless operation
 
 ### Managing Caching
+
 Create `~/.opencode/openhax-codex-config.json`:
 
 ```json
@@ -369,26 +374,11 @@ Create `~/.opencode/openhax-codex-config.json`:
 ```
 
 **Settings:**
+
 - `true` (default): Optimize for cost savings
 - `false`: Fresh context each turn (higher costs)
 
 **⚠️ Warning**: Disabling caching will dramatically increase token usage and costs.
-
-### Compaction Controls
-
-To mirror the Codex CLI `/compact` command, add the following to `~/.opencode/openhax-codex-config.json`:
-
-```json
-{
-  "enableCodexCompaction": true,
-  "autoCompactTokenLimit": 12000,
-  "autoCompactMinMessages": 8
-}
-```
-
-- `enableCodexCompaction` toggles both the `/codex-compact` manual command and Codex-side history rewrites.
-- Set `autoCompactTokenLimit` to have the plugin run compaction automatically once the conversation grows beyond the specified budget.
-- Users receive the Codex summary (with the standard `SUMMARY_PREFIX`) and can immediately resend their paused instruction; subsequent turns are rebuilt from the stored summary instead of the entire backlog.
 
 ---
 

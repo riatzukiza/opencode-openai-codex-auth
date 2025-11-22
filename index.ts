@@ -64,7 +64,8 @@ import type { UserConfig } from "./lib/types.js";
  * ```
  */
 export const OpenAIAuthPlugin: Plugin = async ({ client, directory }: PluginInput) => {
-  configureLogger({ client, directory });
+  const pluginConfig = loadPluginConfig();
+  configureLogger({ client, directory, pluginConfig });
   setTimeout(() => {
     logWarn(
       "The OpenAI Codex plugin is intended for personal use with your own ChatGPT Plus/Pro subscription. Ensure your usage complies with OpenAI's Terms of Service.",
@@ -98,7 +99,6 @@ export const OpenAIAuthPlugin: Plugin = async ({ client, directory }: PluginInpu
         };
 
         // Load plugin configuration and determine CODEX_MODE
-        const pluginConfig = loadPluginConfig();
         const codexMode = getCodexMode(pluginConfig);
         const promptCachingEnabled = pluginConfig.enablePromptCaching ?? true;
         if (!promptCachingEnabled) {

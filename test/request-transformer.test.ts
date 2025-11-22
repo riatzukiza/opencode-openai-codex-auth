@@ -245,8 +245,8 @@ describe("filterInput", () => {
 				id: "msg_456",
 				type: "message",
 				role: "developer",
-				content: "Summary saved to ~/.opencode/summary.md",
-				metadata: { source: "opencode-compaction" },
+				content: "Custom host metadata message",
+				metadata: { source: "host-metadata" },
 			},
 		];
 		const result = filterInput(input, { preserveMetadata: true });
@@ -587,6 +587,33 @@ describe("filterOpenCodeSystemPrompts", () => {
 		expect(result).toHaveLength(2);
 	});
 
+	it("should drop env-only system messages", async () => {
+		const input: InputItem[] = [
+			{
+				type: "message",
+				role: "system",
+				content: [
+					{
+						type: "input_text",
+						text: [
+							"Here is some useful information about the environment you are running in:",
+							"<env>",
+							"  Working directory: /tmp",
+							"</env>",
+							"<files>",
+							"  tmpfile.txt",
+							"</files>",
+						].join("\n"),
+					},
+				],
+			},
+			{ type: "message", role: "user", content: "hello" },
+		];
+		const result = await filterOpenCodeSystemPrompts(input);
+		expect(result).toHaveLength(1);
+		expect(result![0].role).toBe("user");
+	});
+
 	it("should keep AGENTS.md content (not filter it)", async () => {
 		const input: InputItem[] = [
 			{
@@ -608,7 +635,7 @@ describe("filterOpenCodeSystemPrompts", () => {
 		expect(result![1].role).toBe("user");
 	});
 
-	it("should keep environment+AGENTS.md concatenated message", async () => {
+	it("should strip environment blocks but keep AGENTS.md content", async () => {
 		const input: InputItem[] = [
 			{
 				type: "message",
@@ -618,36 +645,149 @@ describe("filterOpenCodeSystemPrompts", () => {
 			{
 				type: "message",
 				role: "developer",
-				// environment + AGENTS.md joined (like OpenCode does)
-				content:
-					"Working directory: /path/to/project\nDate: 2025-01-01\n\n# AGENTS.md\n\nCustom instructions.",
+				// environment + files + AGENTS.md joined (like OpenCode does)
+				content: [
+					{
+						type: "input_text",
+						text: [
+							"Here is some useful information about the environment you are running in:",
+							"<env>",
+							"  Working directory: /path/to/project",
+							"  Is directory a git repo: yes",
+							"</env>",
+							"<files>",
+							"  README.md",
+							"</files>",
+							"\n# AGENTS.md\n\nCustom instructions.",
+						].join("\n"),
+					},
+				],
 			},
 			{ type: "message", role: "user", content: "hello" },
 		];
 		const result = await filterOpenCodeSystemPrompts(input);
-		// Should filter first message (codex.txt) but keep second (env+AGENTS.md)
+		// Should filter codex.txt, strip env/files, and keep AGENTS.md text
 		expect(result).toHaveLength(2);
 		expect(result![0].content).toContain("AGENTS.md");
+		expect(result![0].content as string).not.toContain("<env>");
+		expect(result![0].content as string).not.toContain("<files>");
 		expect(result![1].role).toBe("user");
-	});
-
-	it("should use metadata flag to detect compaction prompts", async () => {
-		const input: InputItem[] = [
-			{
-				type: "message",
-				role: "developer",
-				content: "Summary saved to ~/.opencode/summary.md for inspection",
-				metadata: { source: "opencode-compaction" },
-			},
-			{ type: "message", role: "user", content: "continue" },
-		];
-		const result = await filterOpenCodeSystemPrompts(input);
-		expect(result).toHaveLength(1);
-		expect(result![0].role).toBe("user");
 	});
 
 	it("should return undefined for undefined input", async () => {
 		expect(await filterOpenCodeSystemPrompts(undefined)).toBeUndefined();
+	});
+});
+
+describe("transformRequestBody caching stability", () => {
+	const CODEX_INSTRUCTIONS = "codex instructions";
+	const userConfig = { global: {}, models: {} };
+
+	function envMessage(date: string, files: string[]): InputItem {
+		return {
+			type: "message",
+			role: "developer",
+			content: [
+				{
+					type: "input_text",
+					text: [
+						"Here is some useful information about the environment you are running in:",
+						"<env>",
+						`  Today's date: ${date}`,
+						"</env>",
+						"<files>",
+						...files.map((f) => `  ${f}`),
+						"</files>",
+					].join("\n"),
+				},
+			],
+		};
+	}
+
+	it("keeps prompt_cache_key stable when only env/files churn", async () => {
+		const body1: RequestBody = {
+			model: "gpt-5",
+			metadata: { conversation_id: "conv-env-stable" },
+			input: [
+				envMessage("Mon Jan 01 2024", ["README.md", "dist/index.js"]),
+				{ type: "message", role: "user", content: "hello" },
+			],
+		};
+
+		const result1 = await transformRequestBody(
+			body1,
+			CODEX_INSTRUCTIONS,
+			userConfig,
+			true,
+			{ appendEnvContext: false },
+			undefined,
+		);
+		expect(result1.prompt_cache_key).toContain("conv-env-stable");
+		expect(result1.input).toHaveLength(1);
+		expect(result1.input?.[0].role).toBe("user");
+
+		const body2: RequestBody = {
+			model: "gpt-5",
+			metadata: { conversation_id: "conv-env-stable" },
+			input: [
+				envMessage("Tue Jan 02 2024", ["README.md", "dist/main.js", "coverage/index.html"]),
+				{ type: "message", role: "user", content: "hello" },
+			],
+		};
+
+		const result2 = await transformRequestBody(
+			body2,
+			CODEX_INSTRUCTIONS,
+			userConfig,
+			true,
+			{ appendEnvContext: false },
+			undefined,
+		);
+		expect(result2.prompt_cache_key).toBe(result1.prompt_cache_key);
+		expect(result2.input).toHaveLength(1);
+		expect(result2.input?.[0].role).toBe("user");
+	});
+
+	it("can reattach env/files tail when flag enabled", async () => {
+		const body: RequestBody = {
+			model: "gpt-5",
+			metadata: { conversation_id: "conv-env-tail" },
+			input: [
+				{
+					type: "message",
+					role: "developer",
+					content: [
+						{
+							type: "input_text",
+							text: [
+								"Here is some useful information about the environment you are running in:",
+								"<env>",
+								"  Working directory: /tmp",
+								"</env>",
+								"<files>",
+								"  tmpfile.txt",
+								"</files>",
+							].join("\n"),
+						},
+					],
+				},
+				{ type: "message", role: "user", content: "hello" },
+			],
+		};
+
+		const result = await transformRequestBody(
+			body,
+			CODEX_INSTRUCTIONS,
+			userConfig,
+			true,
+			{ appendEnvContext: true },
+			undefined,
+		);
+		expect(result.input?.length).toBe(2);
+		expect(result.input?.[0].role).toBe("user");
+		expect(result.input?.[1].role).toBe("developer");
+		expect(result.input?.[1].content as string).toContain("<env>");
+		expect(result.input?.[1].content as string).toContain("<files>");
 	});
 });
 
@@ -806,29 +946,6 @@ describe("transformRequestBody", () => {
 
 		expect(result1.prompt_cache_key).toBe("cache_meta-conv-789-fork-fork-x");
 		expect(result2.prompt_cache_key).toBe("cache_meta-conv-789-fork-fork-x");
-	});
-
-	it("filters metadata-tagged compaction prompts and strips metadata when IDs are not preserved", async () => {
-		const body: RequestBody = {
-			model: "gpt-5",
-			input: [
-				{
-					type: "message",
-					role: "developer",
-					content: "Summary saved to ~/.opencode/summary.md for inspection",
-					metadata: { source: "opencode-compaction" },
-				},
-				{ type: "message", role: "user", content: "continue" },
-			],
-		};
-
-		const transformedBody = await transformRequestBody(body, codexInstructions);
-		expect(transformedBody).toBeDefined();
-		const messages = transformedBody.input ?? [];
-
-		expect(messages.some((item) => (item as any).metadata)).toBe(false);
-		expect(JSON.stringify(messages)).not.toContain(".opencode/summary");
-		expect(messages.some((item) => item.role === "user" && (item as any).content === "continue")).toBe(true);
 	});
 
 	it("keeps bridge prompt across turns so prompt_cache_key stays stable", async () => {

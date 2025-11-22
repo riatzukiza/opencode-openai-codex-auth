@@ -1,7 +1,6 @@
 import type { PluginInput } from "@opencode-ai/plugin";
 import type { Auth } from "@opencode-ai/sdk";
 import { maybeHandleCodexCommand } from "../commands/codex-metrics.js";
-import { finalizeCompactionResponse } from "../compaction/compaction-executor.js";
 import { LOG_STAGES } from "../constants.js";
 import { logRequest } from "../logger.js";
 import { recordSessionResponseFromHandledResponse } from "../session/response-recorder.js";
@@ -93,16 +92,7 @@ export function createCodexFetcher(deps: CodexFetcherDeps) {
 			return await handleErrorResponse(response);
 		}
 
-		let handledResponse = await handleSuccessResponse(response, hasTools);
-
-		if (transformation?.compactionDecision) {
-			handledResponse = await finalizeCompactionResponse({
-				response: handledResponse,
-				decision: transformation.compactionDecision,
-				sessionManager,
-				sessionContext,
-			});
-		}
+		const handledResponse = await handleSuccessResponse(response, hasTools);
 
 		await recordSessionResponseFromHandledResponse({
 			sessionManager,

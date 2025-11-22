@@ -1,5 +1,4 @@
 /* eslint-disable no-param-reassign */
-import type { CompactionDecision } from "../compaction/compaction-executor.js";
 import { logDebug, logWarn } from "../logger.js";
 import type { RequestBody, SessionContext, UserConfig } from "../types.js";
 import {
@@ -7,8 +6,9 @@ import {
 	addToolRemapMessage,
 	filterInput,
 	filterOpenCodeSystemPrompts,
+	filterOpenCodeSystemPromptsWithEnv,
 } from "./input-filters.js";
-import { applyCompactionIfNeeded, type CompactionOptions } from "./compaction-helpers.js";
+
 import { getModelConfig, getReasoningConfig, normalizeModel } from "./model-config.js";
 import { ensurePromptCacheKey, logCacheKeyDecision } from "./prompt-cache.js";
 import { normalizeToolsForCodexBody } from "./tooling.js";
@@ -23,16 +23,15 @@ export {
 export { getModelConfig, getReasoningConfig, normalizeModel } from "./model-config.js";
 
 export interface TransformRequestOptions {
-	/** Preserve IDs only when conversation transforms run; may be a no-op when compaction skips them. */
+	/** Preserve IDs when prompt caching requires it. */
 	preserveIds?: boolean;
-	/** Compaction settings and original input context used when building compaction prompts. */
-	compaction?: CompactionOptions;
+	/** Reattach env/files context to prompt tail (defaults from config/env). */
+	appendEnvContext?: boolean;
 }
 
 export interface TransformResult {
 	/** Mutated request body (same instance passed into transformRequestBody). */
 	body: RequestBody;
-	compactionDecision?: CompactionDecision;
 }
 
 async function transformInputForCodex(
@@ -40,10 +39,10 @@ async function transformInputForCodex(
 	codexMode: boolean,
 	preserveIds: boolean,
 	hasNormalizedTools: boolean,
+	appendEnvContext: boolean,
 	sessionContext?: SessionContext,
-	skipConversationTransforms = false,
 ): Promise<void> {
-	if (!body.input || !Array.isArray(body.input) || skipConversationTransforms) {
+	if (!body.input || !Array.isArray(body.input)) {
 		return;
 	}
 
@@ -66,7 +65,24 @@ async function transformInputForCodex(
 	}
 
 	if (codexMode) {
-		workingInput = await filterOpenCodeSystemPrompts(workingInput);
+		if (appendEnvContext) {
+			const result = await filterOpenCodeSystemPromptsWithEnv(workingInput);
+			workingInput = result?.input;
+			if (result?.envSegments?.length) {
+				workingInput = workingInput || [];
+				workingInput = [
+					...(workingInput || []),
+					{
+						type: "message",
+						role: "developer",
+						content: result.envSegments.join("\n"),
+					},
+				];
+			}
+		} else {
+			workingInput = await filterOpenCodeSystemPrompts(workingInput);
+		}
+
 		if (!preserveIds) {
 			workingInput = filterInput(workingInput, { preserveIds });
 		}
@@ -94,12 +110,6 @@ export async function transformRequestBody(
 	const normalizedModel = normalizeModel(body.model);
 	const preserveIds = options.preserveIds ?? false;
 
-	const compactionDecision = applyCompactionIfNeeded(
-		body,
-		options.compaction && { ...options.compaction, preserveIds },
-	);
-	const skipConversationTransforms = Boolean(compactionDecision);
-
 	const lookupModel = originalModel || normalizedModel;
 	const modelConfig = getModelConfig(lookupModel, userConfig);
 
@@ -117,15 +127,16 @@ export async function transformRequestBody(
 	const isNewSession = sessionContext?.isNew ?? true;
 	logCacheKeyDecision(cacheKeyResult, isNewSession);
 
-	const hasNormalizedTools = normalizeToolsForCodexBody(body, skipConversationTransforms);
+	const hasNormalizedTools = normalizeToolsForCodexBody(body, false);
+	const appendEnvContext = options.appendEnvContext ?? process.env.CODEX_APPEND_ENV_CONTEXT === "1";
 
 	await transformInputForCodex(
 		body,
 		codexMode,
 		preserveIds,
 		hasNormalizedTools,
+		appendEnvContext,
 		sessionContext,
-		skipConversationTransforms,
 	);
 
 	const reasoningConfig = getReasoningConfig(originalModel, modelConfig);
@@ -144,5 +155,5 @@ export async function transformRequestBody(
 	body.max_output_tokens = undefined;
 	body.max_completion_tokens = undefined;
 
-	return { body, compactionDecision };
+	return { body };
 }

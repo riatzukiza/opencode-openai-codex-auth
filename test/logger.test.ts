@@ -65,10 +65,14 @@ afterEach(() => {
 });
 
 describe("logger", () => {
-	it("LOGGING_ENABLED reflects env state", async () => {
+	it("isLoggingEnabled reflects env state", async () => {
 		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = "1";
-		const { LOGGING_ENABLED } = await import("../lib/logger.js");
-		expect(LOGGING_ENABLED).toBe(true);
+		const { isLoggingEnabled, configureLogger } = await import("../lib/logger.js");
+		expect(isLoggingEnabled()).toBe(true);
+
+		// Test that config overrides are reflected
+		configureLogger({ pluginConfig: { logging: { enableRequestLogging: false } } });
+		expect(isLoggingEnabled()).toBe(false);
 	});
 
 	it("logRequest writes stage file and rolling log when enabled", async () => {
@@ -107,6 +111,25 @@ describe("logger", () => {
 		expect(fsMocks.appendFile).not.toHaveBeenCalled();
 	});
 
+	it("config overrides env-enabled request logging when disabled in file", async () => {
+		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = "1";
+		fsMocks.existsSync.mockReturnValue(true);
+		const { configureLogger, logRequest, flushRollingLogsForTest, isLoggingEnabled } = await import(
+			"../lib/logger.js"
+		);
+
+		configureLogger({ pluginConfig: { logging: { enableRequestLogging: false } } });
+
+		// Verify isLoggingEnabled reflects the config override
+		expect(isLoggingEnabled()).toBe(false);
+
+		logRequest("stage-one", { foo: "bar" });
+		await flushRollingLogsForTest();
+
+		expect(fsMocks.writeFile).not.toHaveBeenCalled();
+		expect(fsMocks.appendFile).not.toHaveBeenCalled();
+	});
+
 	it("logDebug appends to rolling log only when enabled", async () => {
 		process.env.ENABLE_PLUGIN_REQUEST_LOGGING = "1";
 		fsMocks.existsSync.mockReturnValue(true);
@@ -119,17 +142,22 @@ describe("logger", () => {
 		expect(logSpy).not.toHaveBeenCalled();
 	});
 
-	it("logWarn emits to console even without env overrides", async () => {
+	it("logWarn writes to rolling log but stays off console by default", async () => {
 		fsMocks.existsSync.mockReturnValue(true);
 		const { logWarn, flushRollingLogsForTest } = await import("../lib/logger.js");
 
 		logWarn("warning");
 		await flushRollingLogsForTest();
 
-		expect(warnSpy).toHaveBeenCalledWith("[openhax/codex] warning");
+		expect(warnSpy).not.toHaveBeenCalled();
+		expect(fsMocks.appendFile).toHaveBeenCalledTimes(1);
+		const [logPath, logLine, logEncoding] = fsMocks.appendFile.mock.calls[0];
+		expect(logPath).toBe("/mock-home/.opencode/logs/codex-plugin/codex-plugin.log");
+		expect(logEncoding).toBe("utf8");
+		expect(logLine as string).toContain('"message":"warning"');
 	});
 
-	it("logWarn sends toast and avoids console/app log when tui available", async () => {
+	it("logWarn does not send warning toasts by default even when tui is available", async () => {
 		fsMocks.existsSync.mockReturnValue(true);
 		const showToast = vi.fn();
 		const appLog = vi.fn().mockResolvedValue(undefined);
@@ -145,6 +173,28 @@ describe("logger", () => {
 		logWarn("toast-warning");
 		await flushRollingLogsForTest();
 
+		expect(showToast).not.toHaveBeenCalled();
+		expect(appLog).toHaveBeenCalledTimes(1);
+		expect(warnSpy).not.toHaveBeenCalled();
+		expect(fsMocks.appendFile).toHaveBeenCalledTimes(1);
+	});
+
+	it("logWarn sends warning toasts only when enabled via config", async () => {
+		fsMocks.existsSync.mockReturnValue(true);
+		const showToast = vi.fn();
+		const appLog = vi.fn().mockResolvedValue(undefined);
+		const { configureLogger, logWarn, flushRollingLogsForTest } = await import("../lib/logger.js");
+
+		const client = {
+			app: { log: appLog },
+			tui: { showToast },
+		} as unknown as OpencodeClient;
+
+		configureLogger({ client, pluginConfig: { logging: { showWarningToasts: true } } });
+
+		logWarn("toast-warning");
+		await flushRollingLogsForTest();
+
 		expect(showToast).toHaveBeenCalledWith({
 			body: {
 				title: "openhax/codex warning",
@@ -154,6 +204,19 @@ describe("logger", () => {
 		});
 		expect(appLog).not.toHaveBeenCalled();
 		expect(warnSpy).not.toHaveBeenCalled();
+	});
+
+	it("logWarn mirrors to console when enabled via config", async () => {
+		fsMocks.existsSync.mockReturnValue(true);
+		const { configureLogger, logWarn, flushRollingLogsForTest } = await import("../lib/logger.js");
+
+		configureLogger({ pluginConfig: { logging: { logWarningsToConsole: true } } });
+
+		logWarn("console-warning");
+		await flushRollingLogsForTest();
+
+		expect(warnSpy).toHaveBeenCalledWith("[openhax/codex] console-warning");
+		expect(fsMocks.appendFile).toHaveBeenCalled();
 	});
 
 	it("wraps long toast messages to avoid truncation", async () => {
@@ -167,7 +230,7 @@ describe("logger", () => {
 			tui: { showToast },
 		} as unknown as OpencodeClient;
 
-		configureLogger({ client });
+		configureLogger({ client, pluginConfig: { logging: { showWarningToasts: true } } });
 
 		logWarn(
 			"prefix mismatch detected while warming the session cache; reconnecting with fallback account boundaries",
