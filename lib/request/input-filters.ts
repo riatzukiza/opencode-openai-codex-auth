@@ -69,10 +69,44 @@ export function isOpenCodeSystemPrompt(item: InputItem, cachedPrompt: string | n
 	return contentText.startsWith("You are a coding agent running in");
 }
 
-export async function filterOpenCodeSystemPrompts(
+type FilterResult = { input?: InputItem[]; envSegments: string[] };
+
+function stripOpenCodeEnvBlocks(contentText: string): {
+	text: string;
+	removed: boolean;
+	removedBlocks: string[];
+} {
+	let removed = false;
+	let sanitized = contentText;
+	const removedBlocks: string[] = [];
+
+	// Remove the standard environment header OpenCode prepends before <env>
+	const envHeaderPattern = /Here is some useful information about the environment you are running in:\s*/i;
+	const headerStripped = sanitized.replace(envHeaderPattern, "");
+	if (headerStripped !== sanitized) {
+		removed = true;
+		sanitized = headerStripped;
+	}
+
+	const patterns = [/<env>[\s\S]*?<\/env>/g, /<files>[\s\S]*?<\/files>/g];
+
+	for (const pattern of patterns) {
+		const matches = sanitized.match(pattern);
+		if (matches) {
+			removedBlocks.push(...matches);
+			removed = true;
+			sanitized = sanitized.replace(pattern, "");
+		}
+	}
+
+	return { text: sanitized.trim(), removed, removedBlocks };
+}
+
+async function filterOpenCodeSystemPromptsInternal(
 	input: InputItem[] | undefined,
-): Promise<InputItem[] | undefined> {
-	if (!Array.isArray(input)) return input;
+	options: { captureEnv?: boolean } = {},
+): Promise<FilterResult | undefined> {
+	if (!Array.isArray(input)) return input ? { input, envSegments: [] } : undefined;
 
 	let cachedPrompt: string | null = null;
 	try {
@@ -82,6 +116,7 @@ export async function filterOpenCodeSystemPrompts(
 	}
 
 	const filteredInput: InputItem[] = [];
+	const envSegments: string[] = [];
 	for (const item of input) {
 		if (item.role === "user") {
 			filteredInput.push(item);
@@ -92,10 +127,38 @@ export async function filterOpenCodeSystemPrompts(
 			continue;
 		}
 
+		const contentText = extractTextFromItem(item);
+		if (typeof contentText === "string" && contentText.length > 0) {
+			const { text, removed, removedBlocks } = stripOpenCodeEnvBlocks(contentText);
+			if (options.captureEnv && removedBlocks.length > 0) {
+				envSegments.push(...removedBlocks.map((block) => block.trim()).filter(Boolean));
+			}
+			if (removed && text.length === 0) {
+				continue;
+			}
+			if (removed) {
+				filteredInput.push({ ...item, content: text });
+				continue;
+			}
+		}
+
 		filteredInput.push(item);
 	}
 
-	return filteredInput;
+	return { input: filteredInput, envSegments };
+}
+
+export async function filterOpenCodeSystemPrompts(
+	input: InputItem[] | undefined,
+): Promise<InputItem[] | undefined> {
+	const result = await filterOpenCodeSystemPromptsInternal(input);
+	return result?.input;
+}
+
+export async function filterOpenCodeSystemPromptsWithEnv(
+	input: InputItem[] | undefined,
+): Promise<FilterResult | undefined> {
+	return filterOpenCodeSystemPromptsInternal(input, { captureEnv: true });
 }
 
 function analyzeBridgeRequirement(
