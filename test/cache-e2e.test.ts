@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { transformRequestForCodex } from "../lib/request/fetch-helpers.js";
 import { SessionManager } from "../lib/session/session-manager.js";
 import * as openCodeCodex from "../lib/prompts/opencode-codex.js";
-import type { InputItem, RequestBody, UserConfig } from "../lib/types.js";
+import type { InputItem, PluginConfig, RequestBody, UserConfig } from "../lib/types.js";
 import * as logger from "../lib/logger.js";
 
 const CODEX_INSTRUCTIONS = "codex instructions";
@@ -30,7 +30,11 @@ function envMessage(date: string, files: string[]): InputItem {
 	};
 }
 
-async function runTransform(body: RequestBody, sessionManager: SessionManager) {
+async function runTransform(
+	body: RequestBody,
+	sessionManager: SessionManager,
+	pluginConfig: PluginConfig = { appendEnvContext: false },
+) {
 	const init: RequestInit = { body: JSON.stringify(body) };
 	const result = await transformRequestForCodex(
 		init,
@@ -39,6 +43,7 @@ async function runTransform(body: RequestBody, sessionManager: SessionManager) {
 		USER_CONFIG,
 		true,
 		sessionManager,
+		pluginConfig,
 	);
 	if (!result) throw new Error("transformRequestForCodex returned undefined");
 	return result;

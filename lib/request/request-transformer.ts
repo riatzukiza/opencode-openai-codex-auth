@@ -25,6 +25,8 @@ export { getModelConfig, getReasoningConfig, normalizeModel } from "./model-conf
 export interface TransformRequestOptions {
 	/** Preserve IDs when prompt caching requires it. */
 	preserveIds?: boolean;
+	/** Reattach env/files context to prompt tail (defaults from config/env). */
+	appendEnvContext?: boolean;
 }
 
 export interface TransformResult {
@@ -37,6 +39,7 @@ async function transformInputForCodex(
 	codexMode: boolean,
 	preserveIds: boolean,
 	hasNormalizedTools: boolean,
+	appendEnvContext: boolean,
 	sessionContext?: SessionContext,
 ): Promise<void> {
 	if (!body.input || !Array.isArray(body.input)) {
@@ -62,8 +65,7 @@ async function transformInputForCodex(
 	}
 
 	if (codexMode) {
-		const appendEnvTail = process.env.CODEX_APPEND_ENV_CONTEXT === "1";
-		if (appendEnvTail) {
+		if (appendEnvContext) {
 			const result = await filterOpenCodeSystemPromptsWithEnv(workingInput);
 			workingInput = result?.input;
 			if (result?.envSegments?.length) {
@@ -126,8 +128,16 @@ export async function transformRequestBody(
 	logCacheKeyDecision(cacheKeyResult, isNewSession);
 
 	const hasNormalizedTools = normalizeToolsForCodexBody(body, false);
+	const appendEnvContext = options.appendEnvContext ?? process.env.CODEX_APPEND_ENV_CONTEXT === "1";
 
-	await transformInputForCodex(body, codexMode, preserveIds, hasNormalizedTools, sessionContext);
+	await transformInputForCodex(
+		body,
+		codexMode,
+		preserveIds,
+		hasNormalizedTools,
+		appendEnvContext,
+		sessionContext,
+	);
 
 	const reasoningConfig = getReasoningConfig(originalModel, modelConfig);
 	body.reasoning = {

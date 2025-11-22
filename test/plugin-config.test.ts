@@ -29,9 +29,13 @@ beforeEach(async () => {
 
 describe("Plugin Configuration", () => {
 	let originalEnv: string | undefined;
+	let originalAppendEnv: string | undefined;
 
 	beforeEach(() => {
 		originalEnv = process.env.CODEX_MODE;
+		originalAppendEnv = process.env.CODEX_APPEND_ENV_CONTEXT;
+		delete process.env.CODEX_MODE;
+		delete process.env.CODEX_APPEND_ENV_CONTEXT;
 		vi.clearAllMocks();
 	});
 
@@ -40,6 +44,12 @@ describe("Plugin Configuration", () => {
 			delete process.env.CODEX_MODE;
 		} else {
 			process.env.CODEX_MODE = originalEnv;
+		}
+
+		if (originalAppendEnv === undefined) {
+			delete process.env.CODEX_APPEND_ENV_CONTEXT;
+		} else {
+			process.env.CODEX_APPEND_ENV_CONTEXT = originalAppendEnv;
 		}
 	});
 
@@ -52,6 +62,7 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: true,
 				enablePromptCaching: true,
+				appendEnvContext: false,
 				logging: { showWarningToasts: false, logWarningsToConsole: false },
 			});
 
@@ -69,6 +80,7 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: false,
 				enablePromptCaching: true,
+				appendEnvContext: false,
 				logging: { showWarningToasts: false, logWarningsToConsole: false },
 			});
 		});
@@ -82,8 +94,28 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: true,
 				enablePromptCaching: true,
+				appendEnvContext: false,
 				logging: { showWarningToasts: false, logWarningsToConsole: false },
 			});
+		});
+
+		it("should default appendEnvContext from env when config missing", () => {
+			process.env.CODEX_APPEND_ENV_CONTEXT = "1";
+			mockExistsSync.mockReturnValue(false);
+
+			const config = loadPluginConfig({ forceReload: true });
+
+			expect(config.appendEnvContext).toBe(true);
+		});
+
+		it("should let config override appendEnvContext even when env is set", () => {
+			process.env.CODEX_APPEND_ENV_CONTEXT = "1";
+			mockExistsSync.mockReturnValue(true);
+			mockReadFileSync.mockReturnValue(JSON.stringify({ appendEnvContext: false }));
+
+			const config = loadPluginConfig({ forceReload: true });
+
+			expect(config.appendEnvContext).toBe(false);
 		});
 
 		it("should merge nested logging config with defaults", () => {
@@ -112,6 +144,7 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: true,
 				enablePromptCaching: true,
+				appendEnvContext: false,
 				logging: { showWarningToasts: false, logWarningsToConsole: false },
 			});
 
@@ -131,6 +164,7 @@ describe("Plugin Configuration", () => {
 			expect(config).toEqual({
 				codexMode: true,
 				enablePromptCaching: true,
+				appendEnvContext: false,
 				logging: { showWarningToasts: false, logWarningsToConsole: false },
 			});
 			expect(logWarnSpy).toHaveBeenCalled();
