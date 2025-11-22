@@ -16,7 +16,19 @@ export interface SessionManagerOptions {
 // Clone utilities now imported from ../utils/clone.ts
 
 function computeHash(items: InputItem[]): string {
-	return createHash("sha1").update(JSON.stringify(items)).digest("hex");
+	try {
+		return createHash("sha1").update(JSON.stringify(items)).digest("hex");
+	} catch {
+		return createHash("sha1").update(`fallback_${items.length}`).digest("hex");
+	}
+}
+
+function itemsEqual(a: InputItem | undefined, b: InputItem | undefined): boolean {
+	try {
+		return JSON.stringify(a) === JSON.stringify(b);
+	} catch {
+		return false;
+	}
 }
 
 function longestSharedPrefixLength(previous: InputItem[], current: InputItem[]): number {
@@ -28,7 +40,7 @@ function longestSharedPrefixLength(previous: InputItem[], current: InputItem[]):
 	let length = 0;
 
 	for (let i = 0; i < limit; i += 1) {
-		if (JSON.stringify(previous[i]) !== JSON.stringify(current[i])) {
+		if (!itemsEqual(previous[i], current[i])) {
 			break;
 		}
 		length += 1;
@@ -95,7 +107,7 @@ function findSuffixReuseStart(previous: InputItem[], current: InputItem[]): numb
 	const start = previous.length - current.length;
 	for (let index = 0; index < current.length; index += 1) {
 		const prevItem = previous[start + index];
-		if (JSON.stringify(prevItem) !== JSON.stringify(current[index])) {
+		if (!itemsEqual(prevItem, current[index])) {
 			return null;
 		}
 	}
