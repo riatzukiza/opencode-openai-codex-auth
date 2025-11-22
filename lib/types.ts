@@ -18,6 +18,12 @@ export interface PluginConfig {
 	enablePromptCaching?: boolean;
 
 	/**
+	 * Reattach stripped environment/file context to the end of the prompt
+	 * Default inherits from CODEX_APPEND_ENV_CONTEXT env var
+	 */
+	appendEnvContext?: boolean;
+
+	/**
 	 * Logging configuration that can override environment variables
 	 */
 	logging?: LoggingConfig;

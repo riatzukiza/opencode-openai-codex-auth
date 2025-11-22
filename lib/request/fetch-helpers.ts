@@ -124,7 +124,7 @@ export async function transformRequestForCodex(
 	userConfig: UserConfig,
 	codexMode = true,
 	sessionManager?: SessionManager,
-	_pluginConfig?: PluginConfig,
+	pluginConfig?: PluginConfig,
 ): Promise<
 	| {
 			body: RequestBody;
@@ -160,7 +160,9 @@ export async function transformRequestForCodex(
 			codexMode,
 			{
 				preserveIds: sessionContext?.preserveIds,
+				appendEnvContext: pluginConfig?.appendEnvContext ?? process.env.CODEX_APPEND_ENV_CONTEXT === "1",
 			},
+
 			sessionContext,
 		);
 		const appliedContext =

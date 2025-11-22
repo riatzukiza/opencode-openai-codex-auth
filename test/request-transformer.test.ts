@@ -714,7 +714,14 @@ describe("transformRequestBody caching stability", () => {
 			],
 		};
 
-		const result1 = await transformRequestBody(body1, CODEX_INSTRUCTIONS, userConfig, true, {}, undefined);
+		const result1 = await transformRequestBody(
+			body1,
+			CODEX_INSTRUCTIONS,
+			userConfig,
+			true,
+			{ appendEnvContext: false },
+			undefined,
+		);
 		expect(result1.prompt_cache_key).toContain("conv-env-stable");
 		expect(result1.input).toHaveLength(1);
 		expect(result1.input?.[0].role).toBe("user");
@@ -728,14 +735,20 @@ describe("transformRequestBody caching stability", () => {
 			],
 		};
 
-		const result2 = await transformRequestBody(body2, CODEX_INSTRUCTIONS, userConfig, true, {}, undefined);
+		const result2 = await transformRequestBody(
+			body2,
+			CODEX_INSTRUCTIONS,
+			userConfig,
+			true,
+			{ appendEnvContext: false },
+			undefined,
+		);
 		expect(result2.prompt_cache_key).toBe(result1.prompt_cache_key);
 		expect(result2.input).toHaveLength(1);
 		expect(result2.input?.[0].role).toBe("user");
 	});
 
 	it("can reattach env/files tail when flag enabled", async () => {
-		process.env.CODEX_APPEND_ENV_CONTEXT = "1";
 		const body: RequestBody = {
 			model: "gpt-5",
 			metadata: { conversation_id: "conv-env-tail" },
@@ -762,14 +775,19 @@ describe("transformRequestBody caching stability", () => {
 			],
 		};
 
-		const result = await transformRequestBody(body, CODEX_INSTRUCTIONS, userConfig, true, {}, undefined);
+		const result = await transformRequestBody(
+			body,
+			CODEX_INSTRUCTIONS,
+			userConfig,
+			true,
+			{ appendEnvContext: true },
+			undefined,
+		);
 		expect(result.input?.length).toBe(2);
 		expect(result.input?.[0].role).toBe("user");
 		expect(result.input?.[1].role).toBe("developer");
 		expect(result.input?.[1].content as string).toContain("<env>");
 		expect(result.input?.[1].content as string).toContain("<files>");
-
-		delete process.env.CODEX_APPEND_ENV_CONTEXT;
 	});
 });
 
