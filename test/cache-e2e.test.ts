@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { transformRequestForCodex } from "../lib/request/fetch-helpers.js";
 import { SessionManager } from "../lib/session/session-manager.js";
 import * as openCodeCodex from "../lib/prompts/opencode-codex.js";
