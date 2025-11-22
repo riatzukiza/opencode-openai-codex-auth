@@ -16,7 +16,11 @@ export interface SessionManagerOptions {
 // Clone utilities now imported from ../utils/clone.ts
 
 function computeHash(items: InputItem[]): string {
-	return createHash("sha1").update(JSON.stringify(items)).digest("hex");
+	try {
+		return createHash("sha1").update(JSON.stringify(items)).digest("hex");
+	} catch {
+		return createHash("sha1").update(`fallback_${items.length}`).digest("hex");
+	}
 }
 
 function itemsEqual(a: InputItem | undefined, b: InputItem | undefined): boolean {
