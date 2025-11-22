@@ -98,7 +98,7 @@ describe("SessionManager", () => {
 
 		expect(warnCall?.[1]).toMatchObject({
 			prefixCause: "system_prompt_changed",
-			previousRole: "system",
+			previousRole: "user",
 			incomingRole: "system",
 		});
 
